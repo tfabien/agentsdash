@@ -135,11 +135,16 @@ My calls (to check while reading):
     - `SubagentStart`: sub-agent appears, working; the lead shows "waiting on sub-agents" while any child is not done and
       its last event was the Agent/Task tool call. `SubagentStop`: sub-agent done; when no child is left working the lead
       goes back to working.
-    - `Notification`: a permission request or a question asked to the user -> "needs you" on the agent that carries it
-      (else on the lead); an idle prompt -> "your turn". Use the notification type if the payload has one, else match the
-      message text.
-    - "Needs you" clears on the next `PreToolUse`, `UserPromptSubmit` or `Stop` of the same agent.
-    - `Stop`: lead in "your turn". `SessionEnd`: session done, removed after 2 min.
+    - **`PermissionRequest`** (fires immediately when a permission dialog is shown) and `Notification` with
+      `notification_type` `permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog` or `agent_needs_input` ->
+      "needs you" on the agent that carries it (else on the lead). `Notification` `idle_prompt` -> "your turn".
+      (Confirmed against real payloads in `docs/hook-payloads.md`; `Notification` alone arrives about 6 s late.)
+    - "Needs you" clears on the same agent's `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `UserPromptSubmit`
+      or `Stop`. There is no "approved" hook, so a long command run after an approval keeps the agent orange until it ends.
+    - `Stop`: lead in "your turn" **unless it still has sub-agents not done**: then it stays "waiting on sub-agents"
+      (`Stop` fires while background sub-agents run). A `UserPromptSubmit` starting with `<task-notification>` is a
+      sub-agent report, not a user prompt: lead working. The `SubagentHandback` pseudo-tool is never shown as a command.
+    - `SessionEnd`: session done, removed after 2 min.
 11. **Fixed layout is acceptable.** At most 5 tabs (+N), one lead slot and 12 sub-agent slots (2 rows of 6) at fixed
     positions. So the plan is: spike touch first, then **one** flash holding the sprites and, if needed, the touch zones.
 12. **Art.** v1 ships placeholder characters generated in the style of the mockups (colored body, one look per role,
