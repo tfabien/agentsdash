@@ -9,7 +9,8 @@ Builds on `2026-11-08-agent-gadget-ui-design.md` (layout D). Language of the pro
 The user wants three numbers always visible on the desk screen:
 
 1. **Context size of each session**, to run `/compact` before a session gets too big.
-2. **Plan quotas** (rolling 5-hour window and weekly window), to avoid hitting the limits.
+2. **Plan quotas** (rolling 5-hour window and weekly window), to avoid hitting the limits. What matters is the
+   **burn rate**: "at my current pace, do I run out before the reset?". A high percentage with a low pace is fine.
 3. **Tokens used per session and per agent** (a plus, lower priority).
 
 The screen stays read-only. It never runs `/compact` and never blocks Claude.
@@ -19,6 +20,7 @@ The screen stays read-only. It never runs `/compact` and never blocks Claude.
 Goals
 - Each session tab shows its context fill, readable from a distance (color and length).
 - The 5-hour and weekly quotas are on screen whatever session or agent is selected, with time to reset.
+- The quota color comes from the projection at the current pace, never from the percentage alone.
 - The command strip shows the tokens of the selected agent; for the lead, the session total.
 
 Non-goals
@@ -71,10 +73,25 @@ sessions get their context from transcripts (section 5.2). Quotas with no termin
 - Sends only when something changed since the last post for this session (rounded values: context %, quota %,
   reset minutes), or when the last post is older than 60 s. Last post kept in a small file in the temp folder
   (`agent-gadget-plugin/<session>.usage`). Network errors are ignored.
+- Computes the burn rate and the projection (section 5.1b) and sends them with the quotas.
 - Resets are sent **relative** (`*_reset_s` = `resets_at` minus now), so the ESP32 needs no clock.
 - Install is a manual step documented in the plugin README: `"statusLine": {"type": "command",
   "command": "python <repo>/claude-plugin/agent-gadget/scripts/statusline.py", "refreshInterval": 10}`.
   **The implementation never edits `~/.claude/settings.json`.**
+
+### 5.1b Burn rate and projection (in `statusline.py`)
+
+- Quotas are account-wide, so the history is one shared file: `<temp>/agent-gadget-plugin/quota_history.json`,
+  samples `[epoch_s, h5_pct, h5_resets_at, d7_pct, d7_resets_at]`, one sample per minute at most, kept 8 days.
+  Any terminal session appends to it. A change of `resets_at` (new window) starts a new series for that window.
+- 5-hour rate (%/h): slope between now and the oldest sample of the same window within the last 30 min (needs at least
+  10 min of span). Fallback when there is not enough history: average since the window start,
+  `pct / hours_elapsed` with `window start = resets_at - 5 h` (needs at least 10 min elapsed, else rate unknown).
+- Weekly rate (%/h): average since the window start (`resets_at - 7 days`). The weekly pace includes nights and
+  week-ends on purpose: a slope over the last hours would scream every working afternoon.
+- Projection at reset: `proj = pct + rate * hours_left`. Time to empty when `proj > 100`: `(100 - pct) / rate` hours.
+- Pace level, used for the color: `ok` when `proj < 85`, `tight` when `85 <= proj <= 100`, `over` when `proj > 100`
+  (runs out before the reset). Unknown rate: level `unknown`. `pct >= 100`: `over`.
 
 ### 5.2 Hook script changes: `scripts/notify.py`
 
@@ -101,13 +118,15 @@ sessions get their context from transcripts (section 5.2). Quotas with no termin
 ### 5.3 Wire format
 
 `POST /usage` (new), ASCII JSON, every field optional except `v`:
-`{"v":1,"session":"<id4>","ctx_pct":42,"ctx_k":84,"ctx_max_k":200,"h5_pct":48,"h5_reset_s":4800,"d7_pct":61,"d7_reset_s":187000}`.
+`{"v":1,"session":"<id4>","ctx_pct":42,"ctx_k":84,"ctx_max_k":200,"h5_pct":48,"h5_reset_s":4800,"h5_rate10":180,"h5_proj":72,"h5_empty_s":-1,"d7_pct":61,"d7_reset_s":187000,"d7_rate10":4,"d7_proj":82,"d7_empty_s":-1}`.
+`*_rate10` = rate in tenths of a percent per hour (180 = 18.0 %/h), `*_proj` = projected % at reset (rounded, may exceed 100),
+`*_empty_s` = seconds until 100 % at this pace (-1 when the projection stays under 100). Absent when unknown.
 `session` uses the same 4-character id as the events (same sanitizing as `notify.py`). Reply `ok`, 400 if `v` is missing.
 
 Events v2 (existing `/event`): optional `tok`, `stok`, `ctx_pct`, `ctx_k` as above. Old firmware ignores unknown keys
 (the parser looks keys up by name), so the plugin stays compatible.
 
-`GET /state` gains `"usage":{"h5_pct","h5_reset_s","d7_pct","d7_reset_s","age_s"}` (absent when never received) and,
+`GET /state` gains `"usage":{"h5_pct","h5_reset_s","h5_rate10","h5_proj","h5_empty_s","d7_pct","d7_reset_s","d7_rate10","d7_proj","d7_empty_s","age_s"}` (absent when never received) and,
 per session, `"ctx_pct","ctx_k","ctx_src":"statusline|transcript","tok"` and, per agent, `"tok"`.
 
 ### 5.4 Model (ESP32 core)
@@ -116,7 +135,8 @@ per session, `"ctx_pct","ctx_k","ctx_src":"statusline|transcript","tok"` and, pe
   `Agent` gains `tok` (uint32).
 - Context priority: a status line value newer than 120 s wins; otherwise the transcript value from events.
 - `/usage` for a session the gadget does not know: quotas are kept, the context is dropped (no session is created).
-- Quotas are one global record (account-wide): percentages, reset seconds, `receivedAt`. Displayed reset =
+- Quotas are one global record (account-wide): percentages, reset seconds, rates, projections, empty times, `receivedAt`.
+  The ESP32 does not compute rates: it shows what the status line sent (rates survive a gadget reboot that way). Displayed reset =
   `reset_s - (now - receivedAt)/1000`, floored at 0. When the 5-hour reset reaches 0, show `0%` greyed until new data.
 - Changing any of these bumps the matching `rev` so the screen redraws only that region.
 
@@ -135,8 +155,11 @@ Command strip (y 190..272), lines unchanged except:
 - Line 3 shows `detail` only when it adds something (not empty and not already contained in `cmd`); otherwise it shows
   the previous command (`before: ...`), which used to be on line 4.
 - Line 4 (y+62) becomes the **quota line**, always drawn, same for every selection:
-  `5h [######----] 48% 1h20   7d [######----] 61% 2d04h`. Bars about 60 px. Colors: green under 70 %,
-  orange 70 to 89 %, red from 90 %. No data yet: `quotas: no status line data` in grey. Data older than 15 min: grey.
+  `5h [######--|-] 48% +18/h 1h20   7d [######-|--] 61% 2d04h`. Bars about 60 px; the filled part is the current %,
+  a 1 px tick marks the projection at reset (clamped to the bar end). The color of the bar and text comes from the
+  pace level (5.1b): green `ok`, orange `tight`, red `over`, grey `unknown`. When `over`, the reset time is replaced by
+  the time to empty: `empty 1h05`. The 5-hour rate shows as `+18/h` (whole %/h); the weekly rate is not printed.
+  No data yet: `quotas: no status line data` in grey. Data older than 15 min: everything grey.
   Reset times refresh with the existing 2 s age refresh, not on every loop.
 - The empty screen (no session) also shows the quota line at the bottom when data exists.
 
@@ -166,7 +189,9 @@ Command strip (y 190..272), lines unchanged except:
 
 ## 8. Calls made by the designer (user can override)
 
-- Fill thresholds 50 / 80 % for context; 70 / 90 % for quotas.
+- Fill thresholds 50 / 80 % for context. Quota color by projection at reset: under 85 % green, 85 to 100 % orange,
+  over 100 % red (user rule: color from the pace, not the percentage; thresholds are the designer's call).
+- Pace windows: 5-hour slope over the last 30 min, weekly average since the window start.
 - Tokens exclude cache reads.
 - The quota line takes the old "previous command" line; the previous command moves to line 3 when `detail` is redundant.
 - Status line install stays manual (README).

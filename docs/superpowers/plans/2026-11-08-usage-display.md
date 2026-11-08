@@ -21,7 +21,8 @@
 - Screen text ASCII only; f16 is 8 px wide, f24 12 px. Code comments, docs, on-screen text in English.
 - Draw queue priorities unchanged (title > strip > tree). A context or token change never triggers a full redraw.
 - Session id on the wire = first 4 alphanumeric characters of `session_id` (same as `notify.py`).
-- Thresholds: context fill dim green < 50 %, dim orange 50..79 %, dim red >= 80 %. Quotas green < 70 %, orange 70..89 %, red >= 90 %.
+- Thresholds: context fill dim green < 50 %, dim orange 50..79 %, dim red >= 80 %. Quota color = pace level from the projection at reset
+  (spec 5.1b): `ok` < 85 % green, `tight` 85..100 % orange, `over` > 100 % red, `unknown` grey. **Never color quotas by the raw %.**
 - Status line context wins if newer than 120 s. Quota data older than 15 min is drawn grey.
 - Token count = `input_tokens + cache_creation_input_tokens + output_tokens` per unique `message.id` (cache reads excluded).
 - Context = `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` of the last assistant message.
@@ -33,6 +34,7 @@
 - `/usage` for a session the gadget does not know: quotas stored, no session created. Device test in Task 4.
 - 100 % context or more (values above 100 from a bad window guess): fill clamps to the tab width. Test in Task 5 (`/debug/layout`).
 - A `resets_at` already in the past: `*_reset_s` sent as 0, shown `0m`. Test in Task 3.
+- A new quota window (`resets_at` jumps, % drops to a few %): the old window's samples must not produce a negative or huge rate. Test in Task 3.
 
 ---
 
@@ -115,6 +117,10 @@
   - `fmt_duration(seconds: int) -> str`: `< 3600` -> `"45m"`, `< 86400` -> `"1h20"`, else `"2d04h"`; negatives -> `"0m"`.
   - `should_send(body: dict, last: dict | None, now: float) -> bool`: true if compare-key differs (ctx_pct, h5_pct, d7_pct, reset minutes rounded to 1 min) or `now - last["at"] >= 60`.
   - Cache file `<tempdir>/agent-gadget-plugin/<session4>.usage`.
+  - `pace(samples: list, window: str, pct: float, resets_at: float, now: float) -> dict | None` with `window` `"h5"` or `"d7"`:
+    returns `{"rate10": int, "proj": int, "empty_s": int, "level": "ok|tight|over"}` or `None` (unknown), rules of spec 5.1b.
+  - `update_history(path: str, now: float, h5: tuple | None, d7: tuple | None) -> list` (append at most one sample per 60 s, drop samples older than 8 days, return the samples; errors -> `[]`).
+    History file `<tempdir>/agent-gadget-plugin/quota_history.json`.
 
 - [ ] **Step 1: Write the failing tests**
   - `test_full_body`: input with `context_window {used_percentage 42.4, context_window_size 200000, total_input_tokens 84800}` and `rate_limits five_hour {used_percentage 48.2, resets_at now+4800}`, `seven_day {61.0, now+187000}` -> `{"v":1,"session":"abcd","ctx_pct":42,"ctx_k":85,"ctx_max_k":200,"h5_pct":48,"h5_reset_s":4800,"d7_pct":61,"d7_reset_s":187000}`.
@@ -123,6 +129,15 @@
   - `test_status_text` for full and empty bodies (empty -> `""`).
   - `test_fmt_duration`: 2700 -> `45m`, 4800 -> `1h20`, 187000 -> `2d03h`, -5 -> `0m`.
   - `test_should_send`: same values 10 s later -> False; 61 s later -> True; ctx 42 -> 43 -> True.
+  - `test_pace_h5_slope`: samples 30 min ago 39 % and now 48 % (same `resets_at`, 2 h left) -> `rate10 == 180`, `proj == 84`, level `ok`, `empty_s == -1`.
+  - `test_pace_h5_over`: 30 min ago 40 %, now 70 %, 2 h left -> rate 60 %/h, `proj == 190`, level `over`, `empty_s == 1800`.
+  - `test_pace_high_pct_low_rate_is_ok`: 30 min ago 79 %, now 80 %, 1 h left -> `proj == 82`, level `ok` (the user's rule).
+  - `test_pace_h5_fallback_average`: no history, `pct 20`, window started 2 h ago (`resets_at = now + 3 h`) -> `rate10 == 100`, `proj == 50`.
+  - `test_pace_unknown_when_too_early`: window started 5 min ago and no history -> `None`.
+  - `test_pace_new_window_ignores_old_samples`: samples with an older `resets_at` at 95 % -> not used (fallback average instead).
+  - `test_pace_d7_average`: `pct 61`, `resets_at = now + 2 days` (5 days elapsed) -> `rate10 == 5` (0.508 %/h rounded to tenths), `proj == 85`, level `tight`.
+  - `test_history_one_sample_per_minute_and_8_days`.
+  - `test_body_has_pace_fields`: full input with history -> `h5_rate10`, `h5_proj`, `h5_empty_s`, `d7_*` present; unknown pace -> those keys absent.
   - `test_script_prints_line_and_never_fails`: subprocess with `CLAUDE_GADGET_DRY_RUN=1` -> stdout one line, exit 0; with garbage stdin -> exit 0, empty stdout.
 - [ ] **Step 2: Run, expect FAIL** — `python -m unittest discover -s claude-plugin/agent-gadget/tests -p test_statusline.py`.
 - [ ] **Step 3: Implement `statusline.py`**: read stdin, build body, print text, then send if `should_send` (dry run: write the body to stderr instead). All in `try/except`, exit 0.
@@ -140,8 +155,10 @@
   - `Session`: `uint8_t ctxPct` (255 = unknown), `uint16_t ctxK`, `bool ctxFromStatusLine`, `uint32_t ctxAt`, `uint32_t stok`, `uint32_t usageRev`.
   - `Agent`: `uint32_t tok`.
   - `EventV2`: `long tok, stok, ctxPct, ctxK` (-1 = absent).
-  - `struct UsageV1 { char session[ID_LEN]; long ctxPct, ctxK, ctxMaxK, h5Pct, h5ResetS, d7Pct, d7ResetS; };` (-1 = absent)
-  - `struct Quotas { bool known; uint8_t h5Pct, d7Pct; uint32_t h5ResetS, d7ResetS, receivedAt; uint32_t rev; };`
+  - `struct UsageV1 { char session[ID_LEN]; long ctxPct, ctxK, ctxMaxK, h5Pct, h5ResetS, h5Rate10, h5Proj, h5EmptyS, d7Pct, d7ResetS, d7Rate10, d7Proj, d7EmptyS; };` (absent = `LONG_MIN`, because `empty_s` can be -1)
+  - `struct QuotaWindow { bool known; uint8_t pct; uint32_t resetS; int16_t rate10; int16_t proj; int32_t emptyS; };` (`proj` -1 = pace unknown, `emptyS` -1 = none)
+  - `struct Quotas { QuotaWindow h5, d7; uint32_t receivedAt; uint32_t rev; };`
+  - `enum PaceLevel : uint8_t { PACE_UNKNOWN, PACE_OK, PACE_TIGHT, PACE_OVER };` and `PaceLevel modelPaceLevel(const QuotaWindow& w);` (from `proj`: < 85 ok, 85..100 tight, > 100 over; `pct >= 100` over; `proj` -1 unknown)
   - `extern Quotas modelQuotas;`
   - `void modelApplyUsage(const UsageV1& u, uint32_t now);`
   - `uint32_t modelQuotaResetLeft(uint32_t resetS, uint32_t now);` (floored at 0)
@@ -158,6 +175,7 @@
   - `test_event_context_when_no_statusline` (event ctx_pct 70 -> 70, `transcript`),
   - `test_tokens_per_agent_and_session` (lead event tok 6513 stok 9000, sub event tok 2487 -> agent toks and session `tok` 9000),
   - `test_reset_counts_down` (h5_reset_s 100, wait 2 s -> state value <= 98).
+  - `test_pace_fields_roundtrip` (h5_rate10 180, h5_proj 84, h5_empty_s -1 -> same values in `/state`; absent pace -> keys absent or null).
 - [ ] **Step 2: Implement** model and net changes.
 - [ ] **Step 3: Build every env, expect SUCCESS** — from `agent-gadget/esp32_agent_gadget`: `pio run -e esp32dev -e esp32dev_test -e esp32dev_test_screen -e esp32dev_noscreen`.
 - [ ] **Step 4: Check the test file loads** — `python -m unittest discover -s agent-gadget/tests -p test_usage.py` must import cleanly and SKIP (no gadget reachable on the default host is expected; if it is reachable, stop: do not run device tests unattended, set `GADGET_HOST=127.0.0.1` for this check).
@@ -185,7 +203,8 @@
     Mode 3 is from the TJC docs and **not tested on this screen**: add it to the morning checklist; if it fails there, the fallback is
     `hmiText` with `bg` = fill color for text boxes that start inside the fill. Title signature mixes `fillWidth/2` and the band per tab.
   - `drawStrip`: command line 2 width shrinks by `L_TOK_W`; tokens grey in `layoutStripTokens` (lead: `stok`; sub-agent: `tok`; zero -> blank); line 3 rule from spec 5.5 (detail if non-empty and not a substring of `cmd`, else `before: ...`).
-  - New `drawQuotaLine(now)` in region `HMI_STRIP`: spec 5.5 text and bars, colors by threshold, grey if `now - receivedAt > 15 min` or `!known` (`quotas: no status line data`). Called from `drawStrip`, and from the 2 s age refresh. Strip signature mixes `modelQuotas.rev`, the agent's `tok`, and `stok`.
+  - New `drawQuotaLine(now)` in region `HMI_STRIP`: spec 5.5 text and bars with the projection tick, color from `modelPaceLevel` (never from `pct`),
+    `empty 1h05` in place of the reset time when `over` (counted down from `emptyS` and `receivedAt`), grey if `now - receivedAt > 15 min` or no data (`quotas: no status line data`). Called from `drawStrip`, and from the 2 s age refresh. Strip signature mixes `modelQuotas.rev`, the agent's `tok`, and `stok`.
   - `drawEmpty`: quota line at the bottom when `modelQuotas.known`.
   - `display_serial.cpp`: one extra line per render `[display] ctx <sid>=<pct>% ... | 5h 48% 1h20 | 7d 61% 2d03h`, plus `tok` per row.
 - [ ] **Step 4: Build every env, expect SUCCESS** (command from Task 4 Step 3).
