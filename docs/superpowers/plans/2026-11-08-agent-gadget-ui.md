@@ -162,3 +162,13 @@
 - [ ] **Step 3:** Docs: wire formats and endpoints in `ARCHITECTURE.md`; state/touch/baud findings and the flashing procedure in `CLAUDE.md`; release the OTA build (`pio run -e esp32dev_ota -t upload`, without `GADGET_DEBUG`).
 - [ ] **Step 4:** Acceptance with the user (spec success criterion): in the scenario and in real sessions, the user finds the session that needs them at a glance, sees a lead's sub-agents and states, reads any agent's command with one tap, without visible flicker. Record deviations.
 - [ ] **Step 5:** Commit (if git).
+
+### Task 11: Flash the screen .tft from the gadget's web page (added 2026-11-08 at the user's request)
+
+**Files:** Create `tft_upload.h/.cpp` (screen side, owns the UART during the upload); modify `net.cpp` (page and upload handler), `hmi_uart.*` (baud change, pause of the draw queue), `agent-gadget/tests/test_tft_upload.py`, `CLAUDE.md`.
+
+**Interfaces:** `GET /tft` (form, same `admin` / `OTA_PASSWORD` auth as `/update`) and `POST /tft?size=<bytes>` (multipart file). Protocol from the TJC wiki (`advanced/hmi_download_protocol.html`): `00 FF FF FF`, `connect` -> `comok`; `whmi-wri <size>,115200,0` + `FF FF FF`; switch the ESP32 UART to 115200; wait for one byte `0x05` (about 250 ms); then send the file in 4096-byte packets, waiting for `0x05` after each (last packet = the remainder). After the last ack the screen reboots on the new .tft at the project baud (9600): reset the UART to 9600 and redraw everything. `GET /debug/tft` (GADGET_DEBUG) reports `{state, sent, total, last_error}`.
+
+- [ ] **Step 1:** Tests (`test_tft_upload.py`, real gadget + screen): `/tft` without auth -> 401; `size` missing or 0 -> 400 and the screen keeps working; uploading `agent-gadget.tft` returns 200 within 90 s, then `/state` answers and a `pic` of id 0 is drawn (screen check by the user once). Run: FAIL.
+- [ ] **Step 2:** Implement: the upload handler buffers to 4096 bytes and forwards each packet, blocking on `0x05` with a 2 s timeout (abort -> 500 with the reason, screen left in download mode: a new upload recovers it). Draws are suspended during the upload; HTTP events posted meanwhile still update the model. Run: PASS.
+- [ ] **Step 3:** `CLAUDE.md`: the browser path replaces the editor 下载 + `hmi_bridge` procedure (the editor only exports the .tft). Commit.
