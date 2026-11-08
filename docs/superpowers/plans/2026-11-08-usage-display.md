@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Show each session's context fill in its tab, the 5-hour and weekly quotas on a permanent strip line, and tokens per agent / per session.
+**Goal:** Show each session's context fill in its tab, the 5-hour and weekly quotas on a permanent strip line, tokens per agent / per session, and wider tabs that show the session title.
 
 **Architecture:** Plugin side: a new status line script posts context and quotas to `POST /usage`; `notify.py` adds token counts and a context fallback read incrementally from transcripts. ESP32 side: the model stores per-session context, per-agent tokens and one global quota record; the screen draws the tab fill, a token zone and a quota line.
 
@@ -47,7 +47,8 @@
 **Interfaces:**
 - Produces:
   - `scan(path: str, entry: dict | None, max_read: int = 4 * 1024 * 1024) -> dict` returns the updated entry
-    `{"offset": int, "size": int, "tokens": int, "last_ctx": int, "model": str, "seen": [message ids], "partial": bool}`.
+    `{"offset": int, "size": int, "tokens": int, "last_ctx": int, "model": str, "title": str, "seen": [message ids], "partial": bool}`.
+    `title` = last `customTitle` of a `"type":"custom-title"` line or `aiTitle` of a `"type":"ai-title"` line (spec 5.2b); kept from the entry when the new chunk has none.
     `seen` keeps only the last 50 ids (duplicates are always adjacent lines). Missing file: returns `entry` unchanged (or a zero entry).
   - `load_cache(state_dir: str, session4: str) -> dict` / `save_cache(state_dir: str, session4: str, cache: dict) -> None`;
     file `<state_dir>/<session4>.tok.json`, `{transcript_path: entry}`. Errors return `{}` / are ignored.
@@ -60,6 +61,7 @@
   - `test_shrunk_file_restarts`: entry offset bigger than the file -> rescanned from 0.
   - `test_big_file_reads_tail`: file larger than `max_read` (use `max_read=200`) -> `partial is True`, `last_ctx` from the last message.
   - `test_ignores_non_assistant_and_bad_json`: user lines, garbage lines -> no error, zero tokens.
+  - `test_title_last_wins`: lines `custom-title "A"`, then `ai-title "B"`, then `custom-title "C"` -> `title == "C"`; a later scan with no title line keeps `"C"`.
   - `test_context_window`: `(150000,"claude-opus-5-5") -> 200000`, `(250000,"x") -> 1000000`, `(1000,"claude-x[1m]") -> 1000000`.
   - `test_cache_roundtrip_and_corrupt_file`: save then load equal; a corrupt file loads `{}`.
 
@@ -80,7 +82,7 @@
 
 **Interfaces:**
 - Consumes: Task 1 `scan`, `load_cache`, `save_cache`, `context_window`.
-- Produces: `add_usage(ev: dict, payload: dict, state_dir: str) -> dict` (adds `tok`; lead also `stok`, `ctx_k`, `ctx_pct`; never raises, returns `ev` unchanged on any error).
+- Produces: `add_usage(ev: dict, payload: dict, state_dir: str, mask: bool = False) -> dict` (adds `tok`; lead also `stok`, `ctx_k`, `ctx_pct`, and `title` via `ascii_clean(title, 30)` unless `mask`; never raises, returns `ev` unchanged on any error).
   `subagent_transcript(payload: dict) -> str | None`.
   Wire: optional integer fields `tok`, `stok`, `ctx_k` (thousands, rounded), `ctx_pct` (0..100+, rounded) on v2 events.
 
@@ -96,7 +98,8 @@
   - `test_session_total_includes_subagents`: after one sub-agent event and one lead event -> lead `stok == lead tokens + sub tokens`.
   - `test_missing_transcript_sends_event_without_usage`: no file -> event unchanged, no `tok` key.
   - `test_subagentstop_prefers_agent_transcript_path`.
-  - `test_mask_keeps_numbers`: `CLAUDE_GADGET_MASK=1` -> `tok` still present.
+  - `test_mask_keeps_numbers`: `CLAUDE_GADGET_MASK=1` -> `tok` still present, `title` absent.
+  - `test_lead_event_has_ascii_title`: transcript line `custom-title "Packs d'icônes pour agents"` -> `title == "Packs d'icones pour agents"`; a 40-char title is cut to 30.
 - [ ] **Step 3: Run, expect FAIL** — `python -m unittest discover -s claude-plugin/agent-gadget/tests -p test_notify.py`.
 - [ ] **Step 4: Implement** `add_usage` and `subagent_transcript`; call `add_usage` in `main()` after `build_event` (v2 only, not for `to_v1`). Wrap in `try/except Exception`.
 - [ ] **Step 5: Run whole plugin suite, expect PASS**; time one run of the script on the biggest local transcript with `CLAUDE_GADGET_DRY_RUN=1`: must finish under 0.5 s on a second run (cache warm). Write the timing in the commit message.
@@ -154,7 +157,8 @@
 - Produces (model.h):
   - `Session`: `uint8_t ctxPct` (255 = unknown), `uint16_t ctxK`, `bool ctxFromStatusLine`, `uint32_t ctxAt`, `uint32_t stok`, `uint32_t usageRev`.
   - `Agent`: `uint32_t tok`.
-  - `EventV2`: `long tok, stok, ctxPct, ctxK` (-1 = absent).
+  - `EventV2`: `long tok, stok, ctxPct, ctxK` (-1 = absent), `char title[31]` (empty = absent).
+  - `Session`: `char title[31]` (an event without `title` keeps the stored one). `#define TITLE_LEN 31`.
   - `struct UsageV1 { char session[ID_LEN]; long ctxPct, ctxK, ctxMaxK, h5Pct, h5ResetS, h5Rate10, h5Proj, h5EmptyS, d7Pct, d7ResetS, d7Rate10, d7Proj, d7EmptyS; };` (absent = `LONG_MIN`, because `empty_s` can be -1)
   - `struct QuotaWindow { bool known; uint8_t pct; uint32_t resetS; int16_t rate10; int16_t proj; int32_t emptyS; };` (`proj` -1 = pace unknown, `emptyS` -1 = none)
   - `struct Quotas { QuotaWindow h5, d7; uint32_t receivedAt; uint32_t rev; };`
@@ -174,6 +178,7 @@
   - `test_statusline_context_wins_over_event` (usage ctx 42 then event ctx_pct 70 -> state shows 42, `ctx_src` `statusline`),
   - `test_event_context_when_no_statusline` (event ctx_pct 70 -> 70, `transcript`),
   - `test_tokens_per_agent_and_session` (lead event tok 6513 stok 9000, sub event tok 2487 -> agent toks and session `tok` 9000),
+  - `test_title_kept_and_shown_in_state` (lead event title "Fix login" -> session `title`; next event without title keeps it).
   - `test_reset_counts_down` (h5_reset_s 100, wait 2 s -> state value <= 98).
   - `test_pace_fields_roundtrip` (h5_rate10 180, h5_proj 84, h5_empty_s -1 -> same values in `/state`; absent pace -> keys absent or null).
 - [ ] **Step 2: Implement** model and net changes.
@@ -189,15 +194,19 @@
 
 **Interfaces:**
 - Consumes: Task 4 `modelSessionCtx`, `modelQuotas`, `modelQuotaResetLeft`, `modelFormatTokens`, `Agent.tok`, `Session.stok`.
+- Changes (layout): tabs share the width (spec 5.5): `layoutTab(index, count)` -> x `4 + index*(w+4)`, w `(434 - 4*(k-1)) / k`, `k = min(count, L_TAB_MAX)`, `L_TAB_MAX` stays 5;
+  `layoutTabsMore(count)` -> fixed `{440, 0, 40, 20}` (holds `+N` and `N!`). Remove `L_TAB_X0`/`L_TAB_W`/`L_TAB_PITCH`/`L_MORE_W` users or redefine them; add `L_TABS_W 434`, `L_TAB_GAP 4`, `L_RIGHT_X 440`.
 - Produces (layout.h): `Rect layoutTabFill(int index, int count, int pct);` (width `L_TAB_W * min(pct,100) / 100`, pct 255 -> width 0),
   `Rect layoutStripTokens();` (right 64 px of command line 2: x 412, y `L_STRIP_Y + 28`, w 64, h 17),
   `Rect layoutQuotaLine();` (x 0, y `L_STRIP_Y + 62`, w 480, h 18).
 - `ui_theme.h`: `C_FILL_OK`, `C_FILL_WARN`, `C_FILL_HOT` (dim RGB565, start values `0x0280`, `0x5180`, `0x6000`; to be tuned on the real screen), `L_TOK_W 64`, `L_QUOTA_BAR_W 60`.
 - `/debug/layout?...&ctx=P` adds `"tab_fill": rect` for tab 0 at `P` percent and `"strip_tokens"`, `"quota_line"` rects.
 
-- [ ] **Step 1: Extend `test_layout.py`**: `test_tab_fill_widths` (ctx 0 -> w 0, 50 -> 37, 100 -> 74, 150 -> 74, 255 -> 0); `test_strip_token_zone_right_of_command` (`strip_tokens.x + w <= 480`, `x >= 4 + 8*40`); `test_quota_line_inside_strip` (`y >= strip.y`, `y + h <= 272`).
+- [ ] **Step 1: Extend `test_layout.py`** and fix the tests that assumed 74/78 px tabs (`test_layout.py` `test_tabs_capped_at_five_with_more_marker`, `test_touch.py` line with `2 * 78 + 30`: use a point right of the last tab in a 1-tab layout, e.g. x 445 is now the `+N` zone, so pick a tree point instead):
+  `test_tab_widths_shared` (tabs=1 -> w 434; 2 -> 215; 3 -> 142; 5 -> 83; tabs never overlap and end at x <= 438); `test_right_zone_fixed` (`tabs_more == {x 440, y 0, w 40, h 20}`); `test_tab_fill_widths` (ctx 0 -> w 0, 50 -> 37, 100 -> 74, 150 -> 74, 255 -> 0); `test_strip_token_zone_right_of_command` (`strip_tokens.x + w <= 480`, `x >= 4 + 8*40`); `test_quota_line_inside_strip` (`y >= strip.y`, `y + h <= 272`).
 - [ ] **Step 2: Implement layout functions and the debug field.**
 - [ ] **Step 3: Implement drawing** in `display_hmi.cpp`:
+  - `drawTitle`: tab text = `s->title[0] ? s->title : s->project` cut to the tab width left after the dot and the count; right zone shows `+N` (white) then `N!` (orange) when there are needs-you agents; title signature mixes the title and tab count.
   - `drawTitle`: after the tab background, fill `layoutTabFill` with the band color, then draw the dot, name and count over it with a new
     `hmiTextClear(x, y, w, h, font, fg, xcen, s)` in `hmi_uart.h/.cpp` (same as `hmiText` with `xstr` background mode `sta=3`, no background).
     Mode 3 is from the TJC docs and **not tested on this screen**: add it to the morning checklist; if it fails there, the fallback is

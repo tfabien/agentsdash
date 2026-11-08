@@ -12,6 +12,8 @@ The user wants three numbers always visible on the desk screen:
 2. **Plan quotas** (rolling 5-hour window and weekly window), to avoid hitting the limits. What matters is the
    **burn rate**: "at my current pace, do I run out before the reset?". A high percentage with a low pace is fine.
 3. **Tokens used per session and per agent** (a plus, lower priority).
+4. **Readable tabs that show the session title** (added 2026-11-08): wider tabs, and the session's title (the name shown
+   in the Claude app sidebar) in place of the project folder name.
 
 The screen stays read-only. It never runs `/compact` and never blocks Claude.
 
@@ -115,6 +117,17 @@ sessions get their context from transcripts (section 5.2). Quotas with no termin
   one dump** (`CLAUDE_GADGET_DUMP`) of a session with a sub-agent, and record the result in `docs/hook-payloads.md`.
 - `CLAUDE_GADGET_MASK` does not hide numbers.
 
+### 5.2b Session title
+
+- Transcripts carry the title as JSONL lines: `{"type":"custom-title","customTitle":"..."}` (title set or generated in the
+  desktop app, rewritten many times) and `{"type":"ai-title","aiTitle":"..."}` (terminal sessions). Checked on 4 local
+  transcripts 2026-11-08. The **last** such line in the file is the current title; `custom-title` and `ai-title` count the same.
+- `transcript_usage.scan` also keeps `title` (last seen). The 4 MB tail rule applies; a title older than the tail is
+  kept from the cache.
+- Lead events gain `title`: ASCII-cleaned like other text (accents stripped: "Packs d'icones pour agents"), at most 30 chars.
+  No title yet: field absent, the screen shows the project name.
+- `CLAUDE_GADGET_MASK=1` hides the title (it can reveal the subject of the work), like prompts.
+
 ### 5.3 Wire format
 
 `POST /usage` (new), ASCII JSON, every field optional except `v`:
@@ -123,16 +136,16 @@ sessions get their context from transcripts (section 5.2). Quotas with no termin
 `*_empty_s` = seconds until 100 % at this pace (-1 when the projection stays under 100). Absent when unknown.
 `session` uses the same 4-character id as the events (same sanitizing as `notify.py`). Reply `ok`, 400 if `v` is missing.
 
-Events v2 (existing `/event`): optional `tok`, `stok`, `ctx_pct`, `ctx_k` as above. Old firmware ignores unknown keys
+Events v2 (existing `/event`): optional `tok`, `stok`, `ctx_pct`, `ctx_k`, `title` as above. Old firmware ignores unknown keys
 (the parser looks keys up by name), so the plugin stays compatible.
 
 `GET /state` gains `"usage":{"h5_pct","h5_reset_s","h5_rate10","h5_proj","h5_empty_s","d7_pct","d7_reset_s","d7_rate10","d7_proj","d7_empty_s","age_s"}` (absent when never received) and,
-per session, `"ctx_pct","ctx_k","ctx_src":"statusline|transcript","tok"` and, per agent, `"tok"`.
+per session, `"title","ctx_pct","ctx_k","ctx_src":"statusline|transcript","tok"` and, per agent, `"tok"`.
 
 ### 5.4 Model (ESP32 core)
 
 - `Session` gains `ctxPct` (uint8, 255 = unknown), `ctxK` (uint16), `ctxFromStatusLine` + `ctxAt` (millis), `stok` (uint32).
-  `Agent` gains `tok` (uint32).
+  `Agent` gains `tok` (uint32). `Session` gains `title[31]` (empty = unknown; a later event without `title` keeps it).
 - Context priority: a status line value newer than 120 s wins; otherwise the transcript value from events.
 - `/usage` for a session the gadget does not know: quotas are kept, the context is dropped (no session is created).
 - Quotas are one global record (account-wide): percentages, reset seconds, rates, projections, empty times, `receivedAt`.
@@ -142,7 +155,13 @@ per session, `"ctx_pct","ctx_k","ctx_src":"statusline|transcript","tok"` and, pe
 
 ### 5.5 Screen
 
-Tabs (title bar, 74 x 20 px each):
+Tabs (title bar, 20 px high), **width shared by the visible tabs** (was a fixed 74 px):
+- Tabs area x 4..438; the right 40 px (x 440..479) hold `+N` (hidden sessions) and the "needs you" count as `N!`
+  in orange (replaces the long "N asks you" text). Up to 5 tabs, 4 px apart: width `(434 - 4*(k-1)) / k` for k visible
+  tabs, so 434 px for one session, 215 for two, 142 for three, 106 for four, 83 for five (never narrower than before).
+  Tabs move when sessions appear or leave; touch zones follow because `hitTest` uses the same geometry.
+- Tab text = session `title`, fallback `project`, cut to the space left after the state dot and the agent count.
+- Lead slot and command strip keep the project name (`project (lead)`): the tab gives the subject, the strip the folder.
 - The tab background fills from the left over `w * ctx_pct / 100` px. The fill uses a **dim** color so white text
   stays readable: dim green under 50 %, dim orange 50 to 79 %, dim red from 80 % (exact RGB565 values: builder,
   checked on the real screen for contrast). Unfilled part keeps `C_TAB` / `C_TAB_SEL`.
@@ -196,6 +215,7 @@ Command strip (y 190..272), lines unchanged except:
 - The quota line takes the old "previous command" line; the previous command moves to line 3 when `detail` is redundant.
 - Status line install stays manual (README).
 - Context window guessed 200k unless over 200k or `[1m]` in the model id (fallback path only).
+- Tabs share the width (5 max, right 40 px for `+N` and `N!`); title cut at 30 chars on the wire; masked by `CLAUDE_GADGET_MASK`.
 
 ## 9. Left to the builder
 
