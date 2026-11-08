@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sprite themes mockup (approved 2026-11-08)</title>
+<style>body{background:#222;color:#ddd;font:13px sans-serif;margin:16px}.hdr{display:grid;grid-template-columns:repeat(8,80px);text-align:center;font-size:11px;color:#aaa}canvas{display:block;border-radius:8px;background:#000}</style>
+</head>
+<body>
+<!-- Reference drawing of the approved looks. Coordinates are in the 36x42 sprite space; the 24x28 sprite is the
+     same drawing scaled by 2/3. Top row: 36x42 shown at x2. Bottom row: real 36x42 and 24x28. -->
+<div class="hdr" id="hdr"></div>
+<div id="rows"></div>
+<script>
+const ROLES=[["lead","coordinator"],["plan","planner"],["review","reviewer"],["test","tester"],["senior","senior dev"],["junior","junior dev"],["explore","explorer"],["generic","generic"]];
+const COL={lead:[200,160,40],plan:[150,90,210],review:[220,100,170],test:[170,110,60],senior:[60,140,230],junior:[90,200,235],explore:[30,170,160],generic:[140,140,150]};
+const SKIN=[240,200,160],SKD=[215,165,130],EYE=[25,25,35],WHITE=[238,238,238],GOLD=[255,215,60],HAIR=[105,68,40],STEEL=[165,175,190],BROWN=[140,90,45],PAPER=[240,228,195],GREY=[180,180,185],PINK=[240,140,160],DARK=[55,58,72],SUIT=[45,50,70],LENS=[170,220,245],CEYE=[195,220,80],MUZ=[250,236,222],BLUE=[80,160,255];
+const dk=c=>c.map(v=>v*2/3|0);const rgb=c=>`rgb(${c})`;
+let X;
+const E=(x,y,rx,ry,c)=>{X.beginPath();X.ellipse(x,y,rx,ry,0,0,Math.PI*2);X.fillStyle=rgb(c);X.fill()};
+const Rc=(x,y,w,h,c)=>{X.fillStyle=rgb(c);X.fillRect(x,y,w,h)};
+const Po=(p,c)=>{X.beginPath();X.moveTo(...p[0]);p.slice(1).forEach(q=>X.lineTo(...q));X.closePath();X.fillStyle=rgb(c);X.fill()};
+const Ln=(a,b,c2,d,c,w)=>{X.beginPath();X.moveTo(a,b);X.lineTo(c2,d);X.strokeStyle=rgb(c);X.lineWidth=w||1;X.lineCap="round";X.stroke()};
+const body=c=>Po([[1,42],[2,35],[6,31],[13,29],[23,29],[30,31],[34,35],[35,42]],c);
+function human(c,hair){body(c);Rc(14.5,23,7,7,SKIN);Rc(14.5,26,7,2,SKD);E(9.5,18,1.8,2.6,SKIN);E(26.5,18,1.8,2.6,SKIN);E(18,17.5,8.5,9.5,SKIN);X.beginPath();X.ellipse(18,14.5,9.3,8.5,0,Math.PI,0);X.lineTo(27,18);X.lineTo(25,12.5);X.lineTo(11,12.5);X.lineTo(9,18);X.closePath();X.fillStyle=rgb(hair);X.fill();Rc(13.5,17,2,2.5,EYE);Rc(20.5,17,2,2.5,EYE);Rc(13,15,3,1,hair);Rc(20,15,3,1,hair);Rc(17.5,19.5,1,1.5,SKD);Ln(16.5,22.5,19.5,22.5,[180,100,90],1)}
+function cat(c,fur,small){body(c);Rc(14,22,8,8,fur);X.save();if(small){X.translate(18,27);X.scale(.84,.84);X.translate(-18,-24)}const d=dk(fur);Po([[8,13],[9.5,3],[16,9]],fur);Po([[28,13],[26.5,3],[20,9]],fur);Po([[9.8,11],[10.3,6],[14,9.5]],PINK);Po([[26.2,11],[25.7,6],[22,9.5]],PINK);E(18,17,10,8.5,fur);E(18,20,11,6,fur);Ln(18,9.5,18,12.5,d,1.2);Ln(15,10,15.6,12.5,d,1.2);Ln(21,10,20.4,12.5,d,1.2);const r=small?1.3:1;E(13.5,16.5,2.6*r,2*r,CEYE);E(22.5,16.5,2.6*r,2*r,CEYE);Rc(13,16.5-1.6*r,1,3.2*r,EYE);Rc(22,16.5-1.6*r,1,3.2*r,EYE);E(18,21,4,2.8,MUZ);Po([[16.8,19.3],[19.2,19.3],[18,20.6]],PINK);Ln(18,20.6,18,22,[150,80,80],.8);if(!small){Ln(13,21,5,20,WHITE,.7);Ln(13,22,5,23.5,WHITE,.7);Ln(23,21,31,20,WHITE,.7);Ln(23,22,31,23.5,WHITE,.7)}X.restore()}
+const strings=()=>{X.beginPath();X.ellipse(18,29.5,8.5,3,0,0,Math.PI*2);X.lineWidth=2.2;X.stroke();Ln(15.5,31,15,37,WHITE,1);Ln(20.5,31,21,37,WHITE,1)};
+const glasses=(k)=>{[k.lx,k.rx].forEach(x=>{X.beginPath();X.ellipse(x,k.ey,3.3,2.8,0,0,Math.PI*2);X.fillStyle="rgba(170,220,245,.35)";X.fill();X.strokeStyle=rgb(DARK);X.lineWidth=1.3;X.stroke()});Ln(k.lx+3.3,k.ey,k.rx-3.3,k.ey,DARK,1.2)};
+const OFF={
+lead:(c,k)=>{body(SUIT);Po([[13.5,29],[22.5,29],[18,38]],WHITE);Po([[17,30],[19,30],[19.8,37],[18,40],[16.2,37]],GOLD);Rc(16.8,29.3,2.4,2,dk(GOLD));Ln(13.5,29,17,40,[70,76,100],1);Ln(22.5,29,19,40,[70,76,100],1);X.beginPath();k.cat?X.ellipse(18,12,7,5,0,Math.PI,0):X.ellipse(18,16,10.3,10.5,0,Math.PI,0);X.strokeStyle=rgb(DARK);X.lineWidth=1.8;X.stroke();Rc(6.5,14,3.5,7,DARK);Ln(8.5,20.5,13.5,24.5,DARK,1.2);E(14,24.5,1.4,1.1,GOLD)},
+plan:(c)=>{Rc(21,30,12,12,WHITE);Rc(21,30,12,3.5,dk(c));Rc(23.5,28.5,1.2,3,DARK);Rc(29.5,28.5,1.2,3,DARK);for(let i=0;i<3;i++)for(let j=0;j<2;j++)Rc(22.5+i*3.5,35+j*3.3,2.2,2.2,i==1&&j==0?GOLD:c)},
+review:(c,k)=>{glasses(k);Rc(22,30,11,12,BROWN);Rc(23.5,32,8,10,WHITE);Rc(25.5,29,4,2.2,STEEL);Ln(25,34.5,30,34.5,c,1);Ln(25,37,30,37,c,1);Ln(25,39.5,28,39.5,c,1)},
+test:(c)=>{body(WHITE);Po([[15,29],[21,29],[18,36]],c);Ln(15,29,18,41,GREY,1);Ln(21,29,18,41,GREY,1);Rc(25,34,4,.9,GREY);Rc(26,31.5,.9,3,BLUE);Rc(9,10.5,18,2.2,dk(c));[14,22].forEach(x=>{E(x,11.5,3.2,2.5,DARK);E(x,11.5,2.3,1.7,LENS)})},
+senior:(c,k)=>{X.strokeStyle=rgb(dk(c));strings();if(k.cat){Po([[15,22],[21,22],[18,29]],WHITE)}else{X.beginPath();X.moveTo(9.5,16);X.quadraticCurveTo(9.5,31,18,32);X.quadraticCurveTo(26.5,31,26.5,16);X.lineTo(24.5,19);X.quadraticCurveTo(18,24,11.5,19);X.closePath();X.fillStyle=rgb(GREY);X.fill();E(18,21.4,3.6,1.3,GREY);Ln(16.5,23,19.5,23,[120,80,80],1)}Rc(26,33,6,7,WHITE);X.beginPath();X.ellipse(32.3,36.5,1.8,2,0,0,Math.PI*2);X.strokeStyle=rgb(WHITE);X.lineWidth=1;X.stroke();E(29,36.5,1.2,1.2,c);Ln(28,31,28.6,28.5,GREY,.8);Ln(30.5,31,31.1,28.5,GREY,.8)},
+junior:(c,k)=>{X.strokeStyle=rgb(dk(c));strings();if(!k.cat){X.beginPath();X.ellipse(18,12.5,9.7,6.8,0,Math.PI,0);X.closePath();X.fillStyle=rgb(dk(c));X.fill();Rc(8.3,11.3,19.4,1.8,dk(dk(c)));Po([[26,11.5],[31.5,12.5],[31,14.5],[26,13.5]],dk(c))}Ln(15,29.5,17,35,DARK,1);Ln(21,29.5,19,35,DARK,1);Rc(15,35,6,6.5,WHITE);Rc(15,35,6,1.8,BLUE);Rc(16,37.5,1.8,2.2,SKD);Ln(18.5,38,20,38,DARK,.6);Ln(18.5,39.5,20,39.5,DARK,.6)},
+explore:(c,k)=>{const h=k.cat?MUZ:SKIN;E(k.lx-1,k.ey+5.5,3,2.2,h);E(k.rx+1,k.ey+5.5,3,2.2,h);Rc(k.lx,k.ey-1.5,k.rx-k.lx,3,DARK);[k.lx,k.rx].forEach(x=>{E(x,k.ey,4,4.2,DARK);E(x,k.ey+.3,2.4,2.5,LENS);E(x-.8,k.ey-.6,.7,.7,WHITE)})},
+generic:()=>{Po([[13,29],[18,32],[15,33.5]],WHITE);Po([[23,29],[18,32],[21,33.5]],WHITE);Rc(17.5,34.5,1,1,WHITE);Rc(17.5,37.5,1,1,WHITE)}};
+const ROY={
+lead:(c)=>{X.beginPath();X.ellipse(18,31.5,13,3.6,0,0,Math.PI*2);X.fillStyle=rgb(WHITE);X.fill();[11,16,21,26].forEach(x=>Rc(x,31,1,1.8,EYE));Po([[9.5,11.5],[9.5,4],[12.7,8],[15.5,2.5],[18,7.5],[20.5,2.5],[23.3,8],[26.5,4],[26.5,11.5]],GOLD);Rc(9.5,10,17,1.6,dk(GOLD));E(18,8.8,1.3,1.3,BLUE);E(12.8,9.7,.9,.9,PINK);E(23.2,9.7,.9,.9,PINK)},
+plan:(c)=>{E(18,9.8,10.2,3.8,DARK);E(18,7.5,7,3.3,DARK);Rc(22,31,11,9,PAPER);E(22,35.5,1.4,4.6,dk(PAPER));E(33,35.5,1.4,4.6,dk(PAPER));Ln(24.5,33.5,30.5,33.5,BROWN,.7);Ln(24.5,35.5,30.5,35.5,BROWN,.7);E(27.5,38.3,1.5,1.5,c)},
+review:()=>{E(18,9.5,9.8,4.8,WHITE);[10,14,18,22,26].forEach(y=>{E(8.8,y,3.1,2.6,WHITE);E(27.2,y,3.1,2.6,WHITE);E(8.8,y+.6,1.3,1,GREY);E(27.2,y+.6,1.3,1,GREY)})},
+test:(c)=>{Rc(13.5,24,9,6,dk(STEEL));E(18,15.5,10,11.5,STEEL);Rc(10.5,16.5,15,2.2,EYE);[13,16,20,23].forEach(x=>E(x,22,.6,.6,DARK));Ln(18,5,18,26,dk(STEEL),1);E(18,3,2.6,3.5,c)},
+senior:()=>{X.beginPath();X.moveTo(9.5,17);X.quadraticCurveTo(10,35,18,41);X.quadraticCurveTo(26,35,26.5,17);X.lineTo(24.5,20);X.quadraticCurveTo(18,25,11.5,20);X.closePath();X.fillStyle=rgb(WHITE);X.fill();E(18,21.6,4,1.4,WHITE);Ln(14,28,15.5,35,GREY,.7);Ln(22,28,20.5,35,GREY,.7)},
+junior:(c)=>{E(17,10.6,10.5,4,c);E(17,8.6,7,3.4,c);X.beginPath();X.moveTo(23,9);X.quadraticCurveTo(31,7,32,0);X.strokeStyle=rgb(WHITE);X.lineWidth=2.4;X.stroke()},
+explore:(c)=>{X.save();X.globalAlpha=.35;E(18,18.5,8.6,9.6,EYE);X.restore();X.beginPath();X.ellipse(18,16.5,11.8,13.5,0,0,Math.PI*2);X.ellipse(18,18.8,7.6,8.6,0,0,Math.PI*2);X.fillStyle=rgb(dk(c));X.fill("evenodd");Rc(28,32,5,7,GOLD);Rc(28.5,30.5,4,1.5,STEEL);Ln(30.5,32,30.5,39,dk(GOLD),.8)},
+generic:(c)=>{Po([[9,12.5],[4,2],[18,9]],c);Po([[27,12.5],[32,2],[18,9]],dk(c));Rc(9,10.5,18,2.4,GOLD);E(4,2,1.7,1.7,GOLD);E(32,2,1.7,1.7,GOLD)}};
+const HK={cat:false,lx:14.5,rx:21.5,ey:18},CK={cat:true,lx:13.5,rx:22.5,ey:16.5};
+const T={
+"office":(r,c)=>{human(c,r=="senior"?GREY:HAIR);OFF[r](c,HK)},
+"royalty":(r,c)=>{human(c,r=="senior"?GREY:HAIR);ROY[r](c)},
+"cats":(r,c)=>{const fur=r=="senior"?GREY:r=="junior"?[235,190,140]:r=="review"?[95,95,108]:r=="test"?[240,240,235]:[230,150,60];cat(c,fur,r=="junior");OFF[r](c,CK)}};
+function sprite(name,r,w,h){const cv=document.createElement("canvas");cv.width=w;cv.height=h;X=cv.getContext("2d");X.fillStyle="#000";X.fillRect(0,0,w,h);X.scale(w/36,h/42);T[name](r,COL[r]);return cv}
+document.getElementById("hdr").innerHTML=ROLES.map(r=>`<div>${r[1]}</div>`).join("");
+const rows=document.getElementById("rows");
+for(const name in T){const lab=document.createElement("div");lab.textContent=name;lab.style.margin="10px 0 4px";rows.appendChild(lab);const cv=document.createElement("canvas");cv.width=640;cv.height=140;const m=cv.getContext("2d");m.fillStyle="#000";m.fillRect(0,0,640,140);m.imageSmoothingEnabled=false;ROLES.forEach(([r],i)=>{const big=sprite(name,r,36,42),small=sprite(name,r,24,28);m.drawImage(big,i*80+4,2,72,84);m.drawImage(big,i*80+8,92);m.drawImage(small,i*80+50,106)});rows.appendChild(cv)}
+</script>
+</body>
+</html>
