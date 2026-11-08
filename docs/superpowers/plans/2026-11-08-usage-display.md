@@ -13,8 +13,12 @@
 ## Global Constraints
 
 - Work only in `C:\WORKSPACES\perso\artillery-x3-screen-usage`, branch `agent-gadget-usage`. No merge, no push.
-- **No hardware during the unattended run**: no COM3, no `-t upload`, no OTA, no HTTP request to the gadget (192.168.1.100),
-  no edit of `~/.claude/settings.json`. Any manual run of `notify.py` uses `CLAUDE_GADGET_DRY_RUN=1`.
+- **Hardware allowed (user, 2026-11-08): the ESP32 on COM3 is free during the run.** USB flashing of the ESP32
+  (`pio run -e <env> -t upload`) and device tests against the gadget (`GADGET_HOST=192.168.1.100`) are allowed.
+  Never re-flash the screen `.tft`, never use OTA, never edit `~/.claude/settings.json`. Manual runs of `notify.py` /
+  `statusline.py` use `CLAUDE_GADGET_DRY_RUN=1`. Live Claude sessions keep posting to the gadget: device tests use the
+  existing isolation mode (`start_isolated_test`). **At the end, flash `esp32dev` (normal build) so the screen works.**
+  If COM3 or the gadget is unreachable, skip the device steps and record it in the report.
 - PlatformIO: `%USERPROFILE%\.platformio\penv\Scripts\pio.exe`, run from `agent-gadget/esp32_agent_gadget`. Every env must build:
   `esp32dev`, `esp32dev_test`, `esp32dev_test_screen`, `esp32dev_noscreen`.
 - Plugin: standard library only; never print to hook stdout; always exit 0; POST timeout 1.5 s (`notify.py`), 1 s (`statusline.py`).
@@ -183,7 +187,9 @@
   - `test_pace_fields_roundtrip` (h5_rate10 180, h5_proj 84, h5_empty_s -1 -> same values in `/state`; absent pace -> keys absent or null).
 - [ ] **Step 2: Implement** model and net changes.
 - [ ] **Step 3: Build every env, expect SUCCESS** — from `agent-gadget/esp32_agent_gadget`: `pio run -e esp32dev -e esp32dev_test -e esp32dev_test_screen -e esp32dev_noscreen`.
-- [ ] **Step 4: Check the test file loads** — `python -m unittest discover -s agent-gadget/tests -p test_usage.py` must import cleanly and SKIP (no gadget reachable on the default host is expected; if it is reachable, stop: do not run device tests unattended, set `GADGET_HOST=127.0.0.1` for this check).
+- [ ] **Step 4: Run the device tests** — flash `pio run -e esp32dev_test -t upload`, wait 8 s for Wi-Fi, then
+  `GADGET_HOST=192.168.1.100 python -m unittest discover -s agent-gadget/tests` -> `test_usage.py` green and the existing
+  suites still green (`test_budget.py` skips on this build).
 - [ ] **Step 5: Commit** — `git commit -m "feat(core): /usage endpoint, per-session context, per-agent tokens, plan quotas"`
 
 ### Task 5: Screen (tab fill, token zone, quota line)
@@ -217,6 +223,9 @@
   - `drawEmpty`: quota line at the bottom when `modelQuotas.known`.
   - `display_serial.cpp`: one extra line per render `[display] ctx <sid>=<pct>% ... | 5h 48% 1h20 | 7d 61% 2d03h`, plus `tok` per row.
 - [ ] **Step 4: Build every env, expect SUCCESS** (command from Task 4 Step 3).
+- [ ] **Step 4b: Device checks** — flash `esp32dev_test` again, run `test_layout.py` and `test_touch.py` (green); flash
+  `esp32dev_test_screen`, run `test_budget.py` (green); flash `esp32dev`, run `python agent-gadget/scenario.py` once
+  (screen filled, nothing crashes: `GET /state` answers afterwards). Visual checks stay for the user.
 - [ ] **Step 5: Commit** — `git commit -m "feat(screen): context fill in tabs, tokens in the strip, permanent quota line"`
 
 ### Task 6: Docs and morning report
@@ -228,8 +237,8 @@
 - [ ] **Step 1: Update the docs** listed above (English, short).
 - [ ] **Step 2: Final checks** — plugin suite green; all 4 envs build; `git status` clean apart from the report.
 - [ ] **Step 3: Write the report** (French, short): tasks done, test and build results with counts, the sub-agent `transcript_path` finding, anything skipped and why, and the **morning checklist with the user**:
-  1. Flash `esp32dev_test` by USB, run `python -m unittest discover -s agent-gadget/tests` (expect `test_usage.py`, `test_layout.py` green).
-  2. Flash `esp32dev`, run `python agent-gadget/scenario.py`, check text readability over the 3 fill colors (and that `xstr` mode `sta=3` draws without background), tune `C_FILL_*`.
+  1. Device test results from the run (already done unless COM3 was unreachable).
+  2. The gadget runs `esp32dev` from this branch; run `python agent-gadget/scenario.py`, check text readability over the 3 fill colors (and that `xstr` mode `sta=3` draws without background), tune `C_FILL_*`.
   3. Install the status line in `~/.claude/settings.json` (README snippet), open one terminal `claude` session, check the quota line.
   4. Merge plan with branch `agent-gadget-ui` (expect conflicts in `net.cpp`, `ARCHITECTURE.md`, `CLAUDE.md`).
 - [ ] **Step 4: Commit** — `git commit -m "docs: usage display (wire format, install, morning checklist)"`
