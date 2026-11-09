@@ -108,7 +108,8 @@ sessions get their context from transcripts (section 5.2). Quotas with no termin
   - `tok`: tokens of this agent (lead: lead transcript; sub-agent: its own transcript).
   - lead events only: `stok` (session total = sum of every transcript of the session in the cache, sub-agents
     included, so it survives sub-agents leaving the screen), `ctx_k` (last context in thousands), `ctx_pct`
-    (`last_ctx` / window; window = 1000000 if `last_ctx` > 200000 or the model id contains `[1m]`, else 200000).
+    (`last_ctx` / window; window = 1000000 if `last_ctx` > 200000 or the model id contains `[1m]`, else the default:
+    `"context_window"` of `~/.claude/agent-gadget.json`, 1000000 when absent; changed 2026-11-09, desktop sessions run with a 1M window).
 - Time budget: scanning stays incremental; if a scan would read more than 4 MB at once (first sight of a big
   transcript), it reads only the last 4 MB for `last_ctx` and marks `tokens` as partial (still sent, it only grows).
   Builder's call how to mark partial; the screen does not need to know.
@@ -214,7 +215,7 @@ Command strip (y 190..272), lines unchanged except:
 - Tokens exclude cache reads.
 - The quota line takes the old "previous command" line; the previous command moves to line 3 when `detail` is redundant.
 - Status line install stays manual (README).
-- Context window guessed 200k unless over 200k or `[1m]` in the model id (fallback path only).
+- Context window guessed 1M (configurable, `context_window` in `agent-gadget.json`) unless the model id says `[1m]` or the context is past 200k.
 - Tabs share the width (5 max, right 40 px for `+N` and `N!`); title cut at 30 chars on the wire; masked by `CLAUDE_GADGET_MASK`.
 
 ## 9. Left to the builder
