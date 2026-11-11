@@ -133,6 +133,7 @@ Tests (no hardware): `node --test plugin/hub/test/*.test.mjs plugin/test/*.test.
 - **Usage and quotas stay problematic.** The usage endpoint returns 429 (backoff 15 minutes), numbers can be stale, and the context estimate from transcripts assumes a 1M window.
 - Show the context fill as a circle with the percentage in the middle; show the tokens of each agent in its row.
 - **Phone companion PWA (iPhone and Android).** A cheap auxiliary screen the user already carries, with a one-tap shortcut that discovers the hub and, for company networks, possibly a private link to the PC. Details and open questions: [issue #1](https://github.com/tfabien/standup-bot/issues/1).
+- **Sessions hub page.** A web page that shows several sessions at once in a grid. The central part of the current page becomes a standalone component, and the quotas appear once at the bottom of the hub page. Details: [issue #2](https://github.com/tfabien/standup-bot/issues/2).
 - Minor items of the hub review, postponed: `"constructor"` accepted as a state, 400 ms per hook when the hub cannot start (no backoff), the plan file lock can wait 2 s, the hub ignores `CLAUDE_GADGET_CONFIG`, the hub does not replay its state to a device that rebooted.
 
 The TODO of the ESP32 gadget (USB relay test on hardware, clock settings, other boards) is in [devices/artillery-x3-esp32/README.md](devices/artillery-x3-esp32/README.md#todo).
