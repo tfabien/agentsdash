@@ -1,4 +1,5 @@
 # Usage display (context, quotas, tokens) Implementation Plan
+> **Status: delivered (archived 2026-11-11).** Checkboxes ticked in bulk; the commit history and `execution-log-*.md` hold the details.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -58,7 +59,7 @@
     file `<state_dir>/<session4>.tok.json`, `{transcript_path: entry}`. Errors return `{}` / are ignored.
   - `context_window(last_ctx: int, model: str) -> int`: 1000000 if `last_ctx > 200000` or `"[1m]" in model`, else 200000.
 
-- [ ] **Step 1: Write the failing tests** (helper writes JSONL lines into a temp file)
+- [x] **Step 1: Write the failing tests** (helper writes JSONL lines into a temp file)
   - `test_counts_each_message_id_once`: 3 lines same `message.id` with usage `{input 2, cache_creation 6051, cache_read 145121, output 460}`, then 1 line another id `{input 1, cache_creation 0, cache_read 151000, output 10}` -> `tokens == 2+6051+460 + 1+0+10`, `last_ctx == 151001`, `model` taken from `message.model`.
   - `test_incremental`: scan, append one new message, scan with the returned entry -> only the new tokens are added; `offset == file size`.
   - `test_partial_last_line_waits`: file ends with half a JSON line (no `\n`) -> not counted, `offset` stops before it; complete it -> counted once.
@@ -69,13 +70,13 @@
   - `test_context_window`: `(150000,"claude-opus-5-5") -> 200000`, `(250000,"x") -> 1000000`, `(1000,"claude-x[1m]") -> 1000000`.
   - `test_cache_roundtrip_and_corrupt_file`: save then load equal; a corrupt file loads `{}`.
 
-- [ ] **Step 2: Run, expect FAIL** — `python -m unittest discover -s claude-plugin/agent-gadget/tests -p test_transcript_usage.py` -> ImportError.
+- [x] **Step 2: Run, expect FAIL** — `python -m unittest discover -s claude-plugin/agent-gadget/tests -p test_transcript_usage.py` -> ImportError.
 
-- [ ] **Step 3: Implement `transcript_usage.py`** — binary read from `offset` (or `size - max_read` when the gap is larger, then drop the first partial line), split on `b"\n"`, keep the trailing fragment unread, `json.loads` each line, UTF-8 with `errors="ignore"`.
+- [x] **Step 3: Implement `transcript_usage.py`** — binary read from `offset` (or `size - max_read` when the gap is larger, then drop the first partial line), split on `b"\n"`, keep the trailing fragment unread, `json.loads` each line, UTF-8 with `errors="ignore"`.
 
-- [ ] **Step 4: Run, expect PASS** (same command), then the whole plugin suite: `python -m unittest discover -s claude-plugin/agent-gadget/tests` -> all OK.
+- [x] **Step 4: Run, expect PASS** (same command), then the whole plugin suite: `python -m unittest discover -s claude-plugin/agent-gadget/tests` -> all OK.
 
-- [ ] **Step 5: Commit** — `git commit -m "feat(plugin): incremental transcript token and context scanner"`
+- [x] **Step 5: Commit** — `git commit -m "feat(plugin): incremental transcript token and context scanner"`
 
 ### Task 2: Token and context fields in hook events
 
@@ -90,13 +91,13 @@
   `subagent_transcript(payload: dict) -> str | None`.
   Wire: optional integer fields `tok`, `stok`, `ctx_k` (thousands, rounded), `ctx_pct` (0..100+, rounded) on v2 events.
 
-- [ ] **Step 1: Find out what `transcript_path` holds inside a sub-agent.** Read the newest dumps or transcripts on disk only (no live run needed):
+- [x] **Step 1: Find out what `transcript_path` holds inside a sub-agent.** Read the newest dumps or transcripts on disk only (no live run needed):
   sub-agent transcripts are `~/.claude/projects/<proj>/<session_id>/subagents/agent-<agent_id>.jsonl`. If an existing
   `CLAUDE_GADGET_DUMP` file is around, check a sub-agent `PreToolUse` payload. Otherwise run
   `claude -p "use one general-purpose sub-agent to list the files of this folder" ` in a temp folder with
   `CLAUDE_GADGET_DRY_RUN=1 CLAUDE_GADGET_DUMP=<scratch file>` set (dry run: nothing is posted). Record the answer in
   `docs/hook-payloads.md` (one line under "Common fields"). If this cannot be settled, keep the derived path rule.
-- [ ] **Step 2: Write the failing tests** (in `test_notify.py`, temp dirs for transcripts and state):
+- [x] **Step 2: Write the failing tests** (in `test_notify.py`, temp dirs for transcripts and state):
   - `test_lead_event_has_tokens_and_context`: lead transcript with one message (input 2, cache_creation 6051, cache_read 145121, output 460) -> `tok == 6513`, `stok == 6513`, `ctx_k == 151`, `ctx_pct == 76`.
   - `test_subagent_event_uses_its_own_transcript`: sub-agent payload (`agent_id` `aa0bc7f345def841f`) with file `<dir>/<session_id>/subagents/agent-aa0bc7f345def841f.jsonl` -> `tok` from that file, no `ctx_pct` key.
   - `test_session_total_includes_subagents`: after one sub-agent event and one lead event -> lead `stok == lead tokens + sub tokens`.
@@ -104,10 +105,10 @@
   - `test_subagentstop_prefers_agent_transcript_path`.
   - `test_mask_keeps_numbers`: `CLAUDE_GADGET_MASK=1` -> `tok` still present, `title` absent.
   - `test_lead_event_has_ascii_title`: transcript line `custom-title "Packs d'icônes pour agents"` -> `title == "Packs d'icones pour agents"`; a 40-char title is cut to 30.
-- [ ] **Step 3: Run, expect FAIL** — `python -m unittest discover -s claude-plugin/agent-gadget/tests -p test_notify.py`.
-- [ ] **Step 4: Implement** `add_usage` and `subagent_transcript`; call `add_usage` in `main()` after `build_event` (v2 only, not for `to_v1`). Wrap in `try/except Exception`.
-- [ ] **Step 5: Run whole plugin suite, expect PASS**; time one run of the script on the biggest local transcript with `CLAUDE_GADGET_DRY_RUN=1`: must finish under 0.5 s on a second run (cache warm). Write the timing in the commit message.
-- [ ] **Step 6: Commit** — `git commit -m "feat(plugin): tokens per agent, session total and context fallback in v2 events"`
+- [x] **Step 3: Run, expect FAIL** — `python -m unittest discover -s claude-plugin/agent-gadget/tests -p test_notify.py`.
+- [x] **Step 4: Implement** `add_usage` and `subagent_transcript`; call `add_usage` in `main()` after `build_event` (v2 only, not for `to_v1`). Wrap in `try/except Exception`.
+- [x] **Step 5: Run whole plugin suite, expect PASS**; time one run of the script on the biggest local transcript with `CLAUDE_GADGET_DRY_RUN=1`: must finish under 0.5 s on a second run (cache warm). Write the timing in the commit message.
+- [x] **Step 6: Commit** — `git commit -m "feat(plugin): tokens per agent, session total and context fallback in v2 events"`
 
 ### Task 3: Status line script
 
@@ -129,7 +130,7 @@
   - `update_history(path: str, now: float, h5: tuple | None, d7: tuple | None) -> list` (append at most one sample per 60 s, drop samples older than 8 days, return the samples; errors -> `[]`).
     History file `<tempdir>/agent-gadget-plugin/quota_history.json`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `test_full_body`: input with `context_window {used_percentage 42.4, context_window_size 200000, total_input_tokens 84800}` and `rate_limits five_hour {used_percentage 48.2, resets_at now+4800}`, `seven_day {61.0, now+187000}` -> `{"v":1,"session":"abcd","ctx_pct":42,"ctx_k":85,"ctx_max_k":200,"h5_pct":48,"h5_reset_s":4800,"d7_pct":61,"d7_reset_s":187000}`.
   - `test_no_rate_limits`: no `rate_limits` key / `null` values -> no `h5_*`/`d7_*` keys; text `ctx 42%`.
   - `test_reset_in_past_is_zero`.
@@ -146,10 +147,10 @@
   - `test_history_one_sample_per_minute_and_8_days`.
   - `test_body_has_pace_fields`: full input with history -> `h5_rate10`, `h5_proj`, `h5_empty_s`, `d7_*` present; unknown pace -> those keys absent.
   - `test_script_prints_line_and_never_fails`: subprocess with `CLAUDE_GADGET_DRY_RUN=1` -> stdout one line, exit 0; with garbage stdin -> exit 0, empty stdout.
-- [ ] **Step 2: Run, expect FAIL** — `python -m unittest discover -s claude-plugin/agent-gadget/tests -p test_statusline.py`.
-- [ ] **Step 3: Implement `statusline.py`**: read stdin, build body, print text, then send if `should_send` (dry run: write the body to stderr instead). All in `try/except`, exit 0.
-- [ ] **Step 4: Run whole plugin suite, expect PASS.**
-- [ ] **Step 5: Commit** — `git commit -m "feat(plugin): status line script posts context and plan quotas to /usage"`
+- [x] **Step 2: Run, expect FAIL** — `python -m unittest discover -s claude-plugin/agent-gadget/tests -p test_statusline.py`.
+- [x] **Step 3: Implement `statusline.py`**: read stdin, build body, print text, then send if `should_send` (dry run: write the body to stderr instead). All in `try/except`, exit 0.
+- [x] **Step 4: Run whole plugin suite, expect PASS.**
+- [x] **Step 5: Commit** — `git commit -m "feat(plugin): status line script posts context and plan quotas to /usage"`
 
 ### Task 4: Firmware model and HTTP (`/usage`, event fields, `/state`)
 
@@ -176,7 +177,7 @@
 - `/state` additions exactly as spec 5.3 (`usage` object with `age_s`; per session `ctx_pct` (null when unknown), `ctx_k`, `ctx_src`, `tok` (= stok); per agent `tok`).
 - `net.cpp`: `POST /usage` -> 400 `"v is required"` without `v`; isolation rule like `/event`; `HTTP_OPTIONS` like `/event`. `handleEvent` reads the 4 optional longs with `jsonLong`.
 
-- [ ] **Step 1: Write `test_usage.py`** (style of `test_state.py`, uses `Gadget.request("POST","/usage",body)`; add a `usage(**fields)` helper to `gadget_client.py`):
+- [x] **Step 1: Write `test_usage.py`** (style of `test_state.py`, uses `Gadget.request("POST","/usage",body)`; add a `usage(**fields)` helper to `gadget_client.py`):
   - `test_usage_requires_v` (400), `test_quotas_in_state` (h5 48 / d7 61 appear under `usage`, `age_s` small),
   - `test_usage_unknown_session_keeps_quotas_only` (no session created),
   - `test_statusline_context_wins_over_event` (usage ctx 42 then event ctx_pct 70 -> state shows 42, `ctx_src` `statusline`),
@@ -185,12 +186,12 @@
   - `test_title_kept_and_shown_in_state` (lead event title "Fix login" -> session `title`; next event without title keeps it).
   - `test_reset_counts_down` (h5_reset_s 100, wait 2 s -> state value <= 98).
   - `test_pace_fields_roundtrip` (h5_rate10 180, h5_proj 84, h5_empty_s -1 -> same values in `/state`; absent pace -> keys absent or null).
-- [ ] **Step 2: Implement** model and net changes.
-- [ ] **Step 3: Build every env, expect SUCCESS** — from `agent-gadget/esp32_agent_gadget`: `pio run -e esp32dev -e esp32dev_test -e esp32dev_test_screen -e esp32dev_noscreen`.
-- [ ] **Step 4: Run the device tests** — flash `pio run -e esp32dev_test -t upload`, wait 8 s for Wi-Fi, then
+- [x] **Step 2: Implement** model and net changes.
+- [x] **Step 3: Build every env, expect SUCCESS** — from `agent-gadget/esp32_agent_gadget`: `pio run -e esp32dev -e esp32dev_test -e esp32dev_test_screen -e esp32dev_noscreen`.
+- [x] **Step 4: Run the device tests** — flash `pio run -e esp32dev_test -t upload`, wait 8 s for Wi-Fi, then
   `GADGET_HOST=192.168.1.100 python -m unittest discover -s agent-gadget/tests` -> `test_usage.py` green and the existing
   suites still green (`test_budget.py` skips on this build).
-- [ ] **Step 5: Commit** — `git commit -m "feat(core): /usage endpoint, per-session context, per-agent tokens, plan quotas"`
+- [x] **Step 5: Commit** — `git commit -m "feat(core): /usage endpoint, per-session context, per-agent tokens, plan quotas"`
 
 ### Task 5: Screen (tab fill, token zone, quota line)
 
@@ -208,10 +209,10 @@
 - `ui_theme.h`: `C_FILL_OK`, `C_FILL_WARN`, `C_FILL_HOT` (dim RGB565, start values `0x0280`, `0x5180`, `0x6000`; to be tuned on the real screen), `L_TOK_W 64`, `L_QUOTA_BAR_W 60`.
 - `/debug/layout?...&ctx=P` adds `"tab_fill": rect` for tab 0 at `P` percent and `"strip_tokens"`, `"quota_line"` rects.
 
-- [ ] **Step 1: Extend `test_layout.py`** and fix the tests that assumed 74/78 px tabs (`test_layout.py` `test_tabs_capped_at_five_with_more_marker`, `test_touch.py` line with `2 * 78 + 30`: use a point right of the last tab in a 1-tab layout, e.g. x 445 is now the `+N` zone, so pick a tree point instead):
+- [x] **Step 1: Extend `test_layout.py`** and fix the tests that assumed 74/78 px tabs (`test_layout.py` `test_tabs_capped_at_five_with_more_marker`, `test_touch.py` line with `2 * 78 + 30`: use a point right of the last tab in a 1-tab layout, e.g. x 445 is now the `+N` zone, so pick a tree point instead):
   `test_tab_widths_shared` (tabs=1 -> w 434; 2 -> 215; 3 -> 142; 5 -> 83; tabs never overlap and end at x <= 438); `test_right_zone_fixed` (`tabs_more == {x 440, y 0, w 40, h 20}`); `test_tab_fill_widths` (ctx 0 -> w 0, 50 -> 37, 100 -> 74, 150 -> 74, 255 -> 0); `test_strip_token_zone_right_of_command` (`strip_tokens.x + w <= 480`, `x >= 4 + 8*40`); `test_quota_line_inside_strip` (`y >= strip.y`, `y + h <= 272`).
-- [ ] **Step 2: Implement layout functions and the debug field.**
-- [ ] **Step 3: Implement drawing** in `display_hmi.cpp`:
+- [x] **Step 2: Implement layout functions and the debug field.**
+- [x] **Step 3: Implement drawing** in `display_hmi.cpp`:
   - `drawTitle`: tab text = `s->title[0] ? s->title : s->project` cut to the tab width left after the dot and the count; right zone shows `+N` (white) then `N!` (orange) when there are needs-you agents; title signature mixes the title and tab count.
   - `drawTitle`: after the tab background, fill `layoutTabFill` with the band color, then draw the dot, name and count over it with a new
     `hmiTextClear(x, y, w, h, font, fg, xcen, s)` in `hmi_uart.h/.cpp` (same as `hmiText` with `xstr` background mode `sta=3`, no background).
@@ -222,11 +223,11 @@
     `empty 1h05` in place of the reset time when `over` (counted down from `emptyS` and `receivedAt`), grey if `now - receivedAt > 15 min` or no data (`quotas: no status line data`). Called from `drawStrip`, and from the 2 s age refresh. Strip signature mixes `modelQuotas.rev`, the agent's `tok`, and `stok`.
   - `drawEmpty`: quota line at the bottom when `modelQuotas.known`.
   - `display_serial.cpp`: one extra line per render `[display] ctx <sid>=<pct>% ... | 5h 48% 1h20 | 7d 61% 2d03h`, plus `tok` per row.
-- [ ] **Step 4: Build every env, expect SUCCESS** (command from Task 4 Step 3).
-- [ ] **Step 4b: Device checks** — flash `esp32dev_test` again, run `test_layout.py` and `test_touch.py` (green); flash
+- [x] **Step 4: Build every env, expect SUCCESS** (command from Task 4 Step 3).
+- [x] **Step 4b: Device checks** — flash `esp32dev_test` again, run `test_layout.py` and `test_touch.py` (green); flash
   `esp32dev_test_screen`, run `test_budget.py` (green); flash `esp32dev`, run `python agent-gadget/scenario.py` once
   (screen filled, nothing crashes: `GET /state` answers afterwards). Visual checks stay for the user.
-- [ ] **Step 5: Commit** — `git commit -m "feat(screen): context fill in tabs, tokens in the strip, permanent quota line"`
+- [x] **Step 5: Commit** — `git commit -m "feat(screen): context fill in tabs, tokens in the strip, permanent quota line"`
 
 ### Task 6: Docs and morning report
 
@@ -234,11 +235,11 @@
 - Modify: `agent-gadget/ARCHITECTURE.md` (wire format `/usage`, new event fields, `/state` additions, screen items), `CLAUDE.md` (one line under "Claude plugin" for `statusline.py`; one line under Firmware for `/usage`), `agent-gadget/scenario.py` (add `/usage` posts and `tok` fields so the scenario fills the new zones; do not run it).
 - Create: `docs/superpowers/usage-display-REPORT.md`
 
-- [ ] **Step 1: Update the docs** listed above (English, short).
-- [ ] **Step 2: Final checks** — plugin suite green; all 4 envs build; `git status` clean apart from the report.
-- [ ] **Step 3: Write the report** (French, short): tasks done, test and build results with counts, the sub-agent `transcript_path` finding, anything skipped and why, and the **morning checklist with the user**:
+- [x] **Step 1: Update the docs** listed above (English, short).
+- [x] **Step 2: Final checks** — plugin suite green; all 4 envs build; `git status` clean apart from the report.
+- [x] **Step 3: Write the report** (French, short): tasks done, test and build results with counts, the sub-agent `transcript_path` finding, anything skipped and why, and the **morning checklist with the user**:
   1. Device test results from the run (already done unless COM3 was unreachable).
   2. The gadget runs `esp32dev` from this branch; run `python agent-gadget/scenario.py`, check text readability over the 3 fill colors (and that `xstr` mode `sta=3` draws without background), tune `C_FILL_*`.
   3. Install the status line in `~/.claude/settings.json` (README snippet), open one terminal `claude` session, check the quota line.
   4. Merge plan with branch `agent-gadget-ui` (expect conflicts in `net.cpp`, `ARCHITECTURE.md`, `CLAUDE.md`).
-- [ ] **Step 4: Commit** — `git commit -m "docs: usage display (wire format, install, morning checklist)"`
+- [x] **Step 4: Commit** — `git commit -m "docs: usage display (wire format, install, morning checklist)"`
