@@ -1,0 +1,105 @@
+<style>
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(500px,1fr));gap:18px}
+.wrap{width:480px;height:272px;margin:8px 0 4px}
+.scr{width:480px;height:272px;position:relative;overflow:hidden;border-radius:4px;background:#0d1117;color:#e6edf3;font-family:"Segoe UI",Arial,sans-serif}
+.scr *{box-sizing:border-box}
+.tabs{position:absolute;left:0;top:0;width:480px;height:28px;background:#161b22;display:flex;gap:4px;padding:4px 92px 0 4px}
+.tab{flex:1;height:24px;border-radius:6px 6px 0 0;background:#21262d;color:#8b949e;font-size:13px;display:flex;align-items:center;padding:0 6px;gap:5px;white-space:nowrap;overflow:hidden}
+.tab.sel{background:#0d1117;color:#fff;font-weight:700;box-shadow:inset 0 3px 0 #a371f7}
+.tab .n{margin-left:auto;font-size:11px;background:#30363d;border-radius:8px;padding:0 5px}
+.tab.sel .n{background:#a371f7;color:#0d1117}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.badge{position:absolute;right:52px;top:5px;background:#f0883e;color:#0d1117;font-weight:700;font-size:12px;border-radius:9px;padding:1px 7px}
+.clock{position:absolute;right:6px;top:5px;font-size:13px;font-weight:600;color:#c9d1d9}
+.lead{position:absolute;left:6px;top:32px;width:160px;height:214px;background:#1c2430;border-radius:6px;padding:8px}
+.row{position:absolute;left:172px;width:302px;border-radius:6px;display:flex;align-items:center;gap:7px;padding-right:6px;background:#161b22;overflow:hidden}
+.row .bar{width:4px;align-self:stretch;background:var(--s)}
+.nm{font-weight:700;font-size:12px;white-space:nowrap}
+.act{font-size:11px;color:#8b949e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spr{width:22px;height:26px;border-radius:11px 11px 4px 4px;background:var(--rc);flex:none;position:relative}
+.spr::after{content:"";position:absolute;left:5px;top:7px;width:12px;height:4px;border-left:3px solid #111;border-right:3px solid #111}
+.spr.sm{width:16px;height:18px;border-radius:8px 8px 3px 3px}.spr.sm::after{left:3px;top:5px;width:10px;height:3px;border-width:0 2px}
+.spr.big{width:44px;height:52px;border-radius:22px 22px 8px 8px}
+.spr.big::after{left:11px;top:15px;width:22px;height:7px;border-width:0 5px}
+.work{animation:bob 1.2s ease-in-out infinite}@keyframes bob{50%{transform:translateY(-2px)}}
+.blink{animation:bl 1s steps(2) infinite}@keyframes bl{50%{background:#f0883e}}
+.segs{display:flex;gap:2px}.segs i{flex:1;height:7px;border-radius:2px;background:#30363d}.segs i.d{background:#3fb950}.segs i.c{background:#a371f7}
+.usage{white-space:nowrap;position:absolute;left:0;right:0;bottom:0;height:22px;background:#161b22;display:flex;align-items:center;gap:16px;padding:0 8px;font-size:12px;color:#8b949e}
+.q{display:flex;align-items:center;gap:5px}
+.g{width:60px;height:6px;border-radius:3px;background:#30363d;overflow:hidden;flex:none}.g i{display:block;height:100%}
+.q b{color:#e6edf3}
+.lbl{font-size:10px;letter-spacing:1px;color:#a371f7;font-weight:700}
+.note{font-size:13px;color:#8b949e;margin:4px 0 0;max-width:480px}
+.top{position:absolute;left:0;top:0;width:480px;height:30px;display:flex;align-items:flex-end;padding:0 6px;gap:4px}
+.cur{width:160px;height:28px;flex:none;background:#243044;border-radius:7px 7px 0 0;display:flex;align-items:center;gap:6px;padding:0 8px;color:#fff;font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden}
+.cur .n{margin-left:auto;font-size:11px;background:#3a4658;color:#e6edf3;border-radius:8px;padding:0 5px}
+.oth{flex:1;min-width:0;height:22px;margin-bottom:4px;border-radius:6px;display:flex;align-items:center;gap:5px;padding:0 6px;color:#8b949e;font-size:12px;white-space:nowrap;overflow:hidden;border:1px solid #21262d}
+.oth .n{margin-left:auto;font-size:10px;color:#8b949e}
+.arr{width:24px;height:22px;margin-bottom:4px;flex:none;border-radius:6px;background:#161b22;color:#c9d1d9;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+.arr.off{color:#30363d}
+.arr.ask{background:#f0883e;color:#0d1117}
+.lead2{position:absolute;left:6px;top:30px;width:160px;height:216px;background:#243044;border-radius:0 6px 6px 6px;padding:8px}
+.badge2{flex:none;margin-bottom:6px;background:#f0883e;color:#0d1117;font-weight:700;font-size:12px;border-radius:9px;padding:1px 7px}
+.frame{position:absolute;left:6px;top:30px;width:468px;height:218px;background:#1a2230;border-radius:0 8px 8px 8px}
+.fr .lead2{background:#243044;left:10px;top:34px;width:152px;height:208px;border-radius:6px}
+.fr .row{left:178px;width:290px;background:#0f141b}
+.bus{position:absolute;background:#a371f7}
+.frame{position:absolute;left:6px;top:30px;width:468px;height:216px;background:#243044;border-radius:0 8px 8px 8px}
+.inner{position:absolute;background:#121821;border-radius:6px}
+.hdr{position:absolute;font-size:10px;letter-spacing:1px;color:#8b949e;font-weight:700}
+.fr2 .lead2{background:transparent;left:12px;top:36px;width:150px;height:204px;padding:6px}
+.fr2 .row{left:174px;width:294px;background:#1a2230;height:31px}
+</style>
+<h2>Cadre commun, version 3 (sans trait violet)</h2>
+<p class="subtitle">L'onglet sélectionné et le cadre ont la même couleur. À l'intérieur, deux panneaux identiques : LEAD et TEAM.</p>
+<div class="grid" id="g"></div>
+<script>
+const tabs=(sel=0)=>`<div class="tabs">${[["artillery-x3","#3fb950",6],["conforama-rdv","#f0883e",2],["dotfiles","#6e7681",1]].map((t,i)=>`<div class="tab ${i==sel?"sel":""}"><span class="dot" style="background:${t[1]}"></span>${t[0]}<span class="n">${t[2]}</span></div>`).join("")}</div><div class="badge">1 !</div><div class="clock">14:32</div>`;
+const usage=`<div class="usage"><span class="q">Session 5h <span class="g"><i style="width:48%;background:#3fb950"></i></span><b>48%</b> reset 1h20</span><span class="q">Week <span class="g"><i style="width:61%;background:#d29922"></i></span><b>61%</b> reset 2d03h</span></div>`;
+const leadPanel=`<div class="lead"><div style="display:flex;gap:8px;align-items:center"><span class="spr big work" style="--rc:#c8a028"></span><div><div style="font-weight:700;font-size:14px">artillery-x3</div><div style="font-size:11px;color:#3fb950">working, 12m</div><div style="font-size:11px;color:#8b949e">ctx 34%</div></div></div>
+<div class="act" style="margin-top:8px;font-size:12px">Waiting on 4 sub-agents</div>
+<div class="lbl" style="margin-top:12px">PLAN 3/8</div>
+<div class="segs" style="margin:4px 0"><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i><i></i></div>
+<div style="font-size:13px;line-height:16px">Write the failing tests</div>
+<div style="font-size:11px;color:#8b949e;margin-top:6px">next: Implement roles.cpp</div></div>`;
+const subs=[["Explore","#1eaaa0","Grep \"picq\" in agent-gadget/","#3fb950",1],["Plan","#966ed2","Read docs/superpowers/specs/...","#3fb950",1],["code-reviewer","#dc64aa","Needs you: allow Bash(pio run)?","#f0883e",0],["test-runner","#aa6e3c","python -m unittest discover","#3fb950",1],["general-purpose","#8c8c96","Done","#6e7681",0]];
+const more=[["Explore","#1eaaa0","Read layout.cpp","#3fb950",1],["junior-dev","#5ac8eb","Edit display_hmi.cpp","#3fb950",1],["senior-dev","#3c8ce6","Bash: pio run -e esp32dev","#3fb950",1]];
+const row2=(a,i,sel)=>`<div class="row" style="top:${32+i*36}px;height:32px;--s:${a[3]};${a[3]=="#6e7681"?"opacity:.5;":""}${sel?"outline:2px solid #a371f7;":""}"><span class="bar"></span><span class="spr ${a[4]?"work":""} ${a[3]=="#f0883e"?"blink":""}" style="--rc:${a[1]}"></span><div style="flex:1;overflow:hidden"><div class="nm">${a[0]}</div><div class="act" ${a[3]=="#f0883e"?'style="color:#f0883e"':""}>${a[2]}</div></div></div>`;
+const row1=(a,i)=>`<div class="row" style="top:${32+i*27}px;height:24px;--s:${a[3]};${a[3]=="#6e7681"?"opacity:.5":""}"><span class="bar"></span><span class="spr sm ${a[4]?"work":""}" style="--rc:${a[1]}"></span><span class="nm" style="width:92px;overflow:hidden;text-overflow:ellipsis">${a[0]}</span><span class="act" style="flex:1;${a[3]=="#f0883e"?"color:#f0883e":""}">${a[2]}</span></div>`;
+const detail=`<div class="lead" style="outline:2px solid #a371f7"><div style="display:flex;gap:8px;align-items:center"><span class="spr big" style="--rc:#dc64aa"></span><div><div style="font-weight:700;font-size:14px">code-reviewer</div><div style="font-size:11px;color:#f0883e">needs you, 2m</div><div style="font-size:11px;color:#8b949e">41.2k tokens</div></div></div>
+<div class="lbl" style="margin-top:12px">COMMAND</div>
+<div style="font-size:12px;line-height:15px;margin-top:3px;word-break:break-all">Bash: pio run -e esp32dev_test -t upload --upload-port COM3</div>
+<div class="lbl" style="margin-top:10px">BEFORE</div>
+<div style="font-size:11px;color:#8b949e;margin-top:2px">Read display_hmi.cpp (40s ago)</div>
+<div style="font-size:10px;color:#6e7681;position:absolute;bottom:6px">tap to go back</div></div>`;
+const standby=`<div class="scr" style="background:#05070a"><div style="position:absolute;top:44px;width:100%;text-align:center;font-size:112px;font-weight:300;letter-spacing:2px;color:#e6edf3;line-height:1">14:32</div>
+<div style="position:absolute;top:166px;width:100%;text-align:center;font-size:18px;color:#8b949e">Wednesday 11 November</div>
+<div style="position:absolute;top:196px;width:100%;text-align:center;font-size:12px;color:#6e7681">3 sessions idle, last activity 7m ago</div>${usage.replace('background:#161b22','background:transparent')}</div>`;
+
+const usage2=usage.replace('reset 2d03h</span></div>','reset 2d03h</span><span style="margin-left:auto;color:#e6edf3;font-weight:600">14:32</span></div>');
+const lp=leadPanel.replace('class="lead"','class="lead2"').replace('class="lead2"><div','class="lead2"><div');
+const cur=`<div class="cur"><span class="dot" style="background:#3fb950"></span>artillery-x3<span class="n">6</span></div>`;
+const oth=(n,c,k)=>`<div class="oth"><span class="dot" style="background:${c}"></span>${n}<span class="n">${k}</span></div>`;
+const rows=subs.map((a,i)=>row2(a,i).replace("top:"+(32+i*36),"top:"+(32+i*36))).join("");
+const A=`<div class="scr"><div class="top">${cur}${oth("conforama-rdv","#f0883e",2)}${oth("dotfiles","#6e7681",1)}<span class="badge2">1 !</span></div>${lp}${rows}${usage2}</div>`;
+const B=`<div class="scr"><div class="top">${cur}<span class="arr">&lsaquo;</span>${oth("dotfiles","#6e7681",1)}${oth("api-gateway","#3fb950",3)}<span class="arr ask">&rsaquo;</span></div>${lp}${rows}${usage2}</div>`;
+
+const curF=cur.replace('class="cur"','class="cur" style="background:#1a2230"');
+const top3=(c)=>`<div class="top">${c}${oth("conforama-rdv","#f0883e",2)}${oth("dotfiles","#6e7681",1)}<span class="badge2">1 !</span></div>`;
+const lines=(x0,x1,ys)=>`<div class="bus" style="left:${x0}px;top:${Math.min(...ys)}px;width:2px;height:${Math.max(...ys)-Math.min(...ys)+2}px"></div>`+`<div class="bus" style="left:${x0-6}px;top:${ys[0]}px;width:8px;height:2px"></div>`+ys.map(y=>`<div class="bus" style="left:${x0}px;top:${y}px;width:${x1-x0}px;height:2px"></div>`).join("");
+const ys=[0,1,2,3,4].map(i=>32+i*36+15);
+const rowsF=subs.map((a,i)=>row2(a,i).replace("top:"+(32+i*36),"top:"+(36+i*41))).join("");
+const ysF=[0,1,2,3,4].map(i=>36+i*41+15);
+const LA=`<div class="scr fr">${top3(curF)}<div class="frame"></div>${lp.replace('class="lead2"','class="lead2" style="background:#243044"')}${rowsF}${usage2}</div>`;
+const LB=`<div class="scr">${top3(cur)}${lp}${rows.replaceAll("left:172px","left:180px").replaceAll("width:302px","width:294px")}${lines(172,180,ys)}${usage2}</div>`;
+const LC=`<div class="scr fr">${top3(curF)}<div class="frame"></div>${lp}${rowsF.replaceAll("left:172px","left:180px")}${lines(170,180,ysF)}${usage2}</div>`;
+
+const curT=cur.replace('class="cur"','class="cur" style="background:#243044"');
+const rowsT=subs.map((a,i)=>row2(a,i).replace("top:"+(32+i*36),"top:"+(52+i*36))).join("");
+const S=`<div class="scr fr2">${top3(curT)}<div class="frame"></div>
+<div class="inner" style="left:12px;top:36px;width:150px;height:204px"></div>
+<div class="inner" style="left:170px;top:36px;width:302px;height:204px"></div>
+<div class="hdr" style="left:178px;top:40px">TEAM &middot; 5 SUB-AGENTS &middot; 4 WORKING</div>
+${lp.replace('class="lead2"','class="lead2"')}${rowsT}${usage2}</div>`;
+document.getElementById("g").innerHTML=`<div><div class="wrap">${S}</div><p class="note">Les deux panneaux intérieurs sont sombres et identiques, posés sur le cadre clair de la session : ils appartiennent tous deux à l'onglet sélectionné. Les autres onglets restent hors du cadre, sur le fond noir.</p></div>`;
+</script>
