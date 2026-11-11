@@ -322,6 +322,7 @@ bool modelApplyV2(const EventV2& e, uint32_t now) {
   }
   copyStr(a->detail, DETAIL_LEN, e.detail);
   if (e.tok >= 0) a->tok = (uint32_t)e.tok;
+  if (e.model[0]) copyStr(a->model, MODEL_LEN, e.model);
   if (isLead) { applyLeadUsage(*s, e, now); applyLeadAsk(*s, e); }
   AgentState before = a->state;
   if (fresh || before != e.state) a->since = now;
@@ -333,6 +334,7 @@ bool modelApplyV2(const EventV2& e, uint32_t now) {
     if (!strcmp(e.evt, "PreToolUse")) s->waitingKids = startsWith(e.cmd, "Agent") || startsWith(e.cmd, "Task");
     else if (!strcmp(e.evt, "Stop")) s->waitingKids = true;
     else if (!strcmp(e.evt, "UserPromptSubmit") || !strcmp(e.evt, "SessionStart")) s->waitingKids = false;
+    if ((!strcmp(e.evt, "UserPromptSubmit") && strcmp(e.cmd, "Sub-agent report") != 0) || !strcmp(e.evt, "SessionStart")) s->lastPrompt = now ? now : 1;
     if (e.state == ST_YOUR_TURN && (fresh || before != ST_YOUR_TURN)) s->lastYourTurn = now;
     if (e.state == ST_DONE && !strcmp(e.evt, "SessionEnd")) {                  // the session is over: so is everything in it
       for (auto& sub : s->subs) if (sub.used && sub.state != ST_DONE) { sub.state = ST_DONE; sub.since = now; sub.rev = ++modelRev; }
@@ -453,14 +455,17 @@ View modelView(uint32_t now) {
   int best = -1;
   for (int k = 0; k < n; k++)                              // 1. blocked on the user (most recently active)
     if (hasNeedsYou(sessions[o[k]]) && (best < 0 || earlier(sessions[o[best]].lastActive, sessions[o[k]].lastActive))) best = k;
-  if (best < 0)                                            // 2. working, so its sub-agents show (most recently active)
+  if (best < 0)                                            // 2. where the user typed last (follows the focus)
+    for (int k = 0; k < n; k++)
+      if (sessions[o[k]].lastPrompt && (best < 0 || earlier(sessions[o[best]].lastPrompt, sessions[o[k]].lastPrompt))) best = k;
+  if (best < 0)                                            // 3. working, so its sub-agents show (most recently active)
     for (int k = 0; k < n; k++)
       if (isWorking(sessions[o[k]]) && (best < 0 || earlier(sessions[o[best]].lastActive, sessions[o[k]].lastActive))) best = k;
-  if (best < 0)                                            // 3. most recently reached "your turn"
+  if (best < 0)                                            // 4. most recently reached "your turn"
     for (int k = 0; k < n; k++)
       if (modelEffectiveState(sessions[o[k]], sessions[o[k]].lead) == ST_YOUR_TURN &&
           (best < 0 || earlier(sessions[o[best]].lastYourTurn, sessions[o[k]].lastYourTurn))) best = k;
-  if (best < 0)                                            // 4. most recently active
+  if (best < 0)                                            // 5. most recently active
     for (int k = 0; k < n; k++) if (best < 0 || earlier(sessions[o[best]].lastActive, sessions[o[k]].lastActive)) best = k;
 
   return {(int8_t)best, (int8_t)modelDefaultSlot(sessions[o[best]]), false};
@@ -528,7 +533,7 @@ static const char* flatState(AgentState s) {              // state names of the 
 }
 
 static String agentJson(const Session& s, const Agent& a, bool isLead, uint32_t now) {
-  String j = "{\"tok\":" + String(a.tok) + ",\"id\":\"" + jsonEscape(a.id) + "\",\"parent\":\"" + (isLead ? "" : "lead") + "\",\"role\":\"" + jsonEscape(a.role) +
+  String j = "{\"tok\":" + String(a.tok) + ",\"model\":\"" + jsonEscape(a.model) + "\",\"id\":\"" + jsonEscape(a.id) + "\",\"parent\":\"" + (isLead ? "" : "lead") + "\",\"role\":\"" + jsonEscape(a.role) +
              "\",\"state\":\"" + modelStateName(modelEffectiveState(s, a)) + "\",\"cmd\":\"" + jsonEscape(a.cmd) +
              "\",\"detail\":\"" + jsonEscape(a.detail) + "\",\"prev\":\"" + jsonEscape(a.prevCmd) + "\",\"prev_age\":" +
              String(a.prevCmd[0] ? (now - a.prevAt) / 1000 : 0) + ",\"age\":" + String((now - a.since) / 1000) + "}";

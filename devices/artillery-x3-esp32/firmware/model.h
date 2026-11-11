@@ -10,6 +10,7 @@
 #define ROLE_LEN 24
 #define CMD_LEN 64
 #define DETAIL_LEN 61
+#define MODEL_LEN 33                // model id, e.g. claude-opus-5-5[1m]
 #define TITLE_LEN 31
 #define PLAN_LEN 48                 // plan task titles (current, next), 47 characters + NUL                // session title (from the transcript), 30 characters + NUL
 #define PLAN_STATE_LEN 17           // one character per task (d done, r running, p pending), 16 tasks + NUL
@@ -37,6 +38,7 @@ struct Agent {
   uint32_t lastSeen;                // last event (millis)
   uint32_t rev;                     // changes on every modification: the screen redraws what changed
   uint32_t tok;                     // tokens used by this agent (input + cache creation + output)
+  char model[MODEL_LEN];            // model id of its last answer; empty = unknown
 };
 
 struct Session {
@@ -64,6 +66,7 @@ struct Session {
   bool waitingKids;                 // the lead launched sub-agents (Agent/Task call, or Stop while they run)
   uint32_t lastActive;
   uint32_t lastYourTurn;
+  uint32_t lastPrompt;              // when the user last typed here (millis, 0 = never): the best guess for the session in focus
 };
 
 struct EventV2 {                    // wire format v2, already parsed
@@ -76,6 +79,7 @@ struct EventV2 {                    // wire format v2, already parsed
   char cmd[CMD_LEN];
   char detail[DETAIL_LEN];
   long tok, stok, ctxPct, ctxK;     // optional usage fields, -1 = absent
+  char model[MODEL_LEN];            // optional, empty = absent
   char title[TITLE_LEN];            // optional, empty = absent
   long planDone, planTotal;         // optional plan progress, -1 = absent
   char planCur[PLAN_LEN], planNext[PLAN_LEN];

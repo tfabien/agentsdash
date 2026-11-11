@@ -39,7 +39,7 @@ creates nothing. 400 without `v`.
 (`usage` absent before the first status line report; `ctx_pct` null when unknown).
 States: `needs_you`, `error`, `your_turn`, `working`, `waiting_subs` (derived, leads only), `done`.
 
-Other endpoints: `POST /select {"session","agent","hold_ms"?}` (404 if unknown), `POST /dismiss {"session"}` (hide a session; a working, error or needs-you event brings it back; also the trash icon of the menu), `POST /reset`,
+Other endpoints: `POST /select {"session","agent","hold_ms"?}` (404 if unknown), `POST /dismiss {"session"}` (hide a session; a working, error or needs-you event brings it back; also the trash icon of the menu), `POST /settings {"sound":"all"|"ask"|"off"}` (buzzer mode, set by the hub; the speaker icon still works locally), `POST /reset`,
 `GET /config` (Wi-Fi), `GET /update` (firmware upload, user `admin`), `GET /tft` + `POST /tft?size=<bytes>`
 (screen `.tft` upload, same user: `tft_upload.cpp` speaks the TJC download protocol, drawing and touch pause meanwhile).
 

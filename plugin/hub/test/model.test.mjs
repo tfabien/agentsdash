@@ -175,7 +175,7 @@ test('ask_fields_fill_ask_object', () => {
 test('plan_fields_fill_plan_object', () => {
   const m = createModel();
   m.applyEvent(ev({ plan_done: 2, plan_total: 5, plan_cur: 'Task 3', plan_next: 'Task 4' }), 0);
-  assert.deepEqual(m.toState(0).sessions[0].plan, { done: 2, total: 5, cur: 'Task 3', next: 'Task 4', state: '' });
+  assert.deepEqual(m.toState(0).sessions[0].plan, { done: 2, total: 5, cur: 'Task 3', next: 'Task 4', state: '', items: [] });
   m.applyEvent(ev({ plan_total: 0 }), 10);
   assert.equal(m.toState(10).sessions[0].plan, null);
 });

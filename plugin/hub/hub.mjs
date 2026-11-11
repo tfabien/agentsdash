@@ -16,6 +16,9 @@ const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
 const SOUNDS = ['all', 'ask', 'off'];
 const TICK_MS = 1000;
+const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
+const pluginVersion = (() => { try { return JSON.parse(fs.readFileSync(path.join(HUB_DIR, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version ?? ''; } catch { return ''; } })();
+const realScript = (() => { try { return fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return fileURLToPath(import.meta.url); } })();
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
 
 function readBody(req) {
@@ -42,6 +45,7 @@ export function startHub(opts = {}) {
   const host = opts.host ?? '127.0.0.1';
   const wantedPort = opts.port ?? (Number(String(config.host).split(':')[1]) || 8765);
   const model = createModel();
+  const startedAt = Date.now();
   // Settings shared by every page (and kept in a file for the next hub): the beeps. Default: only when something needs you.
   const settingsFile = opts.settingsFile ?? null;
   let settings = { sound: 'ask' };
@@ -50,6 +54,7 @@ export function startHub(opts = {}) {
   const eventTaps = [];
   const usageTaps = [];
   const dismissTaps = [];
+  const settingsTaps = [];
   const changeTaps = [];
 
   const relayInfo = () => (relay ? { mode, ...(serial ? { port: config.relay.port } : { host: config.relay.host }), ...relay.status() } : null);
@@ -79,7 +84,11 @@ export function startHub(opts = {}) {
     const url = new URL(req.url, 'http://x');
     const route = `${req.method} ${url.pathname}`;
     switch (route) {
-      case 'GET /health': return json(res, { ok: true });
+      case 'GET /health': return json(res, { ok: true, version: pluginVersion, script: realScript, startedAt });
+      case 'POST /shutdown':                       // a newer plugin asks the old hub to leave (it starts a fresh one itself)
+        text(res, 200, 'bye');
+        if (opts.onShutdown) setTimeout(opts.onShutdown, 50);
+        return undefined;
       case 'GET /state': return json(res, stateJson());
       case 'GET /relay': return json(res, relayInfo() ?? { mode: 'none' });
       case 'POST /serial/release':
@@ -121,6 +130,7 @@ export function startHub(opts = {}) {
         } else if (route === 'POST /settings') {
           if (!body || !SOUNDS.includes(body.sound)) return text(res, 400, 'sound must be all, ask or off');
           settings = { sound: body.sound };
+          for (const fn of settingsTaps) { try { fn(settings); } catch { /* tap errors stay local */ } }
           if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
         } else if (route === 'POST /select') {
           if (!body || !model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');
@@ -147,9 +157,11 @@ export function startHub(opts = {}) {
   const serial = mode === 'serial' && config.relay.port ? createSerialRelay({ path: config.relay.port, ...(opts.serial ?? {}) }) : null;
   const relay = serial ?? (mode === 'http' && config.relay.host ? createHttpRelay({ host: config.relay.host }) : null);
   if (relay) {
-    eventTaps.push((body) => relay.send('/event', body));
+    eventTaps.push((body) => { const { plan_items: _items, ...forDevice } = body; relay.send('/event', forDevice); });     // the gadget has no use for the plan list
     usageTaps.push((body) => relay.send('/usage', body));
     dismissTaps.push((body) => relay.send('/dismiss', body));
+    settingsTaps.push((body) => relay.send('/settings', body));
+    relay.send('/settings', settings);                // the gadget buzzer follows the hub setting from the start
   }
 
   // Plan quotas for the desktop app (no status line): polled while a session exists, applied like a POST /usage.
@@ -193,7 +205,7 @@ const isMain = (() => {
   try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
 })();
 if (isMain) {
-  startHub({ settingsFile: path.join(stateDir(), 'hub-settings.json') }).then((hub) => {
+  startHub({ settingsFile: path.join(stateDir(), 'hub-settings.json'), onShutdown: () => process.exit(0) }).then((hub) => {
     process.stderr.write(`standup-bot hub listening on http://${hub.host}:${hub.port}/\n`);
   }).catch((e) => {
     process.stderr.write(`standup-bot hub: cannot start (${e.code ?? e.message})\n`);

@@ -9,6 +9,14 @@ SoundMode soundMode() {
   return (SoundMode)mode;
 }
 
+void soundSet(SoundMode m) {
+  if (soundMode() == m) return;
+  mode = m;
+  prefs.begin("gadget_snd", false);
+  prefs.putUChar("mode", (uint8_t)mode);
+  prefs.end();
+}
+
 void soundCycle() {
   mode = (soundMode() + 1) % 3;
   prefs.begin("gadget_snd", false);

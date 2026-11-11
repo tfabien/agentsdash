@@ -10,7 +10,7 @@ export const CTX_STATUSLINE_MS = 120000;
 export const CTX_UNKNOWN = 255;
 
 // Field limits of the firmware (buffer length minus the NUL).
-const LIM = { id: 4, project: 14, role: 23, evt: 23, cmd: 63, detail: 60, title: 30, plan: 47, planState: 16, ask: 120, askOpts: 100 };
+const LIM = { id: 4, project: 14, role: 23, evt: 23, cmd: 63, detail: 60, title: 30, model: 40, plan: 47, planState: 16, ask: 120, askOpts: 100 };
 
 // Order IS the urgency order (smaller = more urgent).
 const NAMES = ['needs_you', 'error', 'your_turn', 'working', 'waiting_subs', 'done'];
@@ -40,15 +40,15 @@ function optNull(value) {
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function newAgent(id, role, now, rev) {
-  return { id, role, state: ST.WORKING, cmd: '', detail: '', prevCmd: '', prevAt: 0, since: now, lastSeen: now, rev, tok: 0 };
+  return { id, role, state: ST.WORKING, cmd: '', detail: '', prevCmd: '', prevAt: 0, since: now, lastSeen: now, rev, tok: 0, model: '' };
 }
 
 function newSession(id, now) {
   return {
     id, project: '', title: '', ctxPct: CTX_UNKNOWN, ctxK: 0, ctxFromStatusLine: false, ctxAt: 0, stok: 0, usageRev: 0,
-    planDone: 0, planTotal: 0, planCur: '', planNext: '', planState: '', ask: '', askOpts: '',
+    planDone: 0, planTotal: 0, planItems: [], planCur: '', planNext: '', planState: '', ask: '', askOpts: '',
     lead: null, subs: new Array(MAX_SUBS).fill(null), more: 0, hidden: [], waitingKids: false,
-    lastActive: now, lastYourTurn: 0,
+    lastActive: now, lastYourTurn: 0, lastPrompt: 0,
   };
 }
 
@@ -159,6 +159,7 @@ export function createModel(opts = {}) {
       const done = Math.min(d, total);
       if (total !== s.planTotal || done !== s.planDone) { s.planTotal = total; s.planDone = done; changed = true; }
       if (total === 0) { s.planCur = ''; s.planNext = ''; }
+      if (e.planItems) { const same = e.planItems.join('|') === s.planItems.join('|'); if (!same || total === 0) { s.planItems = total === 0 ? [] : e.planItems; changed = true; } }
       if (s.planState !== e.planState) { s.planState = e.planState; changed = true; }   // absent = cleared
     }
     if (e.hasPlanCur && s.planCur !== e.planCur) { s.planCur = e.planCur; changed = true; }
@@ -225,8 +226,9 @@ export function createModel(opts = {}) {
       return {
         session, agent, state, project: clean(ev.project, LIM.project), role: clean(ev.role, LIM.role), evt: clean(ev.evt, LIM.evt),
         cmd: clean(ev.cmd, LIM.cmd), detail: clean(ev.detail, LIM.detail), title: clean(ev.title, LIM.title),
-        tok: opt(ev.tok), stok: opt(ev.stok), ctxPct: opt(ev.ctx_pct), ctxK: opt(ev.ctx_k),
+        model: clean(ev.model, LIM.model), tok: opt(ev.tok), stok: opt(ev.stok), ctxPct: opt(ev.ctx_pct), ctxK: opt(ev.ctx_k),
         planDone: opt(ev.plan_done), planTotal: opt(ev.plan_total),
+        planItems: Array.isArray(ev.plan_items) ? ev.plan_items.slice(0, 30).map((x) => clean(x, 50)) : null,
         hasPlanCur: typeof ev.plan_cur === 'string', planCur: clean(ev.plan_cur, LIM.plan),
         hasPlanNext: typeof ev.plan_next === 'string', planNext: clean(ev.plan_next, LIM.plan),
         planState: clean(ev.plan_state, LIM.planState), ask: clean(ev.question, LIM.ask), askOpts: clean(ev.options, LIM.askOpts),
@@ -240,7 +242,7 @@ export function createModel(opts = {}) {
     for (const ch of name) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {
       session: (h & 0xffff).toString(16).padStart(4, '0'), agent: 'lead', state, project: name.slice(0, LIM.project), role: 'lead',
-      evt: 'V1', cmd: clean(ev.task, LIM.cmd), detail: '', title: '', tok: -1, stok: -1, ctxPct: -1, ctxK: -1, planDone: -1,
+      evt: 'V1', cmd: clean(ev.task, LIM.cmd), detail: '', title: '', tok: -1, stok: -1, model: '', ctxPct: -1, ctxK: -1, planDone: -1, planItems: null,
       planTotal: -1, hasPlanCur: false, planCur: '', hasPlanNext: false, planNext: '', planState: '', ask: '', askOpts: '',
     };
   }
@@ -299,6 +301,7 @@ export function createModel(opts = {}) {
     }
     a.detail = e.detail;
     if (e.tok >= 0) a.tok = e.tok;
+    if (e.model) a.model = e.model;
     if (isLead) { applyLeadUsage(s, e, now); applyLeadAsk(s, e); }
     const before = a.state;
     if (fresh || before !== e.state) a.since = now;
@@ -310,6 +313,7 @@ export function createModel(opts = {}) {
       if (e.evt === 'PreToolUse') s.waitingKids = e.cmd.startsWith('Agent') || e.cmd.startsWith('Task');
       else if (e.evt === 'Stop') s.waitingKids = true;
       else if (e.evt === 'UserPromptSubmit' || e.evt === 'SessionStart') s.waitingKids = false;
+      if ((e.evt === 'UserPromptSubmit' && e.cmd !== 'Sub-agent report') || e.evt === 'SessionStart') s.lastPrompt = now;     // the user is there: the best guess for the session in focus
       if (e.state === ST.YOUR_TURN && (fresh || before !== ST.YOUR_TURN)) s.lastYourTurn = now;
       if (e.state === ST.DONE && e.evt === 'SessionEnd') {                   // the session is over: so is everything in it
         for (const sub of used(s)) if (sub.state !== ST.DONE) { sub.state = ST.DONE; sub.since = now; sub.rev = ++rev; }
@@ -380,6 +384,7 @@ export function createModel(opts = {}) {
     if (!o.length) return { session: null, slot: -1, manual: false };
     let best = null;
     for (const s of o) if (hasNeedsYou(s) && (!best || best.lastActive < s.lastActive)) best = s;          // 1. blocked on the user
+    if (!best) for (const s of o) if (s.lastPrompt && (!best || best.lastPrompt < s.lastPrompt)) best = s;               // 2. where the user typed last (follows the focus)
     if (!best) for (const s of o) if (isWorking(s) && (!best || best.lastActive < s.lastActive)) best = s;                // 2. working (a sub-agent shows)
     if (!best) for (const s of o) if (effective(s, s.lead) === ST.YOUR_TURN && (!best || best.lastYourTurn < s.lastYourTurn)) best = s;   // 3. most recent "your turn"
     if (!best) for (const s of o) if (!best || best.lastActive < s.lastActive) best = s;                  // 4. most recently active
@@ -408,7 +413,7 @@ export function createModel(opts = {}) {
 
   function agentJson(s, a, isLead, now) {
     return {
-      tok: a.tok, id: a.id, parent: isLead ? '' : 'lead', role: a.role, state: NAMES[effective(s, a)], cmd: a.cmd, detail: a.detail,
+      tok: a.tok, model: a.model, id: a.id, parent: isLead ? '' : 'lead', role: a.role, state: NAMES[effective(s, a)], cmd: a.cmd, detail: a.detail,
       prev: a.prevCmd, prev_age: a.prevCmd ? Math.floor((now - a.prevAt) / 1000) : 0, age: Math.floor((now - a.since) / 1000),
     };
   }
@@ -428,7 +433,7 @@ export function createModel(opts = {}) {
         ctx_pct: s.ctxPct === CTX_UNKNOWN ? null : s.ctxPct, ctx_k: s.ctxK,
         ctx_src: s.ctxPct === CTX_UNKNOWN ? '' : s.ctxFromStatusLine ? 'statusline' : 'transcript',
         tok: s.stok,
-        plan: s.planTotal === 0 ? null : { done: s.planDone, total: s.planTotal, cur: s.planCur, next: s.planNext, state: s.planState },
+        plan: s.planTotal === 0 ? null : { done: s.planDone, total: s.planTotal, cur: s.planCur, next: s.planNext, state: s.planState, items: s.planItems.map((x) => ({ state: x[0], title: x.slice(2) })) },
         ask: asking(s) ? { question: s.ask, options: s.askOpts } : null,
         agents: [agentJson(s, s.lead, true, now), ...used(s).map((a) => agentJson(s, a, false, now))],
       })),

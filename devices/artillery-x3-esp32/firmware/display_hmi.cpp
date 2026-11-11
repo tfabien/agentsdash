@@ -99,6 +99,44 @@ static int roleIndex(const char* role) {          // role -> sprite index; unkno
   return 7;
 }
 
+// "claude-opus-4-7[1m]" -> "Opus 4.7"; other ids lose "claude-". Same rule as modelLabel() of the page.
+static String modelLabel(const char* id) {
+  String s(id);
+  int br = s.indexOf('[');
+  if (br >= 0) s = s.substring(0, br);
+  if (s.startsWith("claude-")) s = s.substring(7);
+  String parts[5];
+  int n = 0;
+  while (n < 5) {
+    int d = s.indexOf('-');
+    parts[n++] = d < 0 ? s : s.substring(0, d);
+    if (d < 0) break;
+    s = s.substring(d + 1);
+  }
+  int first = 0;
+  String ver;
+  if (n >= 2 && isDigit(parts[0][0])) { ver = parts[0] + "." + parts[1]; first = 2; }     // claude-3-5-sonnet
+  if (first >= n) return String(id);
+  String name = parts[first];
+  if (name.length() && isAlpha(name[0])) name.setCharAt(0, toupper(name[0]));
+  if (!ver.length() && first + 1 < n && isDigit(parts[first + 1][0])) {                  // claude-opus-4-7
+    ver = parts[first + 1];
+    if (first + 2 < n && parts[first + 2].length() <= 2 && isDigit(parts[first + 2][0])) ver += "." + parts[first + 2];
+  }
+  return ver.length() ? name + " " + ver : name;
+}
+
+// A ring drawn with discs: `n` dots on a circle, the first pct % of them in `col`, the rest in the track color.
+static void drawRing(int cx, int cy, int r, int dot, int n, int pct, uint16_t col) {
+  int lit = (pct * n + 50) / 100;
+  if (pct > 0 && lit == 0) lit = 1;
+  if (lit > n) lit = n;
+  for (int i = 0; i < n; i++) {
+    float a = -1.5707963f + 6.2831853f * i / n;
+    hmiCircle(cx + (int)lroundf(r * cosf(a)), cy + (int)lroundf(r * sinf(a)), dot, i < lit ? col : C_CHIP);
+  }
+}
+
 static String ageOf(const Agent& a, uint32_t now) { return modelFormatAge((now - a.since) / 1000); }
 
 static int lineH(int font) { return font == FONT_S20 ? LINE_S20 : LINE_S16; }
@@ -281,7 +319,9 @@ static void drawDetail(const Session& s, int slot, uint32_t now) {
   line(tx, p.y + 4, tw, FONT_S20, C_TEXT, C_PANEL, a.role);
   Rect sl = leadStateLine();
   line(sl.x, sl.y, sl.w, FONT_S16, stateColor(st), C_PANEL, String(stateLabel(st)) + " " + ageOf(a, now));
-  if (a.tok) line(tx, p.y + 44, tw, FONT_S16, C_LIGHT, C_PANEL, modelFormatTokens(a.tok) + " tokens");
+  String info = a.model[0] ? modelLabel(a.model) : String("");
+  if (a.tok) info += String(info.length() ? " - " : "") + modelFormatTokens(a.tok) + " tokens";
+  if (info.length()) line(tx, p.y + 44, tw, FONT_S16, C_LIGHT, C_PANEL, info);
   line(x, p.y + 66, w, FONT_S16, C_ACCENT, C_PANEL, "COMMAND");
   String full(a.cmd);
   if (a.detail[0] && !strstr(a.cmd, a.detail)) full += String(" ") + a.detail;
@@ -296,14 +336,24 @@ static void drawDetail(const Session& s, int slot, uint32_t now) {
   line(x, p.y + p.h - 22, w, FONT_S16, C_FAINT, C_PANEL, "tap here to go back");
 }
 
-// Context fill: bar (green < 60 %, orange 60..79, red >= 80) and its percentage on the right.
-static void drawCtxBar(int x, int y, int w, int pct) {
+// Context fill as a ring (green < 60 %, orange 60..79, red >= 80) with the percentage in the middle.
+// Wide panel: big ring at the right end of the header, model and size to its left. Narrow panel: small ring under the state line, model to its right.
+static void drawCtxRing(const Rect& p, bool wide, int tx, int tw, int pct, int ctxK, const char* model) {
   uint16_t col = pct >= 80 ? C_ERROR : pct >= 60 ? C_NEEDS : C_WORKING;
-  int tw = displayTextPx("100%", FONT_S16) + 2, bw = w - tw - 4;
-  hmiFill(x, y + 4, bw, 10, C_CHIP);
-  int filled = bw * (pct > 100 ? 100 : pct) / 100;
-  if (filled > 0) hmiFill(x, y + 4, filled, 10, col);
-  line(x + bw + 4, y, tw, FONT_S16, col, C_PANEL, String(pct) + "%");
+  String label = model[0] ? modelLabel(model) : String("");
+  if (wide) {
+    int cx = p.x + p.w - 26, cy = p.y + 26;
+    drawRing(cx, cy, 15, 3, 20, pct, col);
+    line(cx - 12, cy - 9, 24, FONT_S16, col, C_PANEL, String(pct), 1);
+    int rx = cx - 15 - 3 - 10, w = 150;
+    if (label.length()) line(rx - w, p.y + 8, w, FONT_S16, C_LIGHT, C_PANEL, label, 2);
+    if (ctxK > 0) line(rx - w, p.y + 28, w, FONT_S16, C_FAINT, C_PANEL, String(ctxK) + "k ctx", 2);
+    return;
+  }
+  int cx = tx + 12, cy = p.y + 57;
+  drawRing(cx, cy, 8, 2, 16, pct, col);
+  if (pct < 100) line(cx - 8, cy - 9, 16, FONT_S16, col, C_PANEL, String(pct), 1);
+  if (label.length()) line(tx + 30, p.y + 48, tw - 30, FONT_S16, C_LIGHT, C_PANEL, label);
 }
 
 // Question of the lead (full-width panel, y from 68): question in bold 20 (2 lines with 4 options, else 3),
@@ -375,11 +425,13 @@ static void drawLeadPanel(const View& v, uint32_t now) {
   int x = p.x + 6, w = p.w - 12;
   hmiPic(x, p.y + 6, PIC_SPRITE_BIG + roleIndex("lead"));
   int tx = x + 42, tw = p.x + p.w - 4 - tx;
-  line(tx, p.y + 4, tw, FONT_S20, C_TEXT, C_PANEL, s->project);
+  bool wide = p.w > 200;
+  int ringW = wide ? 170 : 0;                     // the ring and its labels take the right end of a wide header
+  line(tx, p.y + 4, tw - ringW, FONT_S20, C_TEXT, C_PANEL, s->project);
   Rect sl = leadStateLine(nSubs);
-  line(sl.x, sl.y, sl.w, FONT_S16, stateColor(st), C_PANEL, String(stateLabel(st)) + " " + ageOf(a, now));
+  line(sl.x, sl.y, sl.w - ringW, FONT_S16, stateColor(st), C_PANEL, String(stateLabel(st)) + " " + ageOf(a, now));
   uint8_t ctx = modelSessionCtx(*s, now);
-  if (ctx != CTX_UNKNOWN) drawCtxBar(tx, p.y + 44, tw, ctx);
+  if (ctx != CTX_UNKNOWN) drawCtxRing(p, wide, tx, tw, ctx, s->ctxK, a.model);
   if (modelAsking(*s)) { leadPanelMode = "question"; drawQuestion(*s, x, p.y + 68, w, p); return; }
   String l[2];
   int n = wrapPx(a.cmd, w, FONT_S16, l, 2);
@@ -417,15 +469,24 @@ static void drawRow(const Session& s, int slot, const Rect& r, bool compact, uin
   hmiFill(r.x + 2, r.y + 3, 3, r.h - 6, stateColor(st));
   uint16_t nameCol = done ? C_FAINT : C_TEXT, actCol = done ? C_FAINT : st == ST_NEEDS_YOU ? C_NEEDS : C_LIGHT;
   int ageW = AGE_BOX_W + 4;
+  int tokW = a->tok ? 46 : 0;                    // tokens of the agent, right-aligned next to the age
+  String tokText = a->tok ? modelFormatTokens(a->tok) : String("");
   if (compact) {
     hmiPic(r.x + 9, r.y + 2, PIC_SPRITE_TINY + roleIndex(a->role));
     line(r.x + 30, r.y + 2, 104, FONT_S16, nameCol, C_ROW, a->role);
-    line(r.x + 138, r.y + 2, r.w - 142 - ageW, FONT_S16, actCol, C_ROW, a->cmd);
+    line(r.x + 138, r.y + 2, r.w - 142 - ageW - tokW, FONT_S16, actCol, C_ROW, a->cmd);
+    if (tokW) line(r.x + r.w - ageW - tokW, r.y + 2, tokW - 4, FONT_S16, C_FAINT, C_ROW, tokText, 2);
   } else {
     hmiPic(r.x + 9, r.y + 7, PIC_SPRITE_SMALL + roleIndex(a->role));
     int tx = r.x + 40, tw = r.w - 44;
     line(tx, r.y + 1, tw - ageW, FONT_S20, nameCol, C_ROW, a->role);
-    line(tx, r.y + 22, tw, FONT_S16, actCol, C_ROW, a->cmd);
+    int used = displayTextPx(a->role, FONT_S20) + 8;   // the model follows the role name when there is room
+    if (a->model[0]) {
+      String label = modelLabel(a->model);
+      if (used + displayTextPx(label.c_str(), FONT_S16) + 4 < tw - ageW) line(tx + used, r.y + 4, tw - ageW - used, FONT_S16, C_FAINT, C_ROW, label);
+    }
+    line(tx, r.y + 22, tw - tokW, FONT_S16, actCol, C_ROW, a->cmd);
+    if (tokW) line(tx + tw - tokW, r.y + 22, tokW, FONT_S16, C_FAINT, C_ROW, tokText, 2);
   }
   drawRowAge(s, slot, r, compact, now);
 }

@@ -12,7 +12,7 @@ const FAILURE_PAUSE_MS = 3000;
  * @param {{host: string, timeoutMs?: number, lockFile?: string, retryMs?: number, maxQueue?: number, fetchImpl?: Function}} opts
  * While `lockFile` exists (a screen .tft upload is running: the gadget aborts it on any other request) nothing is sent.
  * After a failure the relay waits 3 s, keeping only the latest queued item of each agent.
- * @returns {{send: (route: '/event'|'/usage'|'/dismiss', body: object) => void, status: () => {ok: boolean, lastError: string, queued: number}}}
+ * @returns {{send: (route: '/event'|'/usage'|'/dismiss'|'/settings', body: object) => void, status: () => {ok: boolean, lastError: string, queued: number}}}
  */
 export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLockFile(), retryMs = 1000, maxQueue = 50, fetchImpl = globalThis.fetch }) {
   let queue = [];
@@ -66,7 +66,7 @@ export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLock
 
   return {
     send(route, body) {
-      queue.push({ route, body, key: route === '/usage' ? 'usage' : route === '/dismiss' ? `dismiss:${body.session}` : `${body.session}:${body.agent}` });
+      queue.push({ route, body, key: route === '/usage' ? 'usage' : route === '/settings' ? 'settings' : route === '/dismiss' ? `dismiss:${body.session}` : `${body.session}:${body.agent}` });
       if (queue.length > maxQueue) {
         coalesce();
         if (queue.length > maxQueue) queue = queue.slice(-maxQueue);

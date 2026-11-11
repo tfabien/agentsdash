@@ -5,8 +5,8 @@ import { COLOR, rgb565 } from './screen.js';
 
 const css = (c) => { const [r, g, b] = rgb565(c); return `rgb(${r},${g},${b})`; };
 const FAMILY = '"Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif';
-const FONT = { 16: `600 14px ${FAMILY}`, 20: `700 18px ${FAMILY}` };
-const LINE_H = { 16: 18, 20: 22 };
+const FONT = { 12: `600 11px ${FAMILY}`, 16: `600 14px ${FAMILY}`, 20: `700 18px ${FAMILY}` };
+const LINE_H = { 12: 14, 16: 18, 20: 22 };
 
 // Robot colors per role (lead, general, explore, plan, review, test, code, generic): main, shade.
 const ROBOT = [
@@ -102,6 +102,11 @@ export function createVectorScreen(canvas) {
     fill(x, y, w, h, c) { rect(x, y, w, h, radiusOf(w, h), css(c)); },
     rect(x, y, w, h, c) { path(x + 0.5, y + 0.5, w - 1, h - 1, 5); ctx.strokeStyle = css(c); ctx.lineWidth = 1; ctx.stroke(); },
     circle(cx, cy, r, c) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = css(c); ctx.fill(); },
+    ring(cx, cy, r, width, frac, fg, track) {            // a circle outline filled clockwise from the top up to `frac` (0..1)
+      ctx.lineWidth = width; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.strokeStyle = css(track); ctx.stroke();
+      if (frac > 0) { ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(frac, 1)); ctx.strokeStyle = css(fg); ctx.stroke(); }
+    },
     line(x1, y1, x2, y2, c) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = css(c); ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.stroke(); },
     text(x, y, w, id, fg, _bg, s, align = 0) {           // no box fill: the whole frame is redrawn
       font(id);

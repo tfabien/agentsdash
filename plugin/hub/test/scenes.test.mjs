@@ -9,7 +9,7 @@ function recorder() {
   return {
     ops,
     measure: (s) => String(s).length * 5,
-    pic: rec('pic'), erase: rec('erase'), fill: rec('fill'), rect: rec('rect'), circle: rec('circle'), line: rec('line'),
+    pic: rec('pic'), erase: rec('erase'), fill: rec('fill'), rect: rec('rect'), circle: rec('circle'), ring: rec('ring'), line: rec('line'),
     text: (x, y, w, font, fg, bg, s) => ops.push({ op: 'text', s }),
   };
 }
