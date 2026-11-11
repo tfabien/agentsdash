@@ -185,3 +185,12 @@ how the three draw regions map to the new zones, the touch hit map, and the "+N 
 ## Decisions after review
 
 - `agent-gadget-office-anim.tft` (untracked, root) is an old experiment: ignored. Animations are rebuilt in the new `.tft`.
+- **Hardware spike (2026-11-11), fonts.** Three rounds on the real panel. f12 and f14 (Segoe UI, anti-aliased) were too
+  small; fonts without anti-aliasing (Tahoma, Verdana) read worse than anti-aliased Segoe UI. Chosen: anti-aliased
+  **Segoe UI Semibold 16 px** for every secondary line and **Segoe UI Semibold 20 px bold** for names, titles and the
+  clock. Segoe UI renders proportional: budgets are pixel widths, measured with a width table generated from the font.
+  Secondary text uses the lighter grey 200,208,216 (139,148,158 was unreadable); state green 90,220,110.
+  Final font ids after cleanup: 0 `f24`, 1 `f16`, 2 `s16`, 3 `s20`.
+- **Geometry change from the fonts.** Normal rows are 42 px tall (name 20 px + action 16 px): 1 to 4 sub-agents at
+  y 58 + i*45. Compact rows (one line, 16 px font) are 22 px tall: 5 to 7 sub-agents at y 58 + i*24. With 8 or more,
+  6 compact rows plus a "+N more" row. The team header takes y 38..56.
