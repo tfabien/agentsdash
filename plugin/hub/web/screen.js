@@ -2,7 +2,7 @@
 // layout.cpp, ui_state.cpp and ui_theme.h: same geometry, palette, pictures and wording, so the page looks like the screen.
 // Drawing goes through a small `screen` object (pic, erase, fill, rect, circle, line, text, measure): the page gives it a
 // canvas (canvas_screen.js), the tests give it a recorder. Nothing here touches the DOM.
-import { formatAge, formatTokens, fmtDuration } from './format.js';
+import { formatAge, formatTokens, fmtDuration, modelLabel } from './format.js';
 
 export const SCR_W = 480;
 export const SCR_H = 272;
@@ -17,8 +17,8 @@ export const rgb565 = (v) => [((v >> 11) & 31) * 255 / 31, ((v >> 5) & 63) * 255
 
 // Picture ids of agent-gadget.tft.
 const PIC = { BACKGROUND: 16, ROW: 17, ROW_COMPACT: 18, SPRITE_BIG: 27, SPRITE_SMALL: 35, SPRITE_TINY: 43, BLINK: 36 };
-const S16 = 16, S20 = 20;                               // font ids: secondary lines, names and titles
-const LINE_H = { 16: 18, 20: 22 };
+const S12 = 12, S16 = 16, S20 = 20;                               // font ids: secondary lines, names and titles
+const LINE_H = { 12: 14, 16: 18, 20: 22 };
 const TEAM_ROWS = 7;
 const STALE_S = 15 * 60;                                // quotas not refreshed for 15 minutes show faint
 const PULSE_STEPS = 12;
@@ -126,9 +126,16 @@ function layoutRows(nSubs) {
   return Array.from({ length: Math.min(nSubs, 7) }, (_, i) => ({ x: 176, y: 58 + i * 24, w: 290, h: 22 }));
 }
 
+/** Segments of the plan bar inside the lead panel `p`. Past 16 steps the bar is continuous (seg = w / total). */
+export function planBar(p, total) {
+  const x = p.x + 6, w = p.w - 12, y = p.y + 130;
+  const seg = total <= 16 ? Math.trunc((w - 2 * (total - 1)) / total) : w / total;
+  return { x, y, w, h: 6, seg, step: total <= 16 ? seg + 2 : seg };
+}
+
 /**
  * Tap at (x, y) in screen pixels. ctx: {sessions, selected, menu, asking?}.
- * @returns {{kind: 'tab'|'mute'|'lead'|'row'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
+ * @returns {{kind: 'planStep'|'tab'|'mute'|'lead'|'row'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
  */
 export function hitTest(x, y, ctx) {
   if (y < 34) return inside({ x: 6, y: 0, w: 468, h: 34 }, x, y) ? { kind: 'tab' } : { kind: 'none' };
@@ -142,6 +149,10 @@ export function hitTest(x, y, ctx) {
   }
   const s = ctx.sessions[ctx.selected];
   const nSubs = s && !s.ask ? s.agents.length - 1 : 0;
+  if (s && !s.ask && s.plan) {                          // a step of the plan bar (a taller target than the bar itself)
+    const b = planBar(leadRect(nSubs), s.plan.total);
+    if (x >= b.x && x < b.x + b.w && y >= b.y - 8 && y < b.y + b.h + 8) return { kind: 'planStep', index: Math.min(s.plan.total - 1, Math.floor((x - b.x) / b.step)) };
+  }
   if (inside(leadRect(nSubs), x, y)) return { kind: 'lead' };
   const rows = layoutRows(nSubs);
   for (let i = 0; i < rows.length; i++) {
@@ -154,7 +165,7 @@ export function hitTest(x, y, ctx) {
 /**
  * @param screen drawing surface (see top of file)
  * @param state  GET /state body of the hub
- * @param ui     {elapsedS, menu, detail: {session, agent}|null, sound: 'all'|'ask'|'off', tick, pulse, timeText, eventsTo}
+ * @param ui     {elapsedS, menu, planStep: {session, index}|null, detail: {session, agent}|null, sound: 'all'|'ask'|'off', tick, pulse, timeText, eventsTo}
  *               elapsedS: seconds since `state` arrived (ages and countdowns run on); tick: 300 ms animation tick; pulse: 100 ms phase
  */
 export function renderScreen(screen, state, ui) {
@@ -240,43 +251,56 @@ export function renderScreen(screen, state, ui) {
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
     line(tx, p.y + 4, tw, S20, COLOR.TEXT, COLOR.PANEL, s.project);
     line(tx, p.y + 26, tw, S16, stateColor(lead.state), COLOR.PANEL, `${STATE_LABEL[lead.state]} ${ageOf(lead)}`);
-    if (s.ctx_pct !== null && s.ctx_pct !== undefined) drawCtxBar(tx, p.y + 44, tw, s.ctx_pct);
+    drawCtxRing(tx, p.y + 40, tw, s.ctx_pct, s.ctx_k, lead.model);
     if (s.ask) { drawQuestion(s.ask, x, p.y + 68, w, p); return; }
     wrapText(lead.cmd, w, 2, m(S16)).forEach((l, i) => screen.text(x, p.y + 68 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     const y = p.y + 110;
-    if (s.plan) drawPlan(s.plan, x, y, w, p);
+    if (s.plan) drawPlan(s.plan, x, y, w, p, s.id);
     else if (lead.prev) {
       screen.text(x, y, w, S16, COLOR.ACCENT, COLOR.PANEL, 'BEFORE');
       wrapText(lead.prev, w, 2, m(S16)).forEach((l, i) => screen.text(x, y + 20 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     }
   }
 
-  function drawCtxBar(x, y, w, pct) {
-    const col = pct >= 80 ? COLOR.ERROR : pct >= 60 ? COLOR.NEEDS : COLOR.WORKING;
-    const tw = screen.measure('100%', S16) + 2, bw = w - tw - 4;
-    screen.fill(x, y + 4, bw, 10, COLOR.CHIP);
-    const filled = Math.trunc((bw * Math.min(pct, 100)) / 100);
-    if (filled > 0) screen.fill(x, y + 4, filled, 10, col);
-    line(x + bw + 4, y, tw, S16, col, COLOR.PANEL, `${pct}%`);
+  // Context fill as a ring with the percentage in the middle; the model and the size of the context sit on its right.
+  function drawCtxRing(x, y, w, pct, ctxK, model) {
+    const known = pct !== null && pct !== undefined;
+    const col = !known ? COLOR.FAINT : pct >= 80 ? COLOR.ERROR : pct >= 60 ? COLOR.NEEDS : COLOR.WORKING;
+    const cx = x + 13, cy = y + 13;
+    screen.ring(cx, cy, 11.5, 3.5, known ? Math.min(pct, 100) / 100 : 0, col, COLOR.CHIP);
+    if (known) screen.text(cx - 14, cy - 7, 28, S12, col, COLOR.PANEL, String(pct), 1);
+    const tx = x + 32, tw = w - 32;
+    if (model) line(tx, y + 1, tw, S12, COLOR.LIGHT, COLOR.PANEL, modelLabel(model));
+    if (ctxK > 0) line(tx, y + 14, tw, S12, COLOR.FAINT, COLOR.PANEL, `${ctxK}k ctx`);
   }
 
-  function drawPlan(plan, x, y, w, p) {
+  function drawPlan(plan, x, y, w, p, sid) {
     line(x, y, w, S16, COLOR.ACCENT, COLOR.PANEL, `PLAN ${plan.done}/${plan.total}`);
-    const by = y + 20;
+    const b = planBar(p, plan.total), by = b.y;
+    const pick = ui.planStep && ui.planStep.session === sid ? ui.planStep.index : -1;
     if (plan.total <= 16) {
-      const seg = Math.trunc((w - 2 * (plan.total - 1)) / plan.total);
       const ph = ui.pulse % (2 * PULSE_STEPS);
       const level = ph < PULSE_STEPS ? ph : 2 * PULSE_STEPS - ph;
       for (let i = 0; i < plan.total; i++) {
         let c;
         if (planParallel(plan)) c = plan.state[i] === 'd' ? COLOR.WORKING : plan.state[i] === 'r' ? lerp565(COLOR.ACCENT_DIM, COLOR.ACCENT, level, PULSE_STEPS) : COLOR.CHIP;
         else c = i < plan.done ? COLOR.WORKING : planRunning(plan, i) ? lerp565(COLOR.ACCENT_DIM, COLOR.ACCENT, level, PULSE_STEPS) : COLOR.CHIP;
-        screen.fill(x + i * (seg + 2), by, seg, 6, c);
+        screen.fill(x + i * b.step, by, b.seg, 6, c);
       }
+      if (pick >= 0) screen.rect(x + pick * b.step - 1, by - 2, b.seg + 2, 10, COLOR.TEXT);
     } else {
       screen.fill(x, by, w, 6, COLOR.CHIP);
       const done = Math.trunc((w * plan.done) / plan.total);
       if (done > 0) screen.fill(x, by, done, 6, COLOR.WORKING);
+      if (pick >= 0) screen.rect(x + pick * b.step - 1, by - 2, Math.max(4, b.step) + 2, 10, COLOR.TEXT);
+    }
+    const item = pick >= 0 ? plan.items?.[pick] : null;
+    if (item) {                                         // preview of the tapped step instead of the current one
+      const col = item.state === 'd' ? COLOR.WORKING : item.state === 'r' ? COLOR.ACCENT : COLOR.LIGHT;
+      const label = item.state === 'd' ? 'done' : item.state === 'r' ? 'in progress' : 'to do';
+      screen.text(x, by + 10, w, S16, col, COLOR.PANEL, `STEP ${pick + 1} - ${label}`);
+      wrapText(item.title, w, 2, m(S16)).forEach((l, i) => screen.text(x, by + 28 + i * 18, w, S16, COLOR.TEXT, COLOR.PANEL, l));
+      return;
     }
     const cur = plan.cur || (plan.done === plan.total ? 'Plan done' : '');
     wrapText(cur, w, 2, m(S20)).forEach((l, i) => screen.text(x, by + 10 + i * 22, w, S20, COLOR.TEXT, COLOR.PANEL, l));
@@ -300,7 +324,8 @@ export function renderScreen(screen, state, ui) {
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
     line(tx, p.y + 4, tw, S20, COLOR.TEXT, COLOR.PANEL, a.role);
     line(tx, p.y + 26, tw, S16, stateColor(a.state), COLOR.PANEL, `${STATE_LABEL[a.state]} ${ageOf(a)}`);
-    if (a.tok) line(tx, p.y + 44, tw, S16, COLOR.LIGHT, COLOR.PANEL, `${formatTokens(a.tok)} tokens`);
+    const info = [a.model ? modelLabel(a.model) : '', a.tok ? `${formatTokens(a.tok)} tokens` : ''].filter(Boolean).join(' - ');
+    if (info) line(tx, p.y + 44, tw, S16, COLOR.LIGHT, COLOR.PANEL, info);
     screen.text(x, p.y + 66, w, S16, COLOR.ACCENT, COLOR.PANEL, 'COMMAND');
     const full = a.detail && !a.cmd.includes(a.detail) ? `${a.cmd} ${a.detail}` : a.cmd;
     wrapText(full, w, 3, m(S16)).forEach((l, i) => screen.text(x, p.y + 84 + i * 18, w, S16, a.state === 'needs_you' ? COLOR.NEEDS : COLOR.TEXT, COLOR.PANEL, l));
@@ -363,15 +388,20 @@ export function renderScreen(screen, state, ui) {
     const nameCol = done ? COLOR.FAINT : COLOR.TEXT;
     const actCol = done ? COLOR.FAINT : a.state === 'needs_you' ? COLOR.NEEDS : COLOR.LIGHT;
     const ageW = 48;
+    const tokW = a.tok ? 46 : 0, tokText = a.tok ? formatTokens(a.tok) : '';
     if (compact) {
       sprite(r.x + 9, r.y + 2, PIC.SPRITE_TINY + roleIndex(a.role), a.state, seed);
       line(r.x + 30, r.y + 2, 104, S16, nameCol, COLOR.ROW, a.role);
-      line(r.x + 138, r.y + 2, r.w - 142 - ageW, S16, actCol, COLOR.ROW, a.cmd);
+      line(r.x + 138, r.y + 2, r.w - 142 - ageW - tokW, S16, actCol, COLOR.ROW, a.cmd);
+      if (tokW) line(r.x + r.w - ageW - tokW, r.y + 2, tokW - 4, S16, COLOR.FAINT, COLOR.ROW, tokText, 2);
     } else {
       sprite(r.x + 9, r.y + 7, PIC.SPRITE_SMALL + roleIndex(a.role), a.state, seed);
       const tx = r.x + 40, tw = r.w - 44;
       line(tx, r.y + 1, tw - ageW, S20, nameCol, COLOR.ROW, a.role);
-      line(tx, r.y + 22, tw, S16, actCol, COLOR.ROW, a.cmd);
+      const used = screen.measure(a.role, S20) + 8;           // the model follows the role name when there is room
+      if (a.model && used + 50 < tw - ageW) line(tx + used, r.y + 6, tw - ageW - used, S12, COLOR.FAINT, COLOR.ROW, modelLabel(a.model));
+      line(tx, r.y + 22, tw - tokW, S16, actCol, COLOR.ROW, a.cmd);
+      if (tokW) line(tx + tw - tokW, r.y + 22, tokW, S16, COLOR.FAINT, COLOR.ROW, tokText, 2);
     }
     line(r.x + r.w - 4 - 44, r.y + (compact ? 2 : 3), 44, S16, COLOR.FAINT, COLOR.ROW, ageOf(a), 2);
   }

@@ -15,6 +15,7 @@ function recorder() {
     fill: (x, y, w, h, c) => ops.push({ op: 'fill', x, y, w, h, c }),
     rect: (x, y, w, h, c) => ops.push({ op: 'rect', x, y, w, h, c }),
     circle: (cx, cy, r, c) => ops.push({ op: 'circle', cx, cy, r, c }),
+    ring: (cx, cy, r, w, frac, c) => ops.push({ op: 'ring', cx, cy, r, frac, c }),
     line: (x1, y1, x2, y2, c) => ops.push({ op: 'line', x1, y1, x2, y2, c }),
     text: (x, y, w, font, fg, bg, s, align = 0) => ops.push({ op: 'text', x, y, w, font, fg, bg, s, align }),
   };
@@ -46,7 +47,7 @@ test('main_view_draws_the_decor_top_bar_lead_team_and_bottom_bar', () => {
   assert.ok(texts(r).includes('5'), 'agent count chip: lead + 4');
   assert.deepEqual(pics(r).filter((p) => p.id === 27).map((p) => [p.x, p.y]), [[18, 42]], 'big lead sprite');
   assert.ok(texts(r).some((t) => t.startsWith('waiting ')));
-  assert.ok(texts(r).includes('34%'));
+  assert.ok(texts(r).includes('34'));
   assert.ok(texts(r).includes('PLAN 3/8'));
   assert.ok(texts(r).includes('Write the failing tests'));
   assert.ok(texts(r).includes('next: Implement roles'));
@@ -224,7 +225,7 @@ test('plan_segments_are_done_current_and_pending_and_running_steps_pulse', () =>
 });
 
 test('context_bar_color_follows_the_thresholds', () => {
-  const barColor = (pct) => draw(state([session({ ctx_pct: pct })])).ops.find((o) => o.op === 'text' && o.s === `${pct}%`).fg;
+  const barColor = (pct) => draw(state([session({ ctx_pct: pct })])).ops.find((o) => o.op === 'ring').c;
   assert.equal(barColor(34), COLOR.WORKING);
   assert.equal(barColor(60), COLOR.NEEDS);
   assert.equal(barColor(80), COLOR.ERROR);

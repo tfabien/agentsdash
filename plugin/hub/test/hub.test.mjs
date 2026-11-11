@@ -57,7 +57,7 @@ test('reset_clears', () => withHub(async (hub) => {
 }));
 
 test('health_answers_ok', () => withHub(async (hub) => {
-  assert.deepEqual(await (await get(hub, '/health')).json(), { ok: true });
+  assert.equal((await (await get(hub, '/health')).json()).ok, true);
 }));
 
 test('sse_sends_state_on_connect_and_on_change', () => withHub(async (hub) => {

@@ -17,6 +17,7 @@ let scale = 1;
 let state = { sessions: [], view: {}, agents: [] };
 let receivedAt = performance.now();
 let menuUntil = 0;
+let planStep = null;                                 // {session, index, until}: a tapped step of the plan bar
 let detail = null;                                   // {session, agent, until}
 let sound = 'ask';                                   // shared by every page: kept by the hub (state.settings.sound)
 let counts = null;                                   // {needs, turn} of the previous state, for the beeps
@@ -61,10 +62,12 @@ function showState(next) {
 function uiNow() {
   const now = Date.now();
   if (detail && now >= detail.until) detail = null;
+  if (planStep && now >= planStep.until) planStep = null;
   return {
     elapsedS: Math.floor((performance.now() - receivedAt) / 1000),
     menu: now < menuUntil && state.sessions.length > 1,
     detail,
+    planStep,
     sound,
     tick: Math.floor(now / 300),
     pulse: Math.floor(now / 100),
@@ -106,7 +109,10 @@ canvas.addEventListener('click', (e) => {
   else if (hit.kind === 'menuRow') {
     menuUntil = 0;
     fetch('/select', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: state.sessions[hit.index].id, agent: 'lead' }) });
-  } else if (hit.kind === 'lead') detail = null;
+  } else if (hit.kind === 'planStep') {
+    const id = state.sessions[sel].id;
+    planStep = planStep && planStep.session === id && planStep.index === hit.index ? null : { session: id, index: hit.index, until: now + DETAIL_MS };     // the same step again closes it
+  } else if (hit.kind === 'lead') { detail = null; planStep = null; }
   else if (hit.kind === 'row') {
     const s = state.sessions[sel];
     const slot = teamOrder(s.agents.slice(1)).order[hit.index];
