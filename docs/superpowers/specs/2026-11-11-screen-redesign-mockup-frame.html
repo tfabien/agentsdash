@@ -54,7 +54,7 @@
 <p class="subtitle">L'onglet sélectionné et le cadre ont la même couleur. À l'intérieur, deux panneaux identiques : LEAD et TEAM.</p>
 <div class="grid" id="g"></div>
 <script>
-const tabs=(sel=0)=>`<div class="tabs">${[["artillery-x3","#3fb950",6],["conforama-rdv","#f0883e",2],["dotfiles","#6e7681",1]].map((t,i)=>`<div class="tab ${i==sel?"sel":""}"><span class="dot" style="background:${t[1]}"></span>${t[0]}<span class="n">${t[2]}</span></div>`).join("")}</div><div class="badge">1 !</div><div class="clock">14:32</div>`;
+const tabs=(sel=0)=>`<div class="tabs">${[["artillery-x3","#3fb950",6],["shop-rdv","#f0883e",2],["dotfiles","#6e7681",1]].map((t,i)=>`<div class="tab ${i==sel?"sel":""}"><span class="dot" style="background:${t[1]}"></span>${t[0]}<span class="n">${t[2]}</span></div>`).join("")}</div><div class="badge">1 !</div><div class="clock">14:32</div>`;
 const usage=`<div class="usage"><span class="q">Session 5h <span class="g"><i style="width:48%;background:#3fb950"></i></span><b>48%</b> reset 1h20</span><span class="q">Week <span class="g"><i style="width:61%;background:#d29922"></i></span><b>61%</b> reset 2d03h</span></div>`;
 const leadPanel=`<div class="lead"><div style="display:flex;gap:8px;align-items:center"><span class="spr big work" style="--rc:#c8a028"></span><div><div style="font-weight:700;font-size:14px">artillery-x3</div><div style="font-size:11px;color:#3fb950">working, 12m</div><div style="font-size:11px;color:#8b949e">ctx 34%</div></div></div>
 <div class="act" style="margin-top:8px;font-size:12px">Waiting on 4 sub-agents</div>
@@ -81,11 +81,11 @@ const lp=leadPanel.replace('class="lead"','class="lead2"').replace('class="lead2
 const cur=`<div class="cur"><span class="dot" style="background:#3fb950"></span>artillery-x3<span class="n">6</span></div>`;
 const oth=(n,c,k)=>`<div class="oth"><span class="dot" style="background:${c}"></span>${n}<span class="n">${k}</span></div>`;
 const rows=subs.map((a,i)=>row2(a,i).replace("top:"+(32+i*36),"top:"+(32+i*36))).join("");
-const A=`<div class="scr"><div class="top">${cur}${oth("conforama-rdv","#f0883e",2)}${oth("dotfiles","#6e7681",1)}<span class="badge2">1 !</span></div>${lp}${rows}${usage2}</div>`;
+const A=`<div class="scr"><div class="top">${cur}${oth("shop-rdv","#f0883e",2)}${oth("dotfiles","#6e7681",1)}<span class="badge2">1 !</span></div>${lp}${rows}${usage2}</div>`;
 const B=`<div class="scr"><div class="top">${cur}<span class="arr">&lsaquo;</span>${oth("dotfiles","#6e7681",1)}${oth("api-gateway","#3fb950",3)}<span class="arr ask">&rsaquo;</span></div>${lp}${rows}${usage2}</div>`;
 
 const curF=cur.replace('class="cur"','class="cur" style="background:#1a2230"');
-const top3=(c)=>`<div class="top">${c}${oth("conforama-rdv","#f0883e",2)}${oth("dotfiles","#6e7681",1)}<span class="badge2">1 !</span></div>`;
+const top3=(c)=>`<div class="top">${c}${oth("shop-rdv","#f0883e",2)}${oth("dotfiles","#6e7681",1)}<span class="badge2">1 !</span></div>`;
 const lines=(x0,x1,ys)=>`<div class="bus" style="left:${x0}px;top:${Math.min(...ys)}px;width:2px;height:${Math.max(...ys)-Math.min(...ys)+2}px"></div>`+`<div class="bus" style="left:${x0-6}px;top:${ys[0]}px;width:8px;height:2px"></div>`+ys.map(y=>`<div class="bus" style="left:${x0}px;top:${y}px;width:${x1-x0}px;height:2px"></div>`).join("");
 const ys=[0,1,2,3,4].map(i=>32+i*36+15);
 const rowsF=subs.map((a,i)=>row2(a,i).replace("top:"+(32+i*36),"top:"+(36+i*41))).join("");
