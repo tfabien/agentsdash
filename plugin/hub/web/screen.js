@@ -249,9 +249,10 @@ export function renderScreen(screen, state, ui) {
     const x = p.x + 6, w = p.w - 12;
     sprite(x, p.y + 6, PIC.SPRITE_BIG, lead.state, 0);
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
-    line(tx, p.y + 4, tw, S20, COLOR.TEXT, COLOR.PANEL, s.project);
-    line(tx, p.y + 26, tw, S16, stateColor(lead.state), COLOR.PANEL, `${STATE_LABEL[lead.state]} ${ageOf(lead)}`);
-    drawCtxRing(tx, p.y + 40, tw, s.ctx_pct, s.ctx_k, lead.model);
+    const wide = p.w > 200, ringW = wide ? 160 : 0;          // wide panel: the ring sits at the right end of the header
+    line(tx, p.y + 4, tw - ringW, S20, COLOR.TEXT, COLOR.PANEL, s.project);
+    line(tx, p.y + 26, tw - ringW, S16, stateColor(lead.state), COLOR.PANEL, `${STATE_LABEL[lead.state]} ${ageOf(lead)}`);
+    drawCtxRing(p, wide, tx, tw, s.ctx_pct, s.ctx_k, lead.model);
     if (s.ask) { drawQuestion(s.ask, x, p.y + 68, w, p); return; }
     wrapText(lead.cmd, w, 2, m(S16)).forEach((l, i) => screen.text(x, p.y + 68 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     const y = p.y + 110;
@@ -262,16 +263,25 @@ export function renderScreen(screen, state, ui) {
     }
   }
 
-  // Context fill as a ring with the percentage in the middle; the model and the size of the context sit on its right.
-  function drawCtxRing(x, y, w, pct, ctxK, model) {
+  // Context fill as a ring with the percentage in the middle. Wide panel: big ring at the right end of the header, model and size to its left.
+  // Narrow panel (team beside it): small ring under the state line, model to its right.
+  function drawCtxRing(p, wide, tx, tw, pct, ctxK, model) {
     const known = pct !== null && pct !== undefined;
     const col = !known ? COLOR.FAINT : pct >= 80 ? COLOR.ERROR : pct >= 60 ? COLOR.NEEDS : COLOR.WORKING;
-    const cx = x + 13, cy = y + 13;
-    screen.ring(cx, cy, 11.5, 3.5, known ? Math.min(pct, 100) / 100 : 0, col, COLOR.CHIP);
+    const label = model ? modelLabel(model) : '';
+    if (wide) {
+      const r = 17, cx = p.x + p.w - 8 - r - 3, cy = p.y + 26;
+      screen.ring(cx, cy, r, 5, known ? Math.min(pct, 100) / 100 : 0, col, COLOR.CHIP);
+      if (known) screen.text(cx - 16, cy - 9, 32, S16, col, COLOR.PANEL, String(pct), 1);
+      const rx = cx - r - 12, w = 140;
+      if (label) screen.text(rx - w, p.y + 8, w, S16, COLOR.LIGHT, COLOR.PANEL, fit(label, w, S16), 2);
+      if (ctxK > 0) screen.text(rx - w, p.y + 28, w, S16, COLOR.FAINT, COLOR.PANEL, `${ctxK}k ctx`, 2);
+      return;
+    }
+    const cx = tx + 12, cy = p.y + 57;
+    screen.ring(cx, cy, 9.5, 3.5, known ? Math.min(pct, 100) / 100 : 0, col, COLOR.CHIP);
     if (known) screen.text(cx - 14, cy - 7, 28, S12, col, COLOR.PANEL, String(pct), 1);
-    const tx = x + 32, tw = w - 32;
-    if (model) line(tx, y + 1, tw, S12, COLOR.LIGHT, COLOR.PANEL, modelLabel(model));
-    if (ctxK > 0) line(tx, y + 14, tw, S12, COLOR.FAINT, COLOR.PANEL, `${ctxK}k ctx`);
+    if (label) line(tx + 30, p.y + 48, tw - 30, S16, COLOR.LIGHT, COLOR.PANEL, label);
   }
 
   function drawPlan(plan, x, y, w, p, sid) {
