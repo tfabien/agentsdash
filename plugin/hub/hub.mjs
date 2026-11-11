@@ -169,7 +169,7 @@ export function startHub(opts = {}) {
   const quotas = createQuotaPoller({
     enabled: quotasEnabled(quotaOpts.env ?? process.env, config),
     hasSessions: () => model.toState(now()).sessions.length > 0,
-    apply: (body) => { model.applyUsage(body, now()); for (const fn of usageTaps) { try { fn(body); } catch { /* tap errors stay local */ } } publish(); },
+    apply: (body, atMs) => { model.applyUsage(body, atMs ?? now()); for (const fn of usageTaps) { try { fn(body); } catch { /* tap errors stay local */ } } publish(); },
     stateDir: quotaOpts.stateDir ?? stateDir(),
     env: quotaOpts.env,
     fetchImpl: quotaOpts.fetchImpl,

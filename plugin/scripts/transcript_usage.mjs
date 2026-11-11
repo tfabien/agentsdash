@@ -74,10 +74,13 @@ export function scan(file, previous, maxRead = MAX_READ) {
   return entry;
 }
 
-/** Context window guess (transcripts do not record it): 1M when the context is past 200k or the model id says
- * [1m], else `dflt` (1M: desktop sessions run with a 1M window; set "context_window" in agent-gadget.json). */
+/** Context window guess (transcripts do not record it). Order: 1M when the context is past 200k or the model id says
+ * [1m]; 200k for Haiku (never has a 1M window); else `dflt` (1M: desktop sessions run with a 1M window; set
+ * "context_window" in agent-gadget.json). */
 export function contextWindow(lastCtx, model, dflt = 1000000) {
-  return lastCtx > 200000 || String(model).includes('[1m]') ? 1000000 : dflt;
+  const id = String(model).toLowerCase();
+  if (lastCtx > 200000 || id.includes('[1m]')) return 1000000;
+  return id.includes('haiku') ? 200000 : dflt;
 }
 
 const cachePath = (dir, session4) => path.join(dir, `${session4 || 'session'}.tok.json`);

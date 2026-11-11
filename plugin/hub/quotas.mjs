@@ -16,7 +16,9 @@ import { historyPath, updateHistory, usageBody } from '../scripts/statusline.mjs
 
 const EVERY_S = 60;
 const STATUSLINE_FRESH_S = 120;
-const USAGE_BACKOFF_S = 900;
+const USAGE_BACKOFF_S = 900;             // 429 without a usable Retry-After
+const BACKOFF_MIN_S = 60;
+const LAST_FILE = 'quotas.last.json';    // last good limits, so a hub restart does not start blind
 const USAGE_DEAD_S = 3600;               // after a refusal, skip the usage endpoint for an hour
 const H5_WINDOW_S = 5 * 3600;
 const H5_SLACK_S = 600;                  // a window older than this with 0 % is implausible for a user who works
@@ -96,6 +98,29 @@ export function dropImplausibleH5(limits, now) {
 
 export const bodyFromLimits = (limits, now, samples) => usageBody({ session_id: '', rate_limits: limits }, now, samples ?? undefined);
 
+/** Seconds to skip the usage endpoint after a 429: its Retry-After (in seconds) within 1 min..15 min, else 15 min. */
+export function backoffSeconds(headers) {
+  const v = Number(typeof headers?.get === 'function' ? headers.get('retry-after') : headers?.['retry-after']);
+  return Number.isFinite(v) && v > 0 ? Math.min(Math.max(v, BACKOFF_MIN_S), USAGE_BACKOFF_S) : USAGE_BACKOFF_S;
+}
+
+/** Last good limits from disk: windows whose reset time has passed are dropped. Returns {limits, at} or null. */
+export function loadLast(folder, now) {
+  try {
+    const { at, limits } = JSON.parse(fs.readFileSync(path.join(folder, LAST_FILE), 'utf8'));
+    if (!Number.isFinite(at) || at > now) return null;
+    const live = Object.fromEntries(Object.entries(limits ?? {}).filter(([, w]) => w && w.resets_at > now && Number.isFinite(w.used_percentage)));
+    return Object.keys(live).length ? { limits: live, at } : null;
+  } catch { return null; }
+}
+
+function saveLast(folder, now, limits) {
+  try {
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, LAST_FILE), JSON.stringify({ at: now, limits }), 'utf8');
+  } catch { /* losing the file only costs a blind start */ }
+}
+
 /** A terminal status line reports exact quotas (*.usage files): the probe must not overwrite them. */
 function statuslineFresh(folder, now) {
   try {
@@ -116,7 +141,7 @@ export async function fetchLimits({ token, now, fetchImpl, state, folder }) {
         const limits = parseUsageJson(await r.json());
         if (Object.keys(limits).length) return { limits, source: 'usage_api' };
       } else if (USAGE_REFUSED.includes(r.status)) state.deadUntil = now + USAGE_DEAD_S;
-      else if (r.status === 429) state.backoffUntil = now + USAGE_BACKOFF_S;
+      else if (r.status === 429) state.backoffUntil = now + backoffSeconds(r.headers);
     } catch { /* fall through to the probe */ }
   }
   try {
@@ -133,7 +158,7 @@ export async function fetchLimits({ token, now, fetchImpl, state, folder }) {
 }
 
 /**
- * @param {{enabled: boolean, hasSessions: () => boolean, apply: (body: object) => void, stateDir: string, env?: object,
+ * @param {{enabled: boolean, hasSessions: () => boolean, apply: (body: object, atMs?: number) => void, stateDir: string, env?: object,
  *   credentialsPath?: string, fetchImpl?: Function, log?: (line: string) => void}} opts
  * @returns {{pollOnce: (now: number) => Promise<void>, start: () => void, stop: () => void}}
  */
@@ -156,6 +181,7 @@ export function createQuotaPoller(opts) {
       if (!Object.keys(limits).length) return;
       const h5 = limits.five_hour, d7 = limits.seven_day;
       const samples = updateHistory(historyPath(opts.stateDir), now, h5 ? [h5.used_percentage, h5.resets_at] : null, d7 ? [d7.used_percentage, d7.resets_at] : null);
+      saveLast(opts.stateDir, now, limits);
       opts.apply(bodyFromLimits(limits, now, samples));
       opts.log?.(`quotas from ${source}`);
     } catch { /* the next minute tries again */ } finally { busy = false; }
@@ -163,7 +189,12 @@ export function createQuotaPoller(opts) {
 
   return {
     pollOnce,
-    start() { if (!timer) { timer = setInterval(() => { pollOnce(Date.now() / 1000); }, TICK_MS); timer.unref(); } },
+    /** Show the last good numbers (marked old by their age) until the first poll succeeds. */
+    restore(now = Date.now() / 1000) {
+      const last = loadLast(opts.stateDir, now);
+      if (last) opts.apply(bodyFromLimits(last.limits, last.at, null), last.at * 1000);
+    },
+    start() { this.restore(); if (!timer) { timer = setInterval(() => { pollOnce(Date.now() / 1000); }, TICK_MS); timer.unref(); } },
     stop() { if (timer) { clearInterval(timer); timer = null; } },
   };
 }

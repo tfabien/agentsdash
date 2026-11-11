@@ -425,16 +425,18 @@ export function renderScreen(screen, state, ui) {
   function drawBottom() {
     screen.erase(0, 250, SCR_W, 22);
     const u = state.usage;
-    const stale = !u || u.age_s + ui.elapsedS > STALE_S;
+    const old = !u || u.age_s + ui.elapsedS > STALE_S;
     if (u) {
-      if (u.h5_pct !== undefined) quota(6, 176, 252, '5h', 'h5', u, stale);
-      if (u.d7_pct !== undefined) quota(180, MUTE.x - 4, 252, 'Week', 'd7', u, stale);
+      // a window whose reset time has passed shows the number of the previous window: stale too
+      const stale = (key) => old || u[`${key}_reset_s`] - ui.elapsedS <= 0;
+      if (u.h5_pct !== undefined) quota(6, 176, 252, '5h', 'h5', u, stale('h5'), old);
+      if (u.d7_pct !== undefined) quota(180, MUTE.x - 4, 252, 'Week', 'd7', u, stale('d7'), old);
     }
     soundIcon(ui.sound);
     if (ui.timeText) screen.text(416, 250, 60, S20, COLOR.TEXT, COLOR.BAR, ui.timeText, 2);       // the small clock of the bottom bar
   }
 
-  function quota(x, slotEnd, y, label, key, u, stale) {
+  function quota(x, slotEnd, y, label, key, u, stale, old) {
     const pct = u[`${key}_pct`], proj = u[`${key}_proj`];
     const level = paceLevel({ pct, proj });
     const col = stale ? COLOR.FAINT : PACE_COLOR[level];
@@ -449,6 +451,7 @@ export function renderScreen(screen, state, ui) {
     let t = `${pct}%`;
     if (level === 'over' && emptyS > 0 && pct < 100) t += ` empty ${fmtDuration(Math.max(0, emptyS - ui.elapsedS))}`;
     else t += ` reset ${fmtDuration(Math.max(0, u[`${key}_reset_s`] - ui.elapsedS))}`;
+    if (old) t = `${pct}% ${fmtDuration(u.age_s + ui.elapsedS)} old`;       // say how old the number is
     screen.text(x, y, slotEnd - x, S16, stale ? COLOR.FAINT : COLOR.TEXT, COLOR.BAR, fit(t, slotEnd - x, S16));
   }
 

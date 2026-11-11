@@ -92,6 +92,8 @@ test('context_window_guess', () => {
   assert.equal(contextWindow(150000, 'claude-opus-5-5', 200000), 200000);
   assert.equal(contextWindow(250000, 'x'), 1000000);
   assert.equal(contextWindow(1000, 'claude-x[1m]'), 1000000);
+  assert.equal(contextWindow(150000, 'claude-haiku-4-5-20251001'), 200000);
+  assert.equal(contextWindow(250000, 'claude-haiku-4-5'), 1000000);
 });
 
 test('cache_roundtrip_and_corrupt_file', () => {

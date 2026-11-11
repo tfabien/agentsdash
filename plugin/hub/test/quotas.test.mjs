@@ -171,3 +171,25 @@ test('token_from_keychain_when_no_file', () => {
   assert.equal(readToken({}, '/nope', NOW, kc), 'kc');
   assert.equal(readToken({}, '/nope', NOW, () => null), null);
 });
+
+test('retry_after_sets_the_429_backoff', async () => {
+  const { backoffSeconds } = await import('../quotas.mjs');
+  assert.equal(backoffSeconds({ get: () => '120' }), 120);
+  assert.equal(backoffSeconds({ get: () => '5' }), 60);
+  assert.equal(backoffSeconds({ get: () => '99999' }), 900);
+  assert.equal(backoffSeconds({ get: () => null }), 900);
+});
+
+test('last_good_limits_survive_a_restart', async () => {
+  const { loadLast, createQuotaPoller } = await import('../quotas.mjs');
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'q-'));
+  const limits = { five_hour: { used_percentage: 40, resets_at: 2000 }, seven_day: { used_percentage: 10, resets_at: 500 } };
+  fs.writeFileSync(path.join(dir, 'quotas.last.json'), JSON.stringify({ at: 900, limits }));
+  assert.deepEqual(Object.keys(loadLast(dir, 1000).limits), ['five_hour']);   // the 7d window already reset
+  assert.equal(loadLast(dir, 800), null);                                      // saved in the future: ignored
+  const got = [];
+  createQuotaPoller({ enabled: true, hasSessions: () => true, apply: (b, at) => got.push([b, at]), stateDir: dir }).restore(1000);
+  assert.equal(got[0][1], 900000);
+  assert.equal(got[0][0].h5_pct, 40);
+});

@@ -187,6 +187,9 @@ test('quota_pace_colors_empty_and_stale', () => {
   const stale = draw(state([session()], { usage: { ...base, age_s: 1000, h5_proj: 70 } }));
   assert.ok(stale.ops.some((o) => o.op === 'fill' && o.y === 259 && o.c === COLOR.FAINT));
   assert.equal(col(base).length >= 0, true);
+  assert.ok(texts(stale).includes('48% 16m old'));                       // an old number says its age
+  const reset = draw(state([session()], { usage: { ...base, h5_reset_s: 0, h5_proj: 70 } }));
+  assert.ok(reset.ops.some((o) => o.op === 'fill' && o.y === 259 && o.c === COLOR.FAINT));   // window reset since: faint
 });
 
 test('reset_times_count_down_with_the_elapsed_time', () => {
