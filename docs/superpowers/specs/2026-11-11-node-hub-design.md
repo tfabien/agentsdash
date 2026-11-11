@@ -1,6 +1,6 @@
 # Node.js hub and plugin - design
 
-Status: draft, waiting for approval. Date: 2026-11-11.
+Status: implemented and merged into `main` (2026-11-11). See the Status section of the plan for deviations.
 
 ## Intent
 
@@ -25,7 +25,7 @@ Why: people without the hardware can use the standup; the user wants Python out 
 
 - No change to the screen UI or the HMI project.
 - No Python removal from hardware tooling (`agent-gadget/*.py`, `tools/make_*.py`, `hmi_*.py`, API tests on a real gadget). They stay Python in this project.
-- No authentication on the hub: it binds to `127.0.0.1` only.
+- No authentication on the hub: it binds to `127.0.0.1` only, answers only requests whose `Host` is the hub, and rejects any `Origin` that is not the hub (no CORS).
 - No accents on the wire: events stay ASCII, as the screen requires.
 
 ## Anti-goals
@@ -71,7 +71,7 @@ status line / quotas ----------------> POST /usage
 
 - Endpoints as the gadget (see `agent-gadget/ARCHITECTURE.md`, section Wire format), plus `GET /events` (SSE of `/state` changes) and `GET /` (page).
 - `model.mjs` is a line-by-line port of the rules in `model.cpp`, with the same revision counters. Parity test: JSON fixtures (event sequences and the expected `/state`) run against `model.mjs` and, optionally, a real gadget (`GADGET_HOST`).
-- Page: HTML/CSS reproduction of the 480x272 layout (title bar with session dots, lead panel with plan and context, team rows, bottom bar with quotas and clock). Shown larger and readable, with the "needs you" bar pulsing. Click a session dot = `POST /select`. Optional sound on needs-you (browser audio, off by default).
+- Page (as built): the gadget screen drawn on a canvas as vectors at the display resolution, same 480x272 layout, colors and wording as the firmware (title bar with session dots, lead panel with plan and context, team rows, session list, question, standby clock, quota bar), robots redrawn as vectors, robot blink and plan pulse as on the gadget. Taps work like the touchscreen (session list, agent detail for 10 s, speaker button cycles `all` / `ask` / `off`); a session picked in the list is sent as `POST /select`. The relay state shows under the screen.
 - Config in `~/.claude/agent-gadget.json`: `host` (hub address, default `127.0.0.1:8765`), `relay`: `{"mode":"none"|"http"|"serial","host":"<ip>","port":"COM3"}`, `quotas`, `context_window`, as today.
 - Autostart: on connection refused, `notify.mjs` spawns `node hub.mjs` detached (hidden window on Windows), waits up to 400 ms, retries once. If the hub still does not answer, the event is dropped.
 
