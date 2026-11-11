@@ -2,4 +2,5 @@
 #pragma once
 enum SoundMode : unsigned char { SOUND_ALL, SOUND_ASK, SOUND_OFF };   // beep on needs_you and your_turn / on needs_you only / never
 SoundMode soundMode();
+void soundSet(SoundMode m);                                         // set from the hub (POST /settings)
 void soundCycle();                                                    // all -> ask -> off -> all

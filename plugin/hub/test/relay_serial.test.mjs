@@ -133,8 +133,8 @@ test('hub_with_serial_mode_forwards_and_exposes_release_and_open', async () => {
   try {
     const url = (p) => `http://127.0.0.1:${hub.port}${p}`;
     await fetch(url('/event'), { method: 'POST', body: JSON.stringify(ev()) });
-    await waitFor(() => f.state.writes.length === 1);
-    assert.equal(JSON.parse(f.state.writes[0].data).type, 'event');
+    await waitFor(() => f.state.writes.length === 2);
+    assert.deepEqual(f.state.writes.map((w) => JSON.parse(w.data).type), ['settings', 'event']);
     assert.equal((await fetch(url('/serial/release'), { method: 'POST' })).status, 200);
     assert.equal(f.state.closed, 1);
     assert.equal((await (await fetch(url('/relay'))).json()).released, true);

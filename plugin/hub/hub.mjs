@@ -50,6 +50,7 @@ export function startHub(opts = {}) {
   const eventTaps = [];
   const usageTaps = [];
   const dismissTaps = [];
+  const settingsTaps = [];
   const changeTaps = [];
 
   const relayInfo = () => (relay ? { mode, ...(serial ? { port: config.relay.port } : { host: config.relay.host }), ...relay.status() } : null);
@@ -121,6 +122,7 @@ export function startHub(opts = {}) {
         } else if (route === 'POST /settings') {
           if (!body || !SOUNDS.includes(body.sound)) return text(res, 400, 'sound must be all, ask or off');
           settings = { sound: body.sound };
+          for (const fn of settingsTaps) { try { fn(settings); } catch { /* tap errors stay local */ } }
           if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
         } else if (route === 'POST /select') {
           if (!body || !model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');
@@ -150,6 +152,8 @@ export function startHub(opts = {}) {
     eventTaps.push((body) => relay.send('/event', body));
     usageTaps.push((body) => relay.send('/usage', body));
     dismissTaps.push((body) => relay.send('/dismiss', body));
+    settingsTaps.push((body) => relay.send('/settings', body));
+    relay.send('/settings', settings);                // the gadget buzzer follows the hub setting from the start
   }
 
   // Plan quotas for the desktop app (no status line): polled while a session exists, applied like a POST /usage.

@@ -98,9 +98,9 @@ test('hub_forwards_a_dismiss_to_the_gadget', async () => {
   try {
     await fetch(`http://127.0.0.1:${hub.port}/event`, { method: 'POST', body: JSON.stringify(ev()) });
     await fetch(`http://127.0.0.1:${hub.port}/dismiss`, { method: 'POST', body: JSON.stringify({ session: 'abcd' }) });
-    await waitFor(() => g.got.length === 2);
-    assert.deepEqual(g.got.map((r) => r.url), ['/event', '/dismiss']);
-    assert.deepEqual(JSON.parse(g.got[1].body), { session: 'abcd' });
+    await waitFor(() => g.got.length === 3);
+    assert.deepEqual(g.got.map((r) => r.url), ['/settings', '/event', '/dismiss']);
+    assert.deepEqual(JSON.parse(g.got[2].body), { session: 'abcd' });
   } finally { await hub.close(); await g.close(); }
 });
 
@@ -112,8 +112,12 @@ test('hub_forwards_accepted_events_and_usage_to_the_relay', async () => {
     assert.equal((await post('/event', ev())).status, 200);
     assert.equal((await post('/event', { v: 2, session: 'abcd', agent: 'lead', state: 'bogus' })).status, 400);
     assert.equal((await post('/usage', { v: 1, h5_pct: 5 })).status, 200);
-    await waitFor(() => g.got.length === 2);
-    assert.deepEqual(g.got.map((r) => r.url), ['/event', '/usage']);
+    await waitFor(() => g.got.length === 3);
+    assert.deepEqual(g.got.map((r) => r.url), ['/settings', '/event', '/usage']);
+    assert.deepEqual(JSON.parse(g.got[0].body), { sound: 'ask' }, 'the gadget buzzer gets the hub setting first');
+    await post('/settings', { sound: 'off' });
+    await waitFor(() => g.got.length === 4);
+    assert.deepEqual([g.got[3].url, JSON.parse(g.got[3].body)], ['/settings', { sound: 'off' }]);
     const rel = await (await fetch(`http://127.0.0.1:${hub.port}/relay`)).json();
     assert.deepEqual([rel.mode, rel.ok], ['http', true]);
     const st = await (await fetch(`http://127.0.0.1:${hub.port}/state`)).json();

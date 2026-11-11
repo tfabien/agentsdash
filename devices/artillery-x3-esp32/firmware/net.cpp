@@ -6,6 +6,7 @@
 #include "clock.h"
 #include "layout.h"
 #include "touch.h"
+#include "sound.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
@@ -164,8 +165,11 @@ static void handleUsage() {            // POST /usage
 
 // One JSON line from the USB serial port (agent hub in serial mode): {"type":"event"|"usage"|"dismiss","body":{...}}.
 // The body is the same text as a POST body; the flat key search of the helpers above reads it inside the wrapper.
+static bool applySettingsBody(const String& body);
+
 void netSerialLine(const String& line) {
-  if (line.indexOf("\"type\":\"dismiss\"") >= 0) { char id[ID_LEN]; if (jsonGet(line, "session", id, ID_LEN)) modelDismiss(id); }
+  if (line.indexOf("\"type\":\"settings\"") >= 0) applySettingsBody(line);
+  else if (line.indexOf("\"type\":\"dismiss\"") >= 0) { char id[ID_LEN]; if (jsonGet(line, "session", id, ID_LEN)) modelDismiss(id); }
   else if (line.indexOf("\"type\":\"usage\"") >= 0) applyUsageBody(line);
   else if (line.indexOf("\"type\":\"event\"") >= 0) applyEventBody(line);
 }
@@ -176,6 +180,19 @@ static void handleDismiss() {          // POST /dismiss {"session":"abcd"}: hide
   char id[ID_LEN];
   if (!jsonGet(server.arg("plain"), "session", id, ID_LEN)) { server.send(400, "text/plain", "session is required"); return; }
   if (!modelDismiss(id)) { server.send(404, "text/plain", "unknown session"); return; }
+  server.send(200, "text/plain", "ok");
+}
+
+static bool applySettingsBody(const String& body) {      // {"sound":"all"|"ask"|"off"}
+  char v[8];
+  if (!jsonGet(body, "sound", v, sizeof v)) return false;
+  if (!strcmp(v, "all")) soundSet(SOUND_ALL); else if (!strcmp(v, "ask")) soundSet(SOUND_ASK); else if (!strcmp(v, "off")) soundSet(SOUND_OFF); else return false;
+  return true;
+}
+
+static void handleSettings() {         // POST /settings {"sound":"ask"}: buzzer mode, set by the hub
+  cors();
+  if (!applySettingsBody(server.arg("plain"))) { server.send(400, "text/plain", "sound must be all, ask or off"); return; }
   server.send(200, "text/plain", "ok");
 }
 
@@ -518,6 +535,7 @@ void netBegin() {
   server.on("/event", HTTP_OPTIONS, handleOptions);
   server.on("/usage", HTTP_POST, handleUsage);
   server.on("/dismiss", HTTP_POST, handleDismiss);
+  server.on("/settings", HTTP_POST, handleSettings);
   server.on("/usage", HTTP_OPTIONS, handleOptions);
   server.on("/state", HTTP_GET, handleState);
   server.on("/select", HTTP_POST, handleSelect);

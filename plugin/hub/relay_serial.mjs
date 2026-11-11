@@ -1,5 +1,5 @@
 // Relay of the hub's events to a gadget over USB: one JSON line per event or usage report on the ESP32's serial port.
-// Line: {"type":"event"|"usage"|"dismiss","body":{...}}\n  (body = the POST body, same wire format as over Wi-Fi).
+// Line: {"type":"event"|"usage"|"dismiss"|"settings","body":{...}}\n  (body = the POST body, same wire format as over Wi-Fi).
 // The hub owns the COM port: release() lets another tool (pio upload, hmi_bridge) take it, reopen() takes it back.
 // Needs the optional `serialport` package, loaded only when the port is opened.
 
@@ -83,8 +83,8 @@ export function createSerialRelay({ path, baud = 115200, open = defaultOpen, set
   return {
     start: connect,
     send(route, body) {
-      const type = route === '/usage' ? 'usage' : route === '/dismiss' ? 'dismiss' : 'event';
-      queue.push({ type, body, key: type === 'usage' ? 'usage' : type === 'dismiss' ? `dismiss:${body.session}` : `${body.session}:${body.agent}` });
+      const type = route === '/usage' ? 'usage' : route === '/settings' ? 'settings' : route === '/dismiss' ? 'dismiss' : 'event';
+      queue.push({ type, body, key: type === 'usage' ? 'usage' : type === 'settings' ? 'settings' : type === 'dismiss' ? `dismiss:${body.session}` : `${body.session}:${body.agent}` });
       if (queue.length > maxQueue) { coalesce(); if (queue.length > maxQueue) queue = queue.slice(-maxQueue); }
       flush();
     },

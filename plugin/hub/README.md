@@ -71,7 +71,7 @@ While the port is missing the hub retries every 5 seconds; `GET /relay` shows `c
 
 ## HTTP API
 
-`POST /event`, `POST /usage`, `GET /state`, `POST /select`, `POST /reset` as on the gadget, `POST /dismiss {"session"}` (hide a session until it works again or needs you; forwarded to the device), `POST /settings {"sound": "all"|"ask"|"off"}` (the beeps, shared by every page, kept in `hub-settings.json` in the temp folder; default `ask`)
+`POST /event`, `POST /usage`, `GET /state`, `POST /select`, `POST /reset` as on the gadget, `POST /dismiss {"session"}` (hide a session until it works again or needs you; forwarded to the device), `POST /settings {"sound": "all"|"ask"|"off"}` (the beeps, shared by every page, kept in `hub-settings.json` in the temp folder; default `ask`; forwarded to the gadget buzzer at start and on every change)
 (see `../../devices/artillery-x3-esp32/ARCHITECTURE.md`), plus `GET /events` (server-sent events: the state on connect, then on every
 change and every second), `GET /health` and `GET /` (the page).
 
