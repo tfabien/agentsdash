@@ -40,6 +40,8 @@ void uiMenuToggle(uint32_t now) {
 
 void uiMenuClose() { menuOpen = false; }
 
+void uiMenuExtend(uint32_t now) { menuUntil = now + MENU_MS; }
+
 bool uiMenuOpen(uint32_t now) {
   if (menuOpen && ((int32_t)(now - menuUntil) >= 0 || modelSessionCount() < 2)) menuOpen = false;
   return menuOpen;

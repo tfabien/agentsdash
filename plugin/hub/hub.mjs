@@ -14,6 +14,7 @@ import { stateDir } from '../scripts/common.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
+const SOUNDS = ['all', 'ask', 'off'];
 const TICK_MS = 1000;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
 
@@ -41,13 +42,18 @@ export function startHub(opts = {}) {
   const host = opts.host ?? '127.0.0.1';
   const wantedPort = opts.port ?? (Number(String(config.host).split(':')[1]) || 8765);
   const model = createModel();
+  // Settings shared by every page (and kept in a file for the next hub): the beeps. Default: only when something needs you.
+  const settingsFile = opts.settingsFile ?? null;
+  let settings = { sound: 'ask' };
+  if (settingsFile) { try { const saved = JSON.parse(fs.readFileSync(settingsFile, 'utf8')); if (SOUNDS.includes(saved.sound)) settings = { sound: saved.sound }; } catch { /* defaults */ } }
   const clients = new Set();
   const eventTaps = [];
   const usageTaps = [];
+  const dismissTaps = [];
   const changeTaps = [];
 
   const relayInfo = () => (relay ? { mode, ...(serial ? { port: config.relay.port } : { host: config.relay.host }), ...relay.status() } : null);
-  const stateJson = () => ({ ...model.toState(now()), ...(relayInfo() ? { relay: relayInfo() } : {}) });
+  const stateJson = () => ({ ...model.toState(now()), settings, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
     for (const res of clients) res.write(`data: ${payload}\n\n`);
@@ -91,6 +97,8 @@ export function startHub(opts = {}) {
       case 'POST /event':
       case 'POST /usage':
       case 'POST /select':
+      case 'POST /dismiss':
+      case 'POST /settings':
       case 'POST /reset': {
         let body;
         try {
@@ -106,6 +114,14 @@ export function startHub(opts = {}) {
           if (!body || typeof body.v !== 'number') return text(res, 400, 'v is required');
           model.applyUsage(body, now());
           for (const fn of usageTaps) { try { fn(body); } catch { /* tap errors stay local */ } }
+        } else if (route === 'POST /dismiss') {
+          const id = String(body?.session ?? '');
+          if (!model.dismiss(id)) return text(res, 404, 'unknown session');
+          for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
+        } else if (route === 'POST /settings') {
+          if (!body || !SOUNDS.includes(body.sound)) return text(res, 400, 'sound must be all, ask or off');
+          settings = { sound: body.sound };
+          if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
         } else if (route === 'POST /select') {
           if (!body || !model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');
         } else {
@@ -133,6 +149,7 @@ export function startHub(opts = {}) {
   if (relay) {
     eventTaps.push((body) => relay.send('/event', body));
     usageTaps.push((body) => relay.send('/usage', body));
+    dismissTaps.push((body) => relay.send('/dismiss', body));
   }
 
   // Plan quotas for the desktop app (no status line): polled while a session exists, applied like a POST /usage.
@@ -176,7 +193,7 @@ const isMain = (() => {
   try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
 })();
 if (isMain) {
-  startHub().then((hub) => {
+  startHub({ settingsFile: path.join(stateDir(), 'hub-settings.json') }).then((hub) => {
     process.stderr.write(`standup-bot hub listening on http://${hub.host}:${hub.port}/\n`);
   }).catch((e) => {
     process.stderr.write(`standup-bot hub: cannot start (${e.code ?? e.message})\n`);

@@ -7,6 +7,8 @@ Quotas modelQuotas;
 static Session sessions[MAX_SESSIONS];
 static char hiddenSessions[8][ID_LEN];   // last hidden session ids: each one is counted once in modelMoreSessions
 static uint8_t hiddenSessionsNext = 0;
+static char dismissed[8][ID_LEN];        // sessions hidden by the user (ring): only real activity brings them back
+static uint8_t dismissedNext = 0;
 
 // Remember `id` in a small ring; true when it was not there yet (so the caller counts it once).
 static bool noteHidden(char ring[][ID_LEN], uint8_t& next, const char* id) {
@@ -27,6 +29,8 @@ static bool startsWith(const char* s, const char* prefix) { return strncmp(s, pr
 static bool earlier(uint32_t a, uint32_t b) { return (int32_t)(a - b) < 0; }   // wrap-safe
 
 void modelBegin() {
+  memset(dismissed, 0, sizeof dismissed);
+  dismissedNext = 0;
   memset(sessions, 0, sizeof sessions);
   memset(&manual, 0, sizeof manual);
   modelRev = 1;
@@ -39,6 +43,8 @@ void modelBegin() {
 void modelConfigure(uint32_t done, uint32_t stale) { doneTtlMs = done; staleTtlMs = stale; }
 
 void modelClear() {
+  memset(dismissed, 0, sizeof dismissed);
+  dismissedNext = 0;
   memset(sessions, 0, sizeof sessions);
   memset(&manual, 0, sizeof manual);
   memset(hiddenSessions, 0, sizeof hiddenSessions);
@@ -265,6 +271,11 @@ String modelFormatTokens(uint32_t t) {
 
 // ---------- events ----------
 bool modelApplyV2(const EventV2& e, uint32_t now) {
+  for (int i = 0; i < 8; i++) {                                  // a hidden session: only work or a question brings it back
+    if (!dismissed[i][0] || strcmp(dismissed[i], e.session)) continue;
+    if (e.state == ST_WORKING || e.state == ST_NEEDS_YOU || e.state == ST_ERROR) dismissed[i][0] = 0;
+    else return true;
+  }
   bool isLead = !strcmp(e.agent, "lead");
   Session* s = findSession(e.session);
   if (!s) {
@@ -464,6 +475,17 @@ int modelDefaultSlot(const Session& s) {
     if (a && earlier(newest, a->lastSeen)) { slot = i; newest = a->lastSeen; }
   }
   return slot;
+}
+
+bool modelDismiss(const char* session) {
+  Session* s = findSession(session);
+  if (!s) return false;
+  copyStr(dismissed[dismissedNext], ID_LEN, session);
+  dismissedNext = (dismissedNext + 1) % 8;
+  if (manual.active && !strcmp(manual.session, session)) manual.active = false;
+  memset(s, 0, sizeof *s);
+  modelRev++;
+  return true;
 }
 
 bool modelSelect(const char* session, const char* agent, uint32_t now, uint32_t holdMs) {

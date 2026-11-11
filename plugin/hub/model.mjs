@@ -61,6 +61,7 @@ export function createModel(opts = {}) {
   let sessions = [];
   let moreSessions = 0;
   let hiddenSessions = [];
+  let dismissed = [];                                  // sessions the user hid: they come back only with real activity
   let manual = null;                                   // {session, agent, until}
   let quotas = { h5: emptyWindow(), d7: emptyWindow(), receivedAt: 0, rev: 0 };
 
@@ -247,6 +248,11 @@ export function createModel(opts = {}) {
   function applyEvent(raw, now) {
     const e = parseEvent(raw);
     if (!e) return false;
+    const hidden = dismissed.indexOf(e.session);
+    if (hidden >= 0) {                                 // a hidden session: only work or a question brings it back
+      if ([ST.WORKING, ST.NEEDS_YOU, ST.ERROR].includes(e.state)) dismissed.splice(hidden, 1);
+      else return true;
+    }
     const isLead = e.agent === 'lead';
     let s = findSession(e.session);
     if (!s) {
@@ -332,6 +338,7 @@ export function createModel(opts = {}) {
     sessions = [];
     manual = null;
     hiddenSessions = [];
+    dismissed = [];
     moreSessions = 0;
     quotas = { h5: emptyWindow(), d7: emptyWindow(), receivedAt: 0, rev: 0 };
     rev++;
@@ -377,6 +384,18 @@ export function createModel(opts = {}) {
     if (!best) for (const s of o) if (effective(s, s.lead) === ST.YOUR_TURN && (!best || best.lastYourTurn < s.lastYourTurn)) best = s;   // 3. most recent "your turn"
     if (!best) for (const s of o) if (!best || best.lastActive < s.lastActive) best = s;                  // 4. most recently active
     return { session: best, slot: defaultSlot(best), manual: false };
+  }
+
+  /** Hide a session (the trash icon of the session list). It returns with its next working, error or needs-you event. */
+  function dismiss(sessionId) {
+    const s = findSession(sessionId);
+    if (!s) return false;
+    sessions = sessions.filter((x) => x !== s);
+    if (manual && manual.session === sessionId) manual = null;
+    dismissed.push(sessionId);
+    if (dismissed.length > 50) dismissed.shift();
+    rev++;
+    return true;
   }
 
   function select(sessionId, agentId, now, holdMs = 30000) {
@@ -435,7 +454,7 @@ export function createModel(opts = {}) {
   }
 
   return {
-    applyEvent, applyUsage, prune, clear, select, toState,
+    applyEvent, applyUsage, prune, clear, select, dismiss, toState,
     get revision() { return rev; },
   };
 }

@@ -325,7 +325,23 @@ static void drawQuestion(const Session& s, int x, int y, int w, const Rect& p) {
   }
 }
 
-// Session menu: one 36 px row per session (state dot, name, agent count); the selected one is framed.
+// Trash can (hides a session) at (x, y): lid, handle, body, two slots.
+static void drawTrash(int x, int y) {
+  auto ln = [](int x1, int y1, int x2, int y2) {
+    hmiSend("line " + String(x1) + "," + String(y1) + "," + String(x2) + "," + String(y2) + "," + String(C_LIGHT));
+  };
+  ln(x, y + 3, x + 14, y + 3);
+  ln(x + 4, y, x + 10, y);
+  ln(x + 4, y, x + 4, y + 3);
+  ln(x + 10, y, x + 10, y + 3);
+  ln(x + 2, y + 6, x + 3, y + 17);
+  ln(x + 12, y + 6, x + 11, y + 17);
+  ln(x + 3, y + 17, x + 11, y + 17);
+  ln(x + 6, y + 8, x + 6, y + 15);
+  ln(x + 9, y + 8, x + 9, y + 15);
+}
+
+// Session menu: one 36 px row per session (state dot, name, agent count, trash); the selected one is framed.
 static void drawMenu(const View& v) {
   for (int t = 0; t < modelSessionCount(); t++) {
     Rect r = layoutMenuRow(t);
@@ -333,7 +349,8 @@ static void drawMenu(const View& v) {
     uint16_t bg = cur ? C_FRAME : C_ROW;
     hmiFill(r.x, r.y, r.w, r.h, bg);
     if (cur) hmiRect(r.x, r.y, r.w, r.h, C_LIGHT);
-    sessionText(*modelSession(t), r.x + 8, r.y + 4, r.w - 16, r.h - 8, FONT_S20, C_TEXT, bg, C_CHIP);
+    sessionText(*modelSession(t), r.x + 8, r.y + 4, r.w - 16 - 36, r.h - 8, FONT_S20, C_TEXT, bg, C_CHIP);
+    drawTrash(r.x + r.w - 30, r.y + 9);
   }
 }
 

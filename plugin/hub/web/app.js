@@ -18,7 +18,7 @@ let state = { sessions: [], view: {}, agents: [] };
 let receivedAt = performance.now();
 let menuUntil = 0;
 let detail = null;                                   // {session, agent, until}
-let sound = ['all', 'ask', 'off'].includes(localStorage.getItem('gadget-sound')) ? localStorage.getItem('gadget-sound') : 'all';
+let sound = 'ask';                                   // shared by every page: kept by the hub (state.settings.sound)
 let counts = null;                                   // {needs, turn} of the previous state, for the beeps
 
 const agentsOf = (st) => st.sessions.flatMap((s) => s.agents);
@@ -49,6 +49,7 @@ function alerts(next) {
 }
 
 function showState(next) {
+  sound = next.settings?.sound ?? 'ask';
   alerts(next);
   state = next;
   receivedAt = performance.now();
@@ -67,6 +68,7 @@ function uiNow() {
     sound,
     tick: Math.floor(now / 300),
     pulse: Math.floor(now / 100),
+    timeText: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
     eventsTo: location.host,
   };
 }
@@ -94,7 +96,13 @@ canvas.addEventListener('click', (e) => {
   const hit = hitTest(x, y, { sessions: state.sessions, selected: sel, menu: ui.menu });
   const now = Date.now();
   if (hit.kind === 'tab') menuUntil = ui.menu || state.sessions.length < 2 ? 0 : now + MENU_MS;
-  else if (hit.kind === 'mute') { sound = sound === 'all' ? 'ask' : sound === 'ask' ? 'off' : 'all'; localStorage.setItem('gadget-sound', sound); }
+  else if (hit.kind === 'mute') {
+    sound = sound === 'all' ? 'ask' : sound === 'ask' ? 'off' : 'all';
+    fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sound }) });
+  } else if (hit.kind === 'trashRow') {
+    menuUntil = now + MENU_MS;                      // the list stays open: several sessions can be hidden in a row
+    fetch('/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: state.sessions[hit.index].id }) });
+  }
   else if (hit.kind === 'menuRow') {
     menuUntil = 0;
     fetch('/select', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: state.sessions[hit.index].id, agent: 'lead' }) });

@@ -128,13 +128,16 @@ function layoutRows(nSubs) {
 
 /**
  * Tap at (x, y) in screen pixels. ctx: {sessions, selected, menu, asking?}.
- * @returns {{kind: 'tab'|'mute'|'lead'|'row'|'menuRow'|'more'|'none', index?: number}}
+ * @returns {{kind: 'tab'|'mute'|'lead'|'row'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
  */
 export function hitTest(x, y, ctx) {
   if (y < 34) return inside({ x: 6, y: 0, w: 468, h: 34 }, x, y) ? { kind: 'tab' } : { kind: 'none' };
   if (inside({ x: MUTE.x, y: 242, w: MUTE.w, h: 30 }, x, y)) return { kind: 'mute' };
   if (ctx.menu) {
-    for (let i = 0; i < ctx.sessions.length; i++) if (inside(menuRow(i), x, y)) return { kind: 'menuRow', index: i };
+    for (let i = 0; i < ctx.sessions.length; i++) {
+      const r = menuRow(i);
+      if (inside(r, x, y)) return x >= r.x + r.w - 44 ? { kind: 'trashRow', index: i } : { kind: 'menuRow', index: i };    // the trash icon is at the right end
+    }
     return { kind: 'none' };
   }
   const s = ctx.sessions[ctx.selected];
@@ -151,7 +154,7 @@ export function hitTest(x, y, ctx) {
 /**
  * @param screen drawing surface (see top of file)
  * @param state  GET /state body of the hub
- * @param ui     {elapsedS, menu, detail: {session, agent}|null, sound: 'all'|'ask'|'off', tick, pulse, eventsTo}
+ * @param ui     {elapsedS, menu, detail: {session, agent}|null, sound: 'all'|'ask'|'off', tick, pulse, timeText, eventsTo}
  *               elapsedS: seconds since `state` arrived (ages and countdowns run on); tick: 300 ms animation tick; pulse: 100 ms phase
  */
 export function renderScreen(screen, state, ui) {
@@ -315,8 +318,23 @@ export function renderScreen(screen, state, ui) {
       const bg = t === sel ? COLOR.FRAME : COLOR.ROW;
       screen.fill(r.x, r.y, r.w, r.h, bg);
       if (t === sel) screen.rect(r.x, r.y, r.w, r.h, COLOR.LIGHT);
-      sessionText(s, r.x + 8, r.y + 4, r.w - 16, r.h - 8, S20, COLOR.TEXT, bg, COLOR.CHIP);
+      sessionText(s, r.x + 8, r.y + 4, r.w - 16 - 36, r.h - 8, S20, COLOR.TEXT, bg, COLOR.CHIP);
+      trash(r.x + r.w - 30, r.y + 9);
     });
+  }
+
+  // Trash can (hides a session): lid, handle, body and two slots, in a 14x17 box at (x, y).
+  function trash(x, y) {
+    const c = COLOR.LIGHT;
+    screen.line(x, y + 3, x + 14, y + 3, c);
+    screen.line(x + 4, y, x + 10, y, c);
+    screen.line(x + 4, y, x + 4, y + 3, c);
+    screen.line(x + 10, y, x + 10, y + 3, c);
+    screen.line(x + 2, y + 6, x + 3, y + 17, c);
+    screen.line(x + 12, y + 6, x + 11, y + 17, c);
+    screen.line(x + 3, y + 17, x + 11, y + 17, c);
+    screen.line(x + 5.5, y + 8, x + 5.5, y + 15, c);
+    screen.line(x + 8.5, y + 8, x + 8.5, y + 15, c);
   }
 
   // ----- team panel -----
@@ -368,6 +386,7 @@ export function renderScreen(screen, state, ui) {
       if (u.d7_pct !== undefined) quota(180, MUTE.x - 4, 252, 'Week', 'd7', u, stale);
     }
     soundIcon(ui.sound);
+    if (ui.timeText) screen.text(416, 250, 60, S20, COLOR.TEXT, COLOR.BAR, ui.timeText, 2);       // the small clock of the bottom bar
   }
 
   function quota(x, slotEnd, y, label, key, u, stale) {

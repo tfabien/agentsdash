@@ -92,6 +92,18 @@ test('never_sends_while_the_tft_upload_lock_exists', async () => {
   await g.close();
 });
 
+test('hub_forwards_a_dismiss_to_the_gadget', async () => {
+  const g = await fakeGadget();
+  const hub = await startHub({ port: 0, config: { relay: { mode: 'http', host: g.host }, quotas: false } });
+  try {
+    await fetch(`http://127.0.0.1:${hub.port}/event`, { method: 'POST', body: JSON.stringify(ev()) });
+    await fetch(`http://127.0.0.1:${hub.port}/dismiss`, { method: 'POST', body: JSON.stringify({ session: 'abcd' }) });
+    await waitFor(() => g.got.length === 2);
+    assert.deepEqual(g.got.map((r) => r.url), ['/event', '/dismiss']);
+    assert.deepEqual(JSON.parse(g.got[1].body), { session: 'abcd' });
+  } finally { await hub.close(); await g.close(); }
+});
+
 test('hub_forwards_accepted_events_and_usage_to_the_relay', async () => {
   const g = await fakeGadget();
   const hub = await startHub({ port: 0, config: { relay: { mode: 'http', host: g.host }, quotas: false } });

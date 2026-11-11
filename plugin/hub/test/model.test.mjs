@@ -117,6 +117,42 @@ test('view_follows_a_working_subagent_and_the_most_recent_of_two_working_session
   assert.equal(m.toState(1700).view.session, 'one');
 });
 
+test('dismiss_hides_a_session_until_real_activity_comes_back', () => {
+  const m = createModel();
+  m.applyEvent(ev({ session: 'demo', state: 'your_turn', evt: 'Stop' }), 1000);
+  m.applyEvent(ev({ session: 'live', state: 'working' }), 1100);
+  assert.equal(m.dismiss('demo'), true);
+  assert.deepEqual(m.toState(1200).sessions.map((s) => s.id), ['live']);
+  assert.equal(m.applyEvent(ev({ session: 'demo', state: 'your_turn', evt: 'Notification', cmd: 'Waiting for you' }), 1300), true, 'accepted but ignored');
+  assert.equal(m.applyEvent(ev({ session: 'demo', state: 'done', evt: 'SessionEnd' }), 1350), true);
+  assert.deepEqual(m.toState(1400).sessions.map((s) => s.id), ['live'], 'idle news does not bring it back');
+  m.applyEvent(ev({ session: 'demo', state: 'working' }), 1500);
+  assert.deepEqual(m.toState(1600).sessions.map((s) => s.id).sort(), ['demo', 'live'], 'it works again: it is back');
+  m.dismiss('demo');
+  m.applyEvent(sub('ab12', { session: 'demo', state: 'needs_you' }), 1700);
+  assert.ok(m.toState(1800).sessions.some((s) => s.id === 'demo'), 'a question brings it back');
+});
+
+test('dismiss_unknown_session_returns_false_and_clear_forgets_dismissed', () => {
+  const m = createModel();
+  assert.equal(m.dismiss('nope'), false);
+  m.applyEvent(ev({ session: 'demo', state: 'your_turn' }), 0);
+  m.dismiss('demo');
+  m.clear();
+  m.applyEvent(ev({ session: 'demo', state: 'your_turn' }), 10);
+  assert.equal(m.toState(20).sessions.length, 1, 'a reset forgets what was hidden');
+});
+
+test('dismissing_the_manually_selected_session_clears_the_selection', () => {
+  const m = createModel();
+  m.applyEvent(ev({ session: 'one', state: 'your_turn' }), 0);
+  m.applyEvent(ev({ session: 'two', state: 'working' }), 10);
+  m.select('one', 'lead', 20, 30000);
+  m.dismiss('one');
+  const v = m.toState(30).view;
+  assert.deepEqual([v.session, v.mode], ['two', 'auto']);
+});
+
 test('old_v1_event_makes_one_agent_session', () => {
   const m = createModel();
   assert.equal(m.applyEvent({ agent: 'foo', state: 'waiting', task: 'x' }, 1000), true);

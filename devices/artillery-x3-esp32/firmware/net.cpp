@@ -162,11 +162,21 @@ static void handleUsage() {            // POST /usage
   else server.send(200, "text/plain", "ok");
 }
 
-// One JSON line from the USB serial port (agent hub in serial mode): {"type":"event"|"usage","body":{...}}.
+// One JSON line from the USB serial port (agent hub in serial mode): {"type":"event"|"usage"|"dismiss","body":{...}}.
 // The body is the same text as a POST body; the flat key search of the helpers above reads it inside the wrapper.
 void netSerialLine(const String& line) {
-  if (line.indexOf("\"type\":\"usage\"") >= 0) applyUsageBody(line);
+  if (line.indexOf("\"type\":\"dismiss\"") >= 0) { char id[ID_LEN]; if (jsonGet(line, "session", id, ID_LEN)) modelDismiss(id); }
+  else if (line.indexOf("\"type\":\"usage\"") >= 0) applyUsageBody(line);
   else if (line.indexOf("\"type\":\"event\"") >= 0) applyEventBody(line);
+}
+
+static void handleDismiss() {          // POST /dismiss {"session":"abcd"}: hide a session
+  cors();
+  if (ignoredByIsolation()) { server.send(200, "text/plain", "ignored"); return; }
+  char id[ID_LEN];
+  if (!jsonGet(server.arg("plain"), "session", id, ID_LEN)) { server.send(400, "text/plain", "session is required"); return; }
+  if (!modelDismiss(id)) { server.send(404, "text/plain", "unknown session"); return; }
+  server.send(200, "text/plain", "ok");
 }
 
 static void handleState() {            // GET /state
@@ -507,6 +517,7 @@ void netBegin() {
   server.on("/event", HTTP_POST, handleEvent);
   server.on("/event", HTTP_OPTIONS, handleOptions);
   server.on("/usage", HTTP_POST, handleUsage);
+  server.on("/dismiss", HTTP_POST, handleDismiss);
   server.on("/usage", HTTP_OPTIONS, handleOptions);
   server.on("/state", HTTP_GET, handleState);
   server.on("/select", HTTP_POST, handleSelect);

@@ -165,6 +165,31 @@ test('foreign_host_header_is_rejected_against_dns_rebinding', () => withHub(asyn
   assert.equal(status, 403);
 }));
 
+test('dismiss_route_hides_a_session_and_answers_404_for_an_unknown_one', () => withHub(async (hub) => {
+  await post(hub, '/event', EV);
+  assert.equal((await post(hub, '/dismiss', { session: 'nope' })).status, 404);
+  assert.equal((await post(hub, '/dismiss', { session: 'abcd' })).status, 200);
+  assert.equal((await (await get(hub, '/state')).json()).sessions.length, 0);
+  assert.equal((await post(hub, '/dismiss', null, '{bad')).status, 400);
+}));
+
+test('settings_default_to_beeps_for_questions_only_and_are_shared_by_every_page', () => withHub(async (hub) => {
+  assert.equal((await (await get(hub, '/state')).json()).settings.sound, 'ask');
+  assert.equal((await post(hub, '/settings', { sound: 'off' })).status, 200);
+  assert.equal((await (await get(hub, '/state')).json()).settings.sound, 'off');
+  assert.equal((await post(hub, '/settings', { sound: 'loud' })).status, 400);
+  assert.equal((await (await get(hub, '/state')).json()).settings.sound, 'off', 'a bad value changes nothing');
+}));
+
+test('settings_are_kept_in_a_file_for_the_next_hub', async () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubset-')), 'settings.json');
+  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file });
+  await post(first, '/settings', { sound: 'all' });
+  await first.close();
+  const second = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file });
+  try { assert.equal((await (await get(second, '/state')).json()).settings.sound, 'all'); } finally { await second.close(); }
+});
+
 test('hub_binds_loopback_only', () => withHub(async (hub) => {
   assert.equal(hub.host, '127.0.0.1');
 }));

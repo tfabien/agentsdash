@@ -43,7 +43,7 @@ quiet while the file `agent-gadget-tft.lock` exists in the temp folder).
 ## On the gadget
 
 - Same views as the page: title bar with one dot per session, lead panel with plan and context, team rows, question in full width, standby clock, quota bar.
-- Touch: tap a sub-agent row for its detail, tap the title bar for the session list, tap the speaker icon to cycle the buzzer (`all`, `ask` = needs you only, `off`, kept in flash).
+- Touch: tap a sub-agent row for its detail, tap the title bar for the session list (the trash icon of a row hides that session), tap the speaker icon to cycle the buzzer (`all`, `ask` = needs you only, `off`, kept in flash).
 - Buzzer: two beeps when an agent starts to need you, one when a session waits for your turn (mode `all`).
 - Standby: after 5 minutes without an active agent, an NTP clock (Europe/Paris), the date and a summary of idle sessions.
 

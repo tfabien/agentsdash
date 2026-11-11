@@ -22,7 +22,7 @@ test('there_is_one_scene_per_screenshot_of_the_readme', () => {
 
 test('every_scene_renders_and_shows_what_its_screenshot_is_about', () => {
   const expect = {
-    main: ['TEAM - 4 SUB-AGENTS - 3 WORKING', 'PLAN 3/8', 'artillery-x3'],
+    main: ['TEAM - 4 SUB-AGENTS - 3 WORKING', 'PLAN 3/8', 'artillery-x3', '14:32'],
     plan: ['dotfiles', 'PLAN 5/9', 'Handle the permission hook'],
     subs3: ['TEAM - 3 SUB-AGENTS - 3 WORKING'],
     compact: ['TEAM - 5 SUB-AGENTS - 4 WORKING'],

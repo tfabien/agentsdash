@@ -19,6 +19,7 @@ int  uiDetailSlot(const Session& s, uint32_t now);         // slot shown in the 
 // Session menu (dropdown): opened by a tap on the selected tab, lists every session; it takes the lead panel area.
 void uiMenuToggle(uint32_t now);
 void uiMenuClose();
+void uiMenuExtend(uint32_t now);                     // keep the menu open 8 s more (after a session was hidden)
 bool uiMenuOpen(uint32_t now);                             // false once MENU_MS passed
 
 // Session labels (no longer drawn: the menu replaces them): the sessions other than the selected one, model order, two visible from the offset.

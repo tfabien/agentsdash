@@ -34,7 +34,7 @@ const state = (sessions, over = {}) => ({
   sessions, more_sessions: 0, view: { session: sessions[0]?.id ?? '', agent: 'lead', mode: 'auto' }, agents: [],
   usage: { age_s: 5, h5_pct: 48, h5_reset_s: 4800, h5_rate10: 50, h5_proj: 70, h5_empty_s: -1, d7_pct: 61, d7_reset_s: 187000, d7_rate10: 5, d7_proj: 90, d7_empty_s: -1 }, ...over,
 });
-const ui = (over = {}) => ({ elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 1, pulse: 0, ...over });
+const ui = (over = {}) => ({ elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 1, pulse: 0, timeText: '14:32', ...over });
 const draw = (st, u = ui()) => { const r = recorder(); renderScreen(r, st, u); return r; };
 const four = () => [sub('ab12', 'Explore'), sub('cd34', 'Plan'), sub('ef56', 'code-reviewer', { state: 'needs_you', cmd: 'Needs you: allow Bash(pio run)?' }), sub('gh78', 'test-runner')];
 const withSubs = (subs, over = {}) => session({ count: 1 + subs.length, agents: [agent({ state: 'waiting_subs', cmd: `Waiting on ${subs.length} sub-agents` }), ...subs], ...over });
@@ -141,6 +141,19 @@ test('session_menu_lists_one_row_per_session_and_frames_the_selected_one', () =>
   assert.ok(!texts(r).includes('PLAN 3/8'));
 });
 
+test('session_menu_has_a_trash_icon_per_row_and_taps_on_it_dismiss', () => {
+  const sessions = [session(), session({ id: 'bbbb', project: 'shop-rdv' })];
+  const r = draw(state(sessions), ui({ menu: true }));
+  const lines = r.ops.filter((o) => o.op === 'line');
+  assert.ok(lines.filter((o) => o.y1 >= 38 && o.y1 < 74).length >= 4, 'a trash can drawn on the first row');
+  assert.ok(lines.filter((o) => o.y1 >= 78 && o.y1 < 114).length >= 4, 'and on the second');
+  assert.ok(lines.every((o) => o.x1 >= 420), 'at the right end of the rows');
+  const ctx = { sessions, selected: 0, menu: true };
+  assert.deepEqual(hitTest(440, 56, ctx), { kind: 'trashRow', index: 0 });
+  assert.deepEqual(hitTest(440, 96, ctx), { kind: 'trashRow', index: 1 });
+  assert.deepEqual(hitTest(300, 96, ctx), { kind: 'menuRow', index: 1 }, 'the rest of the row selects');
+});
+
 test('empty_state_names_where_events_go', () => {
   const r = draw(state([]), ui({ eventsTo: '127.0.0.1:8765' }));
   assert.ok(texts(r).includes('NO SESSION'));
@@ -148,13 +161,15 @@ test('empty_state_names_where_events_go', () => {
   assert.ok(texts(r).includes('127.0.0.1:8765'));
 });
 
-test('there_is_no_clock_and_no_standby_view_even_when_every_agent_has_been_idle_for_hours', () => {
+test('no_standby_view_even_when_every_agent_has_been_idle_for_hours_but_the_small_clock_stays', () => {
   const idle = session({ dot: 'your_turn', plan: null, agents: [agent({ state: 'your_turn', age: 36000 })] });
-  const r = draw(state([idle], { time: '14:32' }));
-  assert.ok(pics(r).every((p) => p.id !== 51 && !(p.id >= 52 && p.id <= 62)), 'no standby picture, no digits');
-  assert.ok(!texts(r).includes('14:32'), 'no clock text');
+  const r = draw(state([idle]));
+  assert.ok(pics(r).every((p) => p.id !== 51 && !(p.id >= 52 && p.id <= 62)), 'no standby picture, no big digits');
   assert.ok(!texts(r).some((t) => /idle/.test(t)), 'no idle summary');
   assert.ok(texts(r).includes('artillery-x3'), 'the normal view stays');
+  const clock = r.ops.find((o) => o.op === 'text' && o.s === '14:32');
+  assert.deepEqual([clock.x, clock.y, clock.font, clock.align], [416, 250, 20, 2], 'small clock at the right of the bottom bar');
+  assert.ok(!texts(draw(state([idle]), ui({ timeText: '' }))).includes('14:32'), 'no clock without a time');
 });
 
 test('quota_pace_colors_empty_and_stale', () => {

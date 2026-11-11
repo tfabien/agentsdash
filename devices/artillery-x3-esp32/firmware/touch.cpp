@@ -14,6 +14,12 @@ void uiTap(int x, int y, uint32_t holdMs) {
   int others = uiOtherSessions(v.session, o);
   if (uiMenuOpen(now)) {                              // the menu is open: a row selects, any other tap closes it
     int row = layoutMenuHit(x, y, modelSessionCount());
+    if (row >= 0 && x >= layoutMenuRow(row).x + layoutMenuRow(row).w - 44) {     // the trash icon: hide that session, keep the list open
+      modelDismiss(modelSession(row)->id);
+      uiHideDetail();
+      uiMenuExtend(now);
+      return;
+    }
     if (row >= 0) {
       const Session* s = modelSession(row);
       modelSelect(s->id, modelAgent(*s, modelDefaultSlot(*s))->id, now, holdMs);

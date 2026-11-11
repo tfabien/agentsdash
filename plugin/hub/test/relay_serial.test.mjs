@@ -118,6 +118,15 @@ test('missing_serialport_package_gives_a_clear_error', async () => {
   relay.release();
 });
 
+test('a_dismiss_is_a_dismiss_line', async () => {
+  const { relay, state } = make({});
+  relay.start();
+  relay.send('/dismiss', { session: 'abcd' });
+  await waitFor(() => state.writes.length === 1);
+  assert.deepEqual(JSON.parse(state.writes[0].data), { type: 'dismiss', body: { session: 'abcd' } });
+  relay.release();
+});
+
 test('hub_with_serial_mode_forwards_and_exposes_release_and_open', async () => {
   const f = fakePorts();
   const hub = await startHub({ port: 0, config: { relay: { mode: 'serial', port: 'COM3' }, quotas: false }, serial: { open: f.open, settleMs: 20, retryMs: 20 } });

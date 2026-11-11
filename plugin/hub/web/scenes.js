@@ -37,7 +37,7 @@ const state = (sessions, selected = 0, over = {}) => ({
   sessions, more_sessions: 0, view: { session: sessions[selected]?.id ?? '', agent: 'lead', mode: 'auto' }, agents: [], usage, ...over,
 });
 // tick 1 and pulse 12 (no robot of 8 seeds blinks): eyes open, plan step at full brightness (a still image).
-const ui = (over = {}) => ({ elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 1, pulse: 12, eventsTo: '127.0.0.1:8765', ...over });
+const ui = (over = {}) => ({ elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 1, pulse: 12, timeText: '14:32', eventsTo: '127.0.0.1:8765', ...over });
 
 export const SCENES = {
   main: () => ({ state: state([team(SUBS), ...others()]), ui: ui() }),

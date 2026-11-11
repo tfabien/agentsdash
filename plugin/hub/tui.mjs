@@ -59,11 +59,11 @@ function sessionLines(s, width) {
 }
 
 /** Whole screen for a /state body: title line, one block per session (most urgent first, as sent), quotas line. */
-export function renderAnsi(state, width = 80) {
+export function renderAnsi(state, width = 80, clock = '') {
   const sessions = state.sessions ?? [];
   const lines = [];
   const title = 'Agent standup';
-  lines.push(compose(width, [{ text: title, bold: true }]));
+  lines.push(compose(width, [{ text: title, bold: true }, { text: ' '.repeat(Math.max(1, width - title.length - clock.length)) }, { text: clock, color: DIM }]));
   lines.push('');
   if (!sessions.length) lines.push(compose(width, [{ text: 'Waiting for agents...', color: DIM }]));
   for (const s of sessions) lines.push(...sessionLines(s, width));
@@ -99,7 +99,7 @@ export function runTui({ host, write = (s) => process.stdout.write(s), columns, 
         for (let i = buf.indexOf('\n\n'); i >= 0; i = buf.indexOf('\n\n')) {
           const msg = buf.slice(0, i);
           buf = buf.slice(i + 2);
-          try { draw(renderAnsi(JSON.parse(msg.replace(/^data: /, '')), width())); } catch { /* ignore a broken message */ }
+          try { draw(renderAnsi(JSON.parse(msg.replace(/^data: /, '')), width(), new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))); } catch { /* ignore a broken message */ }
         }
       });
       res.on('end', again);

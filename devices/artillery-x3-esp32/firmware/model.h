@@ -153,6 +153,7 @@ int modelUsed();                                          // agents in all sessi
 View modelView(uint32_t now);
 int modelDefaultSlot(const Session& s);                   // the agent that needs the user, else the most recently active
 bool modelSelect(const char* session, const char* agent, uint32_t now, uint32_t holdMs);
+bool modelDismiss(const char* session);                   // hide a session (trash icon of the menu): it returns with a working, error or needs-you event
 
 String modelToJson(uint32_t now);
 extern String (*modelViewJsonExtra)(uint32_t now);    // screen keys added to the "view" object (set by the core at boot)
