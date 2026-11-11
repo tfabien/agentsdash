@@ -17,10 +17,6 @@ const MAX_BODY = 64 * 1024;
 const TICK_MS = 1000;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
 
-function clockHHMM(d = new Date()) {
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -51,7 +47,7 @@ export function startHub(opts = {}) {
   const changeTaps = [];
 
   const relayInfo = () => (relay ? { mode, ...(serial ? { port: config.relay.port } : { host: config.relay.host }), ...relay.status() } : null);
-  const stateJson = () => ({ ...model.toState(now()), time: clockHHMM(), ...(relayInfo() ? { relay: relayInfo() } : {}) });
+  const stateJson = () => ({ ...model.toState(now()), ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
     for (const res of clients) res.write(`data: ${payload}\n\n`);
@@ -175,7 +171,11 @@ export function startHub(opts = {}) {
 }
 
 // `node hub.mjs`: run as the hub process.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// realpath: Node reports import.meta.url as the real path, argv[1] may go through a symlink (e.g. a linked ~/.claude)
+const isMain = (() => {
+  try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
+})();
+if (isMain) {
   startHub().then((hub) => {
     process.stderr.write(`standup-bot hub listening on http://${hub.host}:${hub.port}/\n`);
   }).catch((e) => {

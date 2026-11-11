@@ -62,18 +62,12 @@ function drawRobot(ctx, role, x, y, k, blink) {
  */
 export function createVectorScreen(canvas) {
   const ctx = canvas.getContext('2d');
-  let background = 16;
 
   const path = (x, y, w, h, r) => { ctx.beginPath(); if (r > 0) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
   const rect = (x, y, w, h, r, fill) => { path(x, y, w, h, r); ctx.fillStyle = fill; ctx.fill(); };
 
-  /** Decor of the .tft: pictures 16 (main) and 51 (standby). */
+  /** Decor of the .tft: picture 16. */
   function drawBackground() {
-    if (background === 51) {
-      rect(0, 0, 480, 272, 0, css(COLOR.SCREEN));
-      rect(0, 250, 480, 22, 0, css(COLOR.BAR));
-      return;
-    }
     rect(0, 0, 480, 272, 0, css(COLOR.BAR));
     rect(6, 30, 468, 216, 7, css(COLOR.FRAME));
     rect(12, 36, 150, 204, 6, css(COLOR.PANEL));
@@ -92,7 +86,7 @@ export function createVectorScreen(canvas) {
     },
     measure(s, id) { font(id); return ctx.measureText(s).width; },      // in screen units: measureText ignores the transform
     pic(id, x, y) {
-      if (id === 16 || id === 51) { background = id; drawBackground(); return; }
+      if (id === 16) { drawBackground(); return; }
       if (id === 17) { rect(x, y, 290, 42, 6, css(COLOR.ROW)); return; }
       if (id === 18) { rect(x, y, 290, 22, 5, css(COLOR.ROW)); return; }
       if ((id >= 27 && id <= 50) || (id >= 63 && id <= 86)) {                 // robots, then their blinking frames
@@ -102,13 +96,6 @@ export function createVectorScreen(canvas) {
         const role = (base - 27) % 8;
         drawRobot(ctx, role, x, y, size, blink);
         return;
-      }
-      if (id >= 52 && id <= 62) {                       // big clock digits and colon of the standby view
-        ctx.font = `700 92px ${FAMILY}`;
-        ctx.fillStyle = css(COLOR.TEXT);
-        ctx.textAlign = 'center';
-        ctx.fillText(id === 62 ? ':' : String(id - 52), x + (id === 62 ? 12 : 28), y + 46);
-        ctx.textAlign = 'start';
       }
     },
     erase(x, y, w, h) { ctx.save(); path(x, y, w, h, 0); ctx.clip(); drawBackground(); ctx.restore(); },

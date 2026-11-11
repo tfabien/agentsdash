@@ -17,7 +17,7 @@ const scene = (name) => { const r = recorder(); const { state, ui } = SCENES[nam
 const texts = (r) => r.ops.filter((o) => o.op === 'text').map((o) => o.s);
 
 test('there_is_one_scene_per_screenshot_of_the_readme', () => {
-  assert.deepEqual(SCENE_NAMES, ['main', 'plan', 'subs3', 'compact', 'subs7', 'detail', 'question', 'menu', 'setup', 'standby']);
+  assert.deepEqual(SCENE_NAMES, ['main', 'plan', 'subs3', 'compact', 'subs7', 'detail', 'question', 'menu', 'setup']);
 });
 
 test('every_scene_renders_and_shows_what_its_screenshot_is_about', () => {
@@ -31,7 +31,6 @@ test('every_scene_renders_and_shows_what_its_screenshot_is_about', () => {
     question: ['Which API version should the client target?', '1. v2 (current)', '3. Both, behind a flag'],
     menu: ['shop-rdv', 'dotfiles'],
     setup: ['NO SESSION', 'No agents yet', '127.0.0.1:8765'],
-    standby: ['Wednesday 11 November', '3 sessions idle, last activity 5m20 ago'],
   };
   for (const name of SCENE_NAMES) {
     const t = texts(scene(name));

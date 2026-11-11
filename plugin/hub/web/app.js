@@ -67,7 +67,6 @@ function uiNow() {
     sound,
     tick: Math.floor(now / 300),
     pulse: Math.floor(now / 100),
-    dateText: new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
     eventsTo: location.host,
   };
 }

@@ -85,16 +85,6 @@ test('open_eyes_are_two_dots_and_a_blink_is_two_lines', () => {
   assert.ok(eyes(31 + 36).lines > eyes(31).lines, 'and two short lines more');
 });
 
-test('standby_digits_are_text_and_the_standby_background_is_flat', () => {
-  const { canvas, calls } = fakeCanvas();
-  const screen = createVectorScreen(canvas);
-  screen.pic(51, 0, 0);
-  assert.equal(named(calls, 'roundRect').length, 0);
-  screen.pic(53, 116, 44);
-  screen.pic(62, 228, 44);
-  assert.deepEqual(named(calls, 'fillText').map((c) => c.args[0]), ['1', ':']);
-});
-
 test('thin_fills_are_pills_and_chips_have_small_corners', () => {
   const { canvas, calls } = fakeCanvas();
   const screen = createVectorScreen(canvas);
@@ -115,11 +105,11 @@ test('the_whole_scene_renders_through_the_vector_screen_without_errors', () => {
   const state = {
     sessions: [{ id: 'aaaa', project: 'demo', dot: 'working', count: 6, more: 0, title: '', ctx_pct: 45, ctx_k: 450, ctx_src: '', tok: 1000,
       plan: { done: 1, total: 4, cur: 'Step', next: 'Next', state: '' }, ask: null, agents: [agent(), ...subs] }],
-    more_sessions: 0, view: { session: 'aaaa', agent: 'lead', mode: 'auto' }, agents: [], time: '14:32',
+    more_sessions: 0, view: { session: 'aaaa', agent: 'lead', mode: 'auto' }, agents: [],
     usage: { age_s: 1, h5_pct: 40, h5_reset_s: 5000, h5_proj: 60, d7_pct: 10, d7_reset_s: 90000, d7_proj: 30 },
   };
   screen.begin(2);
-  renderScreen(screen, state, { elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 3, pulse: 5, dateText: 'Today', eventsTo: 'x' });
+  renderScreen(screen, state, { elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 3, pulse: 5, eventsTo: 'x' });
   assert.ok(named(calls, 'fillText').length > 15);
   assert.ok(named(calls, 'fillText').some((c) => c.args[0] === 'demo'));
 });

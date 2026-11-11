@@ -34,12 +34,10 @@ const others = () => [
 ];
 const usage = { age_s: 5, h5_pct: 48, h5_reset_s: 4800, h5_rate10: 50, h5_proj: 70, h5_empty_s: -1, d7_pct: 61, d7_reset_s: 187000, d7_rate10: 5, d7_proj: 90, d7_empty_s: -1 };
 const state = (sessions, selected = 0, over = {}) => ({
-  sessions, more_sessions: 0, view: { session: sessions[selected]?.id ?? '', agent: 'lead', mode: 'auto' }, agents: [], time: '14:32', usage, ...over,
+  sessions, more_sessions: 0, view: { session: sessions[selected]?.id ?? '', agent: 'lead', mode: 'auto' }, agents: [], usage, ...over,
 });
 // tick 1 and pulse 12 (no robot of 8 seeds blinks): eyes open, plan step at full brightness (a still image).
-const ui = (over = {}) => ({ elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 1, pulse: 12, dateText: 'Wednesday 11 November', eventsTo: '127.0.0.1:8765', ...over });
-
-const idle = (id, project, age) => session({ id, project, dot: 'your_turn', ctx_pct: null, plan: null, agents: [agent({ state: 'your_turn', cmd: 'Done, waiting for you', age })] });
+const ui = (over = {}) => ({ elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 1, pulse: 12, eventsTo: '127.0.0.1:8765', ...over });
 
 export const SCENES = {
   main: () => ({ state: state([team(SUBS), ...others()]), ui: ui() }),
@@ -56,6 +54,5 @@ export const SCENES = {
   },
   menu: () => ({ state: state([team(SUBS), ...others()]), ui: ui({ menu: true }) }),
   setup: () => ({ state: state([]), ui: ui() }),
-  standby: () => ({ state: state([idle('aaaa', 'artillery-x3', 320), idle('bbbb', 'shop-rdv', 400), idle('cccc', 'dotfiles', 900)]), ui: ui() }),
 };
 export const SCENE_NAMES = Object.keys(SCENES);

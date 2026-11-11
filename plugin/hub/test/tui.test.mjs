@@ -9,7 +9,7 @@ const session = (over = {}) => ({
   id: 'aaaa', project: 'proj', dot: 'working', count: 1, more: 0, title: '', ctx_pct: null, ctx_k: 0, ctx_src: '', tok: 0,
   plan: null, ask: null, agents: [agent()], ...over,
 });
-const state = (sessions, over = {}) => ({ sessions, more_sessions: 0, view: { session: sessions[0]?.id ?? '', agent: 'lead', mode: 'auto' }, agents: [], time: '12:34', ...over });
+const state = (sessions, over = {}) => ({ sessions, more_sessions: 0, view: { session: sessions[0]?.id ?? '', agent: 'lead', mode: 'auto' }, agents: [], ...over });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 test('renders_one_line_per_session_with_state_color', () => {
@@ -33,7 +33,7 @@ test('needs_you_is_first_and_marked', () => {
 });
 
 test('truncates_to_width', () => {
-  const out = renderAnsi(state([session({ title: 'T'.repeat(80), agents: [agent({ cmd: 'x'.repeat(200) })], plan: { done: 1, total: 2, cur: 'c'.repeat(100), next: '' , state: '' }, ask: { question: 'q'.repeat(150), options: 'a|b' } })], { time: '12:34' }), 40);
+  const out = renderAnsi(state([session({ title: 'T'.repeat(80), agents: [agent({ cmd: 'x'.repeat(200) })], plan: { done: 1, total: 2, cur: 'c'.repeat(100), next: '' , state: '' }, ask: { question: 'q'.repeat(150), options: 'a|b' } })]), 40);
   for (const l of strip(out).split('\n')) assert.ok(l.length <= 40, `${l.length}: ${l}`);
 });
 
@@ -59,7 +59,7 @@ test('shows_the_pending_question_with_options', () => {
 test('empty_state_message', () => {
   const out = strip(renderAnsi(state([]), 60));
   assert.match(out, /Waiting for agents/);
-  assert.match(out, /12:34/);
+  assert.doesNotMatch(out, /\d\d:\d\d/, 'no clock');
 });
 
 test('tui_follows_the_hub_over_sse', async () => {

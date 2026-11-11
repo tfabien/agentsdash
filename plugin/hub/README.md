@@ -16,7 +16,7 @@ node plugin/hub/hub.mjs
 ```
 
 Then open <http://127.0.0.1:8765/>: the page shows the gadget screen with the same layout, colors and wording: title bar with the
-session dots, lead panel with its plan and context, team rows, session list, questions, standby clock and the quota bar.
+session dots, lead panel with its plan and context, team rows, session list, questions and the quota bar.
 It is drawn as vectors at the resolution of your display (any size, any pixel ratio), with robots redrawn in vector
 form. It reads the same state as the gadget, so the two always agree. Taps work like the touchscreen: the title bar
 opens the session list, a team row shows that agent for 10 s, the speaker button cycles the beeps (all, ask only, off).
@@ -81,7 +81,7 @@ change and every second), `GET /health` and `GET /` (the page).
 - `model.mjs` state rules, a port of `model.cpp` (5 sessions, 12 sub-agents each, "needs you" first, TTLs, selection).
 - `relay_http.mjs`, `relay_serial.mjs` forward events to a gadget (Wi-Fi, USB).
 - `tui.mjs` terminal view.
-- `quotas.mjs` plan quota poller (OAuth token from `~/.claude/.credentials.json`, never printed).
+- `quotas.mjs` plan quota poller (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed).
 - `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `app.js` wires SSE, taps and beeps.
 
 ## Tests

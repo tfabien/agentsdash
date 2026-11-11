@@ -31,10 +31,10 @@ const session = (over = {}) => ({
   plan: { done: 3, total: 8, cur: 'Write the failing tests', next: 'Implement roles', state: '' }, ask: null, agents: [agent()], ...over,
 });
 const state = (sessions, over = {}) => ({
-  sessions, more_sessions: 0, view: { session: sessions[0]?.id ?? '', agent: 'lead', mode: 'auto' }, agents: [], time: '14:32',
+  sessions, more_sessions: 0, view: { session: sessions[0]?.id ?? '', agent: 'lead', mode: 'auto' }, agents: [],
   usage: { age_s: 5, h5_pct: 48, h5_reset_s: 4800, h5_rate10: 50, h5_proj: 70, h5_empty_s: -1, d7_pct: 61, d7_reset_s: 187000, d7_rate10: 5, d7_proj: 90, d7_empty_s: -1 }, ...over,
 });
-const ui = (over = {}) => ({ elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 1, pulse: 0, dateText: 'Wednesday 11 November', ...over });
+const ui = (over = {}) => ({ elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 1, pulse: 0, ...over });
 const draw = (st, u = ui()) => { const r = recorder(); renderScreen(r, st, u); return r; };
 const four = () => [sub('ab12', 'Explore'), sub('cd34', 'Plan'), sub('ef56', 'code-reviewer', { state: 'needs_you', cmd: 'Needs you: allow Bash(pio run)?' }), sub('gh78', 'test-runner')];
 const withSubs = (subs, over = {}) => session({ count: 1 + subs.length, agents: [agent({ state: 'waiting_subs', cmd: `Waiting on ${subs.length} sub-agents` }), ...subs], ...over });
@@ -55,7 +55,6 @@ test('main_view_draws_the_decor_top_bar_lead_team_and_bottom_bar', () => {
   assert.ok(texts(r).includes('code-reviewer') && texts(r).includes('Needs you: allow Bash(pio run)?'));
   assert.ok(texts(r).includes('48% reset 1h20'));
   assert.ok(texts(r).includes('61% reset 2d03h'));
-  assert.ok(texts(r).includes('14:32'));
 });
 
 test('top_bar_has_one_dot_per_session_ringed_selected_and_a_caret', () => {
@@ -149,18 +148,13 @@ test('empty_state_names_where_events_go', () => {
   assert.ok(texts(r).includes('127.0.0.1:8765'));
 });
 
-test('standby_after_five_idle_minutes_shows_the_big_clock_date_and_summary', () => {
-  const idle = (id) => session({ id, dot: 'your_turn', plan: null, agents: [agent({ state: 'your_turn', age: 400 })] });
-  const r = draw(state([idle('aaaa'), idle('bbbb'), idle('cccc')], { time: '14:32' }));
-  assert.deepEqual(r.ops[0], { op: 'pic', id: 51, x: 0, y: 0 });
-  assert.deepEqual(pics(r).filter((p) => p.id >= 52 && p.id <= 62).map((p) => [p.id, p.x]), [[53, 116], [56, 172], [62, 228], [55, 252], [54, 308]]);
-  assert.ok(texts(r).includes('Wednesday 11 November'));
-  assert.ok(texts(r).includes('3 sessions idle, last activity 6m40 ago'));
-  assert.ok(!texts(r).includes('14:32'), 'no small clock in standby');
-  const active = draw(state([idle('aaaa'), session({ id: 'bbbb', agents: [agent({ state: 'working', age: 900 })] })]));
-  assert.ok(pics(active).every((p) => p.id !== 51), 'an active agent keeps the normal view');
-  const recent = draw(state([idle('aaaa')].map((s) => ({ ...s, agents: [agent({ state: 'your_turn', age: 120 })] }))));
-  assert.ok(pics(recent).every((p) => p.id !== 51), 'idle for less than 5 minutes');
+test('there_is_no_clock_and_no_standby_view_even_when_every_agent_has_been_idle_for_hours', () => {
+  const idle = session({ dot: 'your_turn', plan: null, agents: [agent({ state: 'your_turn', age: 36000 })] });
+  const r = draw(state([idle], { time: '14:32' }));
+  assert.ok(pics(r).every((p) => p.id !== 51 && !(p.id >= 52 && p.id <= 62)), 'no standby picture, no digits');
+  assert.ok(!texts(r).includes('14:32'), 'no clock text');
+  assert.ok(!texts(r).some((t) => /idle/.test(t)), 'no idle summary');
+  assert.ok(texts(r).includes('artillery-x3'), 'the normal view stays');
 });
 
 test('quota_pace_colors_empty_and_stale', () => {

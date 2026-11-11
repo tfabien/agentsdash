@@ -8,6 +8,7 @@
  * Polls at most once a minute, only while a session exists. Off with CLAUDE_GADGET_QUOTAS=0 or "quotas": false.
  * All times here are epoch seconds.
  */
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -31,12 +32,24 @@ export function quotasEnabled(env, cfg) {
   return env.CLAUDE_GADGET_QUOTAS !== '0' && cfg.quotas !== false;
 }
 
+/** macOS only: the Claude Code credentials JSON from the login Keychain, or null. */
+export function readKeychain() {
+  if (process.platform !== 'darwin') return null;
+  try {
+    return execFileSync('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
+      { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch { return null; }
+}
+
 /** Token for the API, or null. `now` in seconds. */
-export function readToken(env, file, now) {
+export function readToken(env, file, now, keychain = readKeychain) {
   const fromEnv = String(env.CLAUDE_CODE_OAUTH_TOKEN ?? '').trim();
   if (fromEnv) return fromEnv;
   let oauth;
-  try { oauth = JSON.parse(fs.readFileSync(file, 'utf8')).claudeAiOauth ?? {}; } catch { return null; }
+  try { oauth = JSON.parse(fs.readFileSync(file, 'utf8')).claudeAiOauth ?? {}; } catch {
+    // macOS keeps the credentials in the login Keychain instead of a file.
+    try { oauth = JSON.parse(keychain() ?? '').claudeAiOauth ?? {}; } catch { return null; }
+  }
   const { accessToken, expiresAt } = oauth;
   if (typeof accessToken !== 'string' || !accessToken) return null;
   if (typeof expiresAt === 'number' && expiresAt > 1e11 && expiresAt / 1000 <= now) return null;   // 0: no expiry recorded

@@ -165,3 +165,9 @@ test('poller_without_a_token_does_nothing', async () => {
   await poller.pollOnce(NOW);
   assert.equal(calls.length, 0);
 });
+
+test('token_from_keychain_when_no_file', () => {
+  const kc = () => JSON.stringify({ claudeAiOauth: { accessToken: 'kc', expiresAt: (NOW + 3600) * 1000 } });
+  assert.equal(readToken({}, '/nope', NOW, kc), 'kc');
+  assert.equal(readToken({}, '/nope', NOW, () => null), null);
+});

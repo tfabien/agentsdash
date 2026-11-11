@@ -25,7 +25,7 @@ test('post_event_then_get_state', () => withHub(async (hub) => {
   const st = await (await get(hub, '/state')).json();
   assert.equal(st.sessions[0].id, 'abcd');
   assert.equal(st.sessions[0].agents[0].cmd, 'Edit a.js');
-  assert.ok('time' in st);
+  assert.equal(st.time, undefined, 'the page has no clock');
 }));
 
 test('bad_json_returns_400_text', () => withHub(async (hub) => {

@@ -16,11 +16,10 @@ export const COLOR = {
 export const rgb565 = (v) => [((v >> 11) & 31) * 255 / 31, ((v >> 5) & 63) * 255 / 63, (v & 31) * 255 / 31].map(Math.floor);
 
 // Picture ids of agent-gadget.tft.
-const PIC = { BACKGROUND: 16, ROW: 17, ROW_COMPACT: 18, SPRITE_BIG: 27, SPRITE_SMALL: 35, SPRITE_TINY: 43, STANDBY: 51, DIGIT: 52, COLON: 62, BLINK: 36 };
+const PIC = { BACKGROUND: 16, ROW: 17, ROW_COMPACT: 18, SPRITE_BIG: 27, SPRITE_SMALL: 35, SPRITE_TINY: 43, BLINK: 36 };
 const S16 = 16, S20 = 20;                               // font ids: secondary lines, names and titles
 const LINE_H = { 16: 18, 20: 22 };
 const TEAM_ROWS = 7;
-const STANDBY_S = 300;                                  // 5 minutes idle: full-screen clock
 const STALE_S = 15 * 60;                                // quotas not refreshed for 15 minutes show faint
 const PULSE_STEPS = 12;
 
@@ -106,19 +105,6 @@ export function paceLevel({ pct, proj }) {
 }
 const PACE_COLOR = { ok: COLOR.WORKING, tight: COLOR.NEEDS, over: COLOR.ERROR, unknown: COLOR.FAINT };
 
-const ACTIVE = new Set(['working', 'waiting_subs', 'needs_you', 'error']);
-/** Seconds since the most recent agent news, or null when an agent is active (no standby). */
-function idleSeconds(sessions, elapsedS) {
-  let best = Infinity;
-  for (const s of sessions) {
-    for (const a of s.agents) {
-      if (ACTIVE.has(a.state)) return null;
-      best = Math.min(best, a.age + elapsedS);
-    }
-  }
-  return best;
-}
-
 function lerp565(a, b, t, n) {
   const ch = (v, sh, mask) => (v >> sh) & mask;
   const mix = (sh, mask) => ch(a, sh, mask) + Math.trunc(((ch(b, sh, mask) - ch(a, sh, mask)) * t) / n);
@@ -164,8 +150,8 @@ export function hitTest(x, y, ctx) {
 // ---------- the scene ----------
 /**
  * @param screen drawing surface (see top of file)
- * @param state  GET /state body of the hub (plus `time`)
- * @param ui     {elapsedS, menu, detail: {session, agent}|null, sound: 'all'|'ask'|'off', tick, pulse, dateText, eventsTo}
+ * @param state  GET /state body of the hub
+ * @param ui     {elapsedS, menu, detail: {session, agent}|null, sound: 'all'|'ask'|'off', tick, pulse, eventsTo}
  *               elapsedS: seconds since `state` arrived (ages and countdowns run on); tick: 300 ms animation tick; pulse: 100 ms phase
  */
 export function renderScreen(screen, state, ui) {
@@ -175,28 +161,8 @@ export function renderScreen(screen, state, ui) {
   const line = (x, y, w, font, fg, bg, s, align = 0) => screen.text(x, y, w, font, fg, bg, fit(s, w, font), align);
   const ageOf = (a) => formatAge(a.age + ui.elapsedS);
 
-  const idle = sessions.length ? idleSeconds(sessions, ui.elapsedS) : null;
-  const standby = idle !== null && idle >= STANDBY_S;
-
-  if (standby) drawStandby(); else drawMain();
-  drawBottom(standby);
-
-  // ----- standby: big clock, date, summary -----
-  function drawStandby() {
-    screen.pic(PIC.STANDBY, 0, 0);
-    if (state.time) {
-      let x = (SCR_W - (4 * 56 + 24)) / 2;
-      for (const ch of state.time) {
-        if (ch === ':') { screen.pic(PIC.COLON, x, 44); x += 24; } else { screen.pic(PIC.DIGIT + Number(ch), x, 44); x += 56; }
-      }
-      screen.text(0, 156, SCR_W, S20, COLOR.LIGHT, COLOR.SCREEN, ui.dateText ?? '', 1);
-    } else {
-      screen.text(0, 80, SCR_W, S20, COLOR.TEXT, COLOR.SCREEN, 'Waiting for agents', 1);
-    }
-    const n = sessions.length;
-    const summary = `${n} ${n === 1 ? 'session idle' : 'sessions idle'}, last activity ${formatAge(Math.round(idle))} ago`;
-    screen.text(0, 190, SCR_W, S16, COLOR.FAINT, COLOR.SCREEN, fit(summary, 460, S16), 1);
-  }
+  drawMain();
+  drawBottom();
 
   // ----- main view -----
   function drawMain() {
@@ -393,8 +359,8 @@ export function renderScreen(screen, state, ui) {
   }
 
   // ----- bottom bar: quotas, sound button, clock -----
-  function drawBottom(inStandby) {
-    if (!inStandby) screen.erase(0, 250, SCR_W, 22);          // the standby picture already has the bar
+  function drawBottom() {
+    screen.erase(0, 250, SCR_W, 22);
     const u = state.usage;
     const stale = !u || u.age_s + ui.elapsedS > STALE_S;
     if (u) {
@@ -402,7 +368,6 @@ export function renderScreen(screen, state, ui) {
       if (u.d7_pct !== undefined) quota(180, MUTE.x - 4, 252, 'Week', 'd7', u, stale);
     }
     soundIcon(ui.sound);
-    if (!inStandby && state.time) screen.text(416, 250, 60, S20, COLOR.TEXT, COLOR.BAR, state.time, 2);
   }
 
   function quota(x, slotEnd, y, label, key, u, stale) {
