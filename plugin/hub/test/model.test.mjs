@@ -96,6 +96,27 @@ test('select_holds_30s_then_auto', () => {
   assert.equal(m.select('nope', 'lead', 100, 1000), false);
 });
 
+test('view_prefers_a_working_session_over_a_your_turn_one_but_not_over_needs_you', () => {
+  const m = createModel();
+  m.applyEvent(ev({ session: 'work', state: 'working', cmd: 'Edit a' }), 1000);
+  m.applyEvent(ev({ session: 'idle', state: 'your_turn', cmd: 'Done, waiting for you', evt: 'Stop' }), 2000);   // reached your turn later
+  assert.equal(m.toState(2100).view.session, 'work', 'the working session beats the idle one');
+  m.applyEvent(ev({ session: 'blk', state: 'needs_you', cmd: 'Approve? Bash' }), 500);
+  assert.equal(m.toState(2200).view.session, 'blk', 'a session that needs you still wins');
+});
+
+test('view_follows_a_working_subagent_and_the_most_recent_of_two_working_sessions', () => {
+  const m = createModel();
+  m.applyEvent(ev({ session: 'one', state: 'your_turn', evt: 'Stop' }), 1000);
+  m.applyEvent(ev({ session: 'two', state: 'your_turn', evt: 'Stop' }), 1100);
+  m.applyEvent(sub('ab12', { session: 'one', state: 'working', evt: 'SubagentStart' }), 1200);
+  assert.equal(m.toState(1300).view.session, 'one', 'only a sub-agent works there');
+  m.applyEvent(ev({ session: 'two', state: 'working' }), 1400);
+  assert.equal(m.toState(1500).view.session, 'two', 'both work: the most recently active');
+  m.applyEvent(sub('ab12', { session: 'one', state: 'working' }), 1600);
+  assert.equal(m.toState(1700).view.session, 'one');
+});
+
 test('old_v1_event_makes_one_agent_session', () => {
   const m = createModel();
   assert.equal(m.applyEvent({ agent: 'foo', state: 'waiting', task: 'x' }, 1000), true);

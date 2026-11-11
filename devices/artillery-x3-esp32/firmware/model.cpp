@@ -86,6 +86,14 @@ AgentState modelSessionDot(const Session& s) {
   return best;
 }
 
+// Something is going on in the session: the lead works (or waits for its sub-agents) or a sub-agent works.
+static bool isWorking(const Session& s) {
+  AgentState st = modelEffectiveState(s, s.lead);
+  if (st == ST_WORKING || st == ST_WAITING_SUBS) return true;
+  for (const auto& a : s.subs) if (a.used && a.state == ST_WORKING) return true;
+  return false;
+}
+
 static bool hasNeedsYou(const Session& s) {
   if (s.lead.state == ST_NEEDS_YOU) return true;
   for (const auto& a : s.subs) if (a.used && a.state == ST_NEEDS_YOU) return true;
@@ -434,11 +442,14 @@ View modelView(uint32_t now) {
   int best = -1;
   for (int k = 0; k < n; k++)                              // 1. blocked on the user (most recently active)
     if (hasNeedsYou(sessions[o[k]]) && (best < 0 || earlier(sessions[o[best]].lastActive, sessions[o[k]].lastActive))) best = k;
-  if (best < 0)                                            // 2. most recently reached "your turn"
+  if (best < 0)                                            // 2. working, so its sub-agents show (most recently active)
+    for (int k = 0; k < n; k++)
+      if (isWorking(sessions[o[k]]) && (best < 0 || earlier(sessions[o[best]].lastActive, sessions[o[k]].lastActive))) best = k;
+  if (best < 0)                                            // 3. most recently reached "your turn"
     for (int k = 0; k < n; k++)
       if (modelEffectiveState(sessions[o[k]], sessions[o[k]].lead) == ST_YOUR_TURN &&
           (best < 0 || earlier(sessions[o[best]].lastYourTurn, sessions[o[k]].lastYourTurn))) best = k;
-  if (best < 0)                                            // 3. most recently active
+  if (best < 0)                                            // 4. most recently active
     for (int k = 0; k < n; k++) if (best < 0 || earlier(sessions[o[best]].lastActive, sessions[o[k]].lastActive)) best = k;
 
   return {(int8_t)best, (int8_t)modelDefaultSlot(sessions[o[best]]), false};

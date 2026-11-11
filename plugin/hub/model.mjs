@@ -77,6 +77,8 @@ export function createModel(opts = {}) {
     return best;
   }
   const hasNeedsYou = (s) => s.lead.state === ST.NEEDS_YOU || used(s).some((a) => a.state === ST.NEEDS_YOU);
+  // Something is going on in the session: the lead works (or waits for its sub-agents) or a sub-agent works.
+  const isWorking = (s) => [ST.WORKING, ST.WAITING_SUBS].includes(effective(s, s.lead)) || used(s).some((a) => a.state === ST.WORKING);
   const asking = (s) => s.lead.state === ST.NEEDS_YOU && s.ask !== '';
 
   /** Remember `id` in a ring of 8; true when it was not there yet (so the caller counts it once). */
@@ -371,8 +373,9 @@ export function createModel(opts = {}) {
     if (!o.length) return { session: null, slot: -1, manual: false };
     let best = null;
     for (const s of o) if (hasNeedsYou(s) && (!best || best.lastActive < s.lastActive)) best = s;          // 1. blocked on the user
-    if (!best) for (const s of o) if (effective(s, s.lead) === ST.YOUR_TURN && (!best || best.lastYourTurn < s.lastYourTurn)) best = s;   // 2. most recent "your turn"
-    if (!best) for (const s of o) if (!best || best.lastActive < s.lastActive) best = s;                  // 3. most recently active
+    if (!best) for (const s of o) if (isWorking(s) && (!best || best.lastActive < s.lastActive)) best = s;                // 2. working (a sub-agent shows)
+    if (!best) for (const s of o) if (effective(s, s.lead) === ST.YOUR_TURN && (!best || best.lastYourTurn < s.lastYourTurn)) best = s;   // 3. most recent "your turn"
+    if (!best) for (const s of o) if (!best || best.lastActive < s.lastActive) best = s;                  // 4. most recently active
     return { session: best, slot: defaultSlot(best), manual: false };
   }
 
