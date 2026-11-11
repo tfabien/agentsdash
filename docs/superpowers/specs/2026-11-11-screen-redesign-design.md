@@ -194,3 +194,9 @@ how the three draw regions map to the new zones, the touch hit map, and the "+N 
 - **Geometry change from the fonts.** Normal rows are 42 px tall (name 20 px + action 16 px): 1 to 4 sub-agents at
   y 58 + i*45. Compact rows (one line, 16 px font) are 22 px tall: 5 to 7 sub-agents at y 58 + i*24. With 8 or more,
   6 compact rows plus a "+N more" row. The team header takes y 38..56.
+- **Sprites (2026-11-11).** The user picked the "small robots" style for every size (mockup
+  `2026-11-11-screen-redesign-mockup-sprites.html`, option B): flat robot in the role color, dark visor with two light
+  eyes, role accessory (crown, antenna, lamp, cap, glasses, white band, headphones, none), role icon on the chest.
+  Same picture ids 27..50 (big, small, tiny); new ids 63..86 hold the same robots with closed eyes, for blinking.
+  Role colors: lead 212,167,44; general 110,123,242; explore 47,181,165; plan 163,113,247; review 219,97,162;
+  test 176,125,79; code 76,142,218; generic 139,148,158.

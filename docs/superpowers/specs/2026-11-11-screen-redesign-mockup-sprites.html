@@ -1,0 +1,55 @@
+<style>
+.wrap{display:flex;flex-direction:column;gap:10px}
+.set{background:#0d1117;border-radius:8px;padding:12px;color:#e6edf3;font-family:"Segoe UI",Arial,sans-serif}
+.roles{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end}
+.role{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:#8b949e}
+.sizes{display:flex;gap:8px;align-items:flex-end;padding:6px;background:#121821;border-radius:6px}
+.row{background:#1a2230;border-radius:5px;display:flex;align-items:center;gap:8px;padding:4px 8px;width:290px;height:42px;box-sizing:border-box;margin-top:10px}
+.row b{font-size:14px}.row span{font-size:11px;color:#c8d0d8}
+.bob{animation:bob 1.2s ease-in-out infinite}@keyframes bob{50%{transform:translateY(-2px)}}
+.blink .eye{animation:blink 3s infinite}@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+.eye{transform-box:fill-box;transform-origin:center}
+.pulse{animation:pulse 1.4s ease-in-out infinite}@keyframes pulse{50%{opacity:.55}}
+.note{font-size:13px;color:#8b949e;margin:6px 0 0}
+</style>
+
+<h2>Sprites alignés sur le thème sombre net</h2>
+<p class="subtitle">Trois styles. Chaque rôle : taille réelle 36, 24 et 16 px sur la couleur du panneau, puis agrandi x3. Les animations montrent l'état « working ».</p>
+<div class="options" id="o"></div>
+
+<script>
+const R=[["lead","#d4a72c"],["general","#6e7bf2"],["explore","#2fb5a5"],["plan","#a371f7"],["review","#db61a2"],["test","#b07d4f"],["code","#4c8eda"],["generic","#8b949e"]];
+const ICON={
+ lead:'<path d="M4 17 L5.5 8 L9.5 11.5 L12 6 L14.5 11.5 L18.5 8 L20 17 Z" fill="#fff"/>',
+ general:'<circle cx="12" cy="12" r="3.2" fill="none" stroke="#fff" stroke-width="2.2"/><g stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 4v2.5M12 17.5V20M4 12h2.5M17.5 12H20M6.3 6.3l1.8 1.8M15.9 15.9l1.8 1.8M6.3 17.7l1.8-1.8M15.9 8.1l1.8-1.8"/></g>',
+ explore:'<circle cx="10.5" cy="10.5" r="5" fill="none" stroke="#fff" stroke-width="2.4"/><path d="M14.5 14.5 L19.5 19.5" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>',
+ plan:'<rect x="6" y="5" width="12" height="15" rx="2" fill="none" stroke="#fff" stroke-width="2.2"/><path d="M9 10h6M9 13.5h6M9 17h4" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
+ review:'<path d="M3 12 Q12 4.5 21 12 Q12 19.5 3 12Z" fill="none" stroke="#fff" stroke-width="2.2"/><circle cx="12" cy="12" r="2.8" fill="#fff"/>',
+ test:'<path d="M9.5 4h5M10.5 4v5.5L6 18.5h12L13.5 9.5V4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><path d="M8 15h8" stroke="#fff" stroke-width="2"/>',
+ code:'<path d="M8.5 7.5 4 12l4.5 4.5M15.5 7.5 20 12l-4.5 4.5M13.5 5.5l-3 13" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>',
+ generic:'<circle cx="7" cy="12" r="1.8" fill="#fff"/><circle cx="12" cy="12" r="1.8" fill="#fff"/><circle cx="17" cy="12" r="1.8" fill="#fff"/>'};
+function dim(hex,k){const n=parseInt(hex.slice(1),16);return `rgb(${(n>>16)*k|0},${(n>>8&255)*k|0},${(n&255)*k|0})`}
+// A: rounded badge with a white line icon
+const badge=(r,c)=>`<svg viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="6" fill="${dim(c,.75)}"/><g transform="translate(2.4 2.4) scale(.8)">${ICON[r]}</g></svg>`;
+// B: small flat robot, role color body, dark visor, role accessory on top
+const HAT={lead:'<path d="M7 5 L8 1.5 L10.2 3.6 L12 .8 L13.8 3.6 L16 1.5 L17 5Z" fill="#f2cc60"/>',
+ general:'<path d="M12 5V2" stroke="C" stroke-width="1.4"/><circle cx="12" cy="1.8" r="1.3" fill="C"/>',
+ explore:'<path d="M12 5V2.5" stroke="C" stroke-width="1.4"/><circle cx="12" cy="2" r="1.8" fill="#fff6c2"/>',
+ plan:'<path d="M5.5 4.2 L12 1.5 L18.5 4.2 L12 6.4Z" fill="#2b2f45"/><path d="M17 4.6v2.4" stroke="#2b2f45" stroke-width="1"/>',
+ review:'',test:'<rect x="6" y="2.4" width="12" height="3" rx="1.5" fill="#e6edf3"/>',
+ code:'<path d="M5 9 Q5 2.5 12 2.5 Q19 2.5 19 9" fill="none" stroke="#30363d" stroke-width="1.8"/><rect x="3.4" y="8" width="2.6" height="4.4" rx="1" fill="#30363d"/><rect x="18" y="8" width="2.6" height="4.4" rx="1" fill="#30363d"/>',generic:''};
+const bot=(r,c)=>`<svg viewBox="0 0 24 28" class="blink"><rect x="5" y="5" width="14" height="12" rx="4" fill="${c}"/><rect x="7" y="8" width="10" height="5.5" rx="2.6" fill="#0d1117"/>
+ <rect class="eye" x="8.8" y="9.6" width="2.2" height="2.4" rx="1" fill="#e6edf3"/><rect class="eye" x="13" y="9.6" width="2.2" height="2.4" rx="1" fill="#e6edf3"/>
+ ${r=="review"?'<rect x="7.6" y="9" width="4" height="3.6" rx="1.6" fill="none" stroke="#fff" stroke-width=".9"/><rect x="12.4" y="9" width="4" height="3.6" rx="1.6" fill="none" stroke="#fff" stroke-width=".9"/>':''}
+ ${HAT[r].replaceAll('"C"','"'+c+'"')}<rect x="7" y="18.5" width="10" height="7.5" rx="3" fill="${dim(c,.7)}"/><g transform="translate(9.3 19.6) scale(.22)">${ICON[r]}</g></svg>`;
+// C: monogram disc with a thin ring in the role color
+const mono=(r,c)=>`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5" fill="#1a2230" stroke="${c}" stroke-width="2"/><g transform="translate(4.8 4.8) scale(.6)">${ICON[r].replaceAll('#fff',c)}</g></svg>`;
+const S=[["a","Badges : icône sur pastille","Pastille arrondie dans la couleur du rôle, icône blanche. Le plus net et le plus lisible en 16 px. L'état « working » fait pulser la pastille.",badge,"pulse",[36,24,16]],
+["b","Petits robots","Robot plat (tête, visière, accessoire du rôle, icône sur le torse). Garde le côté personnage. En « working », il bouge et cligne des yeux. Détails perdus en 16 px.",bot,"bob",[36,24,16]],
+["c","Pastilles cerclées","Disque sombre, anneau et icône dans la couleur du rôle. Le plus discret, très « interface ». L'anneau pulse en « working ».",mono,"pulse",[36,24,16]]];
+document.getElementById("o").innerHTML=S.map(s=>`<div class="option" data-choice="${s[0]}" onclick="toggleSelect(this)"><div class="letter">${s[0].toUpperCase()}</div><div class="content"><h3>${s[1]}</h3>
+<div class="set"><div class="roles">${R.map(([r,c])=>`<div class="role"><div class="sizes">${s[5].map(px=>`<div style="width:${px}px;height:${s[0]=="b"?Math.round(px*28/24):px}px" class="${r=="code"||r=="explore"?s[4]:""}">${s[3](r,c)}</div>`).join("")}</div>
+<div style="width:72px;height:${s[0]=="b"?84:72}px">${s[3](r,c)}</div>${r}</div>`).join("")}</div>
+<div class="row"><div style="width:24px;height:${s[0]=="b"?28:24}px" class="${s[4]}">${s[3]("review","#db61a2")}</div><div><b>code-reviewer</b><br><span>Read display_hmi.cpp</span></div></div></div>
+<p class="note">${s[2]}</p></div></div>`).join("");
+</script>
