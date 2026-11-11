@@ -105,6 +105,7 @@ static const char* applyEventBody(const String& body) {
     jsonGet(body, "cmd", e.cmd, CMD_LEN);
     jsonGet(body, "detail", e.detail, DETAIL_LEN);
     jsonGet(body, "title", e.title, TITLE_LEN);
+    jsonGet(body, "model", e.model, MODEL_LEN);
     jsonLong(body, "tok", e.tok);
     jsonLong(body, "stok", e.stok);
     jsonLong(body, "ctx_pct", e.ctxPct);
