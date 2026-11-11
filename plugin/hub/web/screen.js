@@ -312,6 +312,11 @@ export function renderScreen(screen, state, ui) {
       wrapText(item.title, w, 2, m(S16)).forEach((l, i) => screen.text(x, by + 28 + i * 18, w, S16, COLOR.TEXT, COLOR.PANEL, l));
       return;
     }
+    if (pick >= 0) {                                    // the hub sent no step titles (old hub, or no event since the plan changed)
+      screen.text(x, by + 10, w, S16, COLOR.LIGHT, COLOR.PANEL, `STEP ${pick + 1} of ${plan.total}`);
+      screen.text(x, by + 28, w, S16, COLOR.FAINT, COLOR.PANEL, 'titles arrive with the next event');
+      return;
+    }
     const cur = plan.cur || (plan.done === plan.total ? 'Plan done' : '');
     wrapText(cur, w, 2, m(S20)).forEach((l, i) => screen.text(x, by + 10 + i * 22, w, S20, COLOR.TEXT, COLOR.PANEL, l));
     if (plan.next) line(x, p.y + p.h - 20, w, S16, COLOR.FAINT, COLOR.PANEL, `next: ${plan.next}`);
