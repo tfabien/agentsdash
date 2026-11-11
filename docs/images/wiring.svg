@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 330" font-family="Segoe UI, Arial, sans-serif" font-size="14">
+  <rect width="680" height="330" fill="#ffffff"/>
+  <text x="340" y="26" text-anchor="middle" font-size="17" font-weight="600" fill="#1f2933">Wiring: ESP32 DevKit (30 pins) to the screen</text>
+
+  <!-- ESP32 -->
+  <rect x="30" y="50" width="200" height="230" rx="10" fill="#e6f0fa" stroke="#2b6cb0" stroke-width="2"/>
+  <text x="130" y="76" text-anchor="middle" font-weight="600" fill="#1a365d">ESP32 DevKit</text>
+  <text x="130" y="96" text-anchor="middle" font-size="12" fill="#4a5568">USB-C to the PC (COM3)</text>
+  <g font-size="13" fill="#1a365d" text-anchor="end">
+    <text x="214" y="146">D16 (RX2)</text>
+    <text x="214" y="196">D17 (TX2)</text>
+    <text x="214" y="236">GND</text>
+    <text x="214" y="266">VIN (5 V)</text>
+  </g>
+  <g fill="#2b6cb0">
+    <circle cx="230" cy="142" r="5"/><circle cx="230" cy="192" r="5"/>
+    <circle cx="230" cy="232" r="5"/><circle cx="230" cy="262" r="5"/>
+  </g>
+
+  <!-- screen -->
+  <rect x="450" y="50" width="200" height="230" rx="10" fill="#edf7ed" stroke="#2f855a" stroke-width="2"/>
+  <text x="550" y="76" text-anchor="middle" font-weight="600" fill="#1c4532">TJC4827X243 screen</text>
+  <text x="550" y="96" text-anchor="middle" font-size="12" fill="#4a5568">4-pin connector, 480x272</text>
+  <g font-size="13" fill="#1c4532">
+    <text x="466" y="146">TX</text>
+    <text x="466" y="196">RX</text>
+    <text x="466" y="236">GND</text>
+    <text x="466" y="266">VCC (5 V)</text>
+  </g>
+  <g fill="#2f855a">
+    <circle cx="450" cy="142" r="5"/><circle cx="450" cy="192" r="5"/>
+    <circle cx="450" cy="232" r="5"/><circle cx="450" cy="262" r="5"/>
+  </g>
+
+  <!-- wires -->
+  <g fill="none" stroke-width="3" stroke-linecap="round">
+    <path d="M450 142 H230" stroke="#2b6cb0"/>
+    <path d="M230 192 H450" stroke="#dd6b20"/>
+    <path d="M230 232 H450" stroke="#1a202c"/>
+    <path d="M230 262 H450" stroke="#c53030"/>
+  </g>
+  <g font-size="12" fill="#4a5568" text-anchor="middle">
+    <text x="340" y="134">data, screen to ESP32</text>
+    <text x="340" y="184">data, ESP32 to screen</text>
+    <text x="340" y="224">ground</text>
+    <text x="340" y="254">power 5 V</text>
+  </g>
+  <text x="340" y="312" text-anchor="middle" font-size="12" fill="#4a5568">Wire colors are only an example: check VCC, TX, RX, GND against the silkscreen with a multimeter.</text>
+</svg>
