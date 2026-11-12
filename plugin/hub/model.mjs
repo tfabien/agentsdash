@@ -57,6 +57,7 @@ const emptyWindow = () => ({ known: false, pct: 0, resetS: 0, rate10: 0, proj: -
 export function createModel(opts = {}) {
   const doneTtl = opts.doneTtlMs ?? DONE_TTL_MS;
   const staleTtl = opts.staleTtlMs ?? STALE_TTL_MS;
+  const maxSessions = opts.maxSessions ?? MAX_SESSIONS;      // 5 like the gadget; the sessions hub page can show more
   let rev = 1;
   let sessions = [];
   let moreSessions = 0;
@@ -96,7 +97,7 @@ export function createModel(opts = {}) {
   // Table full: the newcomer replaces the least urgent session only when that one is strictly less urgent
   // (never one blocked on the user). Equally urgent sessions keep their place.
   function allocSession(incoming, now) {
-    if (sessions.length < MAX_SESSIONS) {
+    if (sessions.length < maxSessions) {
       const s = newSession('', now);
       sessions.push(s);
       return s;

@@ -44,7 +44,7 @@ export function startHub(opts = {}) {
   const now = opts.now ?? (() => Date.now());
   const host = opts.host ?? '127.0.0.1';
   const wantedPort = opts.port ?? (Number(String(config.host).split(':')[1]) || 8765);
-  const model = createModel();
+  const model = createModel({ maxSessions: config.max_sessions });
   const startedAt = Date.now();
   // Settings shared by every page (and kept in a file for the next hub): the beeps. Default: only when something needs you.
   const settingsFile = opts.settingsFile ?? null;
@@ -68,7 +68,7 @@ export function startHub(opts = {}) {
   const json = (res, obj) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
 
   function serveStatic(res, urlPath) {
-    const rel = urlPath === '/' ? 'index.html' : decodeURIComponent(urlPath.slice(1));
+    const rel = urlPath === '/' ? 'index.html' : urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : decodeURIComponent(urlPath.slice(1));
     const file = path.join(WEB_DIR, rel);
     if (!file.startsWith(WEB_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return text(res, 404, 'not found');
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' });

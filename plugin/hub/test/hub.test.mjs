@@ -196,7 +196,7 @@ test('hub_binds_loopback_only', () => withHub(async (hub) => {
 
 test('loadConfig_defaults_and_file_and_env', () => {
   const dflt = loadConfig(path.join(os.tmpdir(), 'no-such-agent-gadget.json'), {});
-  assert.deepEqual(dflt, { host: '127.0.0.1:8765', relay: { mode: 'none' }, quotas: true, context_window: 1000000 });
+  assert.deepEqual(dflt, { host: '127.0.0.1:8765', relay: { mode: 'none' }, quotas: true, context_window: 1000000, max_sessions: 5 });
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubcfg-')), 'c.json');
   fs.writeFileSync(file, JSON.stringify({ host: '127.0.0.1:9000', relay: { mode: 'http', host: '192.168.1.100' }, quotas: false, context_window: 200000 }));
   const c = loadConfig(file, {});
@@ -204,6 +204,8 @@ test('loadConfig_defaults_and_file_and_env', () => {
   assert.deepEqual(c.relay, { mode: 'http', host: '192.168.1.100' });
   assert.equal(c.quotas, false);
   assert.equal(c.context_window, 200000);
+  assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '12' }).max_sessions, 12);
+  assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '99' }).max_sessions, 5);     // out of range: default
   assert.equal(loadConfig(file, { CLAUDE_GADGET_HOST: 'h:1', CLAUDE_GADGET_QUOTAS: '0' }).host, 'h:1');
   fs.writeFileSync(file, '{broken');
   assert.equal(loadConfig(file, {}).host, '127.0.0.1:8765');

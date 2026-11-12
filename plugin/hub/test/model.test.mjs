@@ -42,6 +42,14 @@ test('sixth_session_is_dropped', () => {
   assert.equal(st.more_sessions, 1);
 });
 
+test('session_limit_is_an_option_for_the_sessions_hub', () => {
+  const m = createModel({ maxSessions: 8 });
+  for (let i = 0; i < 8; i++) m.applyEvent(ev({ session: `s00${i}` }), 1000 + i);
+  const st = m.toState(2000);
+  assert.equal(st.sessions.length, 8);
+  assert.equal(st.more_sessions, 0);
+});
+
 test('thirteenth_subagent_is_dropped', () => {
   const m = createModel();
   m.applyEvent(ev(), 1000);

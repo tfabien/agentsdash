@@ -4,3 +4,5 @@ canvas.offline { opacity: .4; }
 #relay { margin: 0; font-size: .9em; }
 #relay.ok { color: #5cdc6e; }
 #relay.down { color: #f0883e; font-weight: 600; }
+#hublink { color: #8aa2ba; font-size: .9em; text-decoration: none; }
+#hublink:hover { text-decoration: underline; }
