@@ -10,7 +10,7 @@ import { loadCatalog } from '../themes_loader.mjs';
 import { svgContext } from '../tools/export_builtin.mjs';
 
 const HUB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PACKS = Object.keys(ICON_PACKS);
+const PACKS = fs.readdirSync(path.join(HUB, 'icons'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);   // the packs shipped here: robot (the others live in standup-bot-themes)
 const svg = (pack, file) => fs.readFileSync(path.join(HUB, 'icons', pack, `${file}.svg`), 'utf8');
 
 // The files are the source of truth (edit them freely); the old THEMES table only has to keep a valid `default`.
@@ -54,8 +54,8 @@ test('blink_differs_from_open_eyes_for_the_robot_lead', () => {
 test('catalog_of_the_hub_folder_lists_every_theme_and_pack_with_the_8_roles', () => {
   const c = loadCatalog({ builtinDir: HUB });
   assert.deepEqual(c.errors, []);
-  assert.ok(c.themes.length >= 5);
-  assert.ok(c.packs.length >= 5);
+  assert.ok(c.themes.length >= 1);
+  assert.ok(c.packs.length >= 1);
   for (const p of c.packs) for (const r of ROLE_FILES) assert.ok(p.roles[r], `${p.name}/${r}`);
 });
 
