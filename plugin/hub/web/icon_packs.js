@@ -266,12 +266,23 @@ function tick() {
 
 const ready = (img) => !!img && img.complete !== false && (img.naturalWidth === undefined || img.naturalWidth > 0);
 
-/** A pack drawn from SVG files: `roles` maps 'lead'..'generic' (and '<role>-blink') to URLs. A role without a file, or whose image is not loaded yet, draws the robot. */
+/** Same characters for the same agent: a small string hash. */
+const hashOf = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+
+/** The file key of a role for an agent: `lead`, `lead-2`... picked by the agent id among the variants the pack has (the first one without an id). */
+export function variantKey(roles, key, agentId) {
+  const keys = Object.keys(roles).filter((k) => k === key || (k.startsWith(`${key}-`) && /^\d+$/.test(k.slice(key.length + 1))));
+  keys.sort((a, b) => (Number(a.slice(key.length + 1)) || 1) - (Number(b.slice(key.length + 1)) || 1));
+  if (!keys.length) return key;
+  return keys.length > 1 && agentId ? keys[hashOf(String(agentId)) % keys.length] : keys[0];
+}
+
+/** A pack drawn from SVG (or png, gif...) files: `roles` maps 'lead'..'generic' (and '<role>-blink') to URLs. A role without a file, or whose image is not loaded yet, draws the robot. */
 export function svgPack(name, roles) {
   return {
     label: name.charAt(0).toUpperCase() + name.slice(1),
-    draw(ctx, role, blink) {
-      const key = ROLE_KEYS[role];
+    draw(ctx, role, blink, agentId) {
+      const key = variantKey(roles, ROLE_KEYS[role], agentId);
       const url = (blink && roles[`${key}-blink`]) || roles[key];
       if (url && ANIMATED.test(url)) {
         const frame = animatedFrame(url);

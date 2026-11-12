@@ -274,9 +274,9 @@ export function renderScreen(screen, state, ui) {
   }
 
   // A working robot closes its eyes for one 300 ms tick in fifteen (robots staggered by `seed`).
-  function sprite(x, y, base, state_, seed) {
+  function sprite(x, y, base, state_, seed, agentId) {
     const closed = state_ === 'working' && (ui.tick + seed * 4) % 15 === 0;
-    screen.pic(base + (closed ? PIC.BLINK : 0), x, y, rule?.iconPack);
+    screen.pic(base + (closed ? PIC.BLINK : 0), x, y, rule?.iconPack, agentId);
   }
 
   function drawLeadPanel(s, subs, panelSubs, detailSlot, all, sel) {
@@ -286,7 +286,7 @@ export function renderScreen(screen, state, ui) {
     if (detailSlot) { drawDetail(subs[detailSlot - 1], p); return; }
     const lead = s.agents[0];
     const x = p.x + 6, w = p.w - 12;
-    sprite(x, p.y + 6, PIC.SPRITE_BIG, lead.state, 0);
+    sprite(x, p.y + 6, PIC.SPRITE_BIG, lead.state, 0, s.id);
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
     const wide = p.w > 200, ringW = wide ? 160 : 0;          // wide panel: the ring sits at the right end of the header
     // A hub tile has no title bar: the session title takes the name line and the project goes in a colored chip (wide: above the context
@@ -400,7 +400,7 @@ export function renderScreen(screen, state, ui) {
   // Detail of a tapped sub-agent: role, state, tokens, command (cmd + detail), previous command, hint (or the BACK button of a tile).
   function drawDetail(a, p, back = false) {
     const x = p.x + 6, w = p.w - 12;
-    sprite(x, p.y + 6, PIC.SPRITE_BIG + roleIndex(a.role), a.state, 0);
+    sprite(x, p.y + 6, PIC.SPRITE_BIG + roleIndex(a.role), a.state, 0, a.id);
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
     line(tx, p.y + 4, back ? tw - 80 : tw, S20, COLOR.TEXT, COLOR.PANEL, a.role);
     line(tx, p.y + 26, tw, S16, stateColor(a.state), COLOR.PANEL, `${STATE_LABEL[a.state]} ${ageOf(a)}`);
@@ -476,12 +476,12 @@ export function renderScreen(screen, state, ui) {
     const ageW = 48;
     const tokW = a.tok ? 46 : 0, tokText = a.tok ? formatTokens(a.tok) : '';
     if (compact) {
-      sprite(r.x + 9, r.y + 2, PIC.SPRITE_TINY + roleIndex(a.role), a.state, seed);
+      sprite(r.x + 9, r.y + 2, PIC.SPRITE_TINY + roleIndex(a.role), a.state, seed, a.id);
       line(r.x + 30, r.y + 2, 104, S16, nameCol, COLOR.ROW, a.role);
       line(r.x + 138, r.y + 2, r.w - 142 - ageW - tokW, S16, actCol, COLOR.ROW, a.cmd);
       if (tokW) line(r.x + r.w - ageW - tokW, r.y + 2, tokW - 4, S16, COLOR.FAINT, COLOR.ROW, tokText, 2);
     } else {
-      sprite(r.x + 9, r.y + 7, PIC.SPRITE_SMALL + roleIndex(a.role), a.state, seed);
+      sprite(r.x + 9, r.y + 7, PIC.SPRITE_SMALL + roleIndex(a.role), a.state, seed, a.id);
       const tx = r.x + 40, tw = r.w - 44;
       line(tx, r.y + 1, tw - ageW, S20, nameCol, COLOR.ROW, a.role);
       const used = screen.measure(a.role, S20) + 8;           // the model follows the role name when there is room
