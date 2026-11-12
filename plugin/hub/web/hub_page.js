@@ -27,7 +27,11 @@ let receivedAt = performance.now();
 let sound = 'ask';
 let counts = null;
 let page = 0, pages = [], current = [];               // the page shown, all pages, and its sessions
-const SWIPE_PX = 50;                                   // a horizontal swipe of 50 px or more turns the page
+let focus = null;                                      // session id shown full screen (tap on a tile, BACK or Esc returns), null in the grid
+let expandable = false;                                // a tap can expand only when the grid shows several cells
+const FOCUS_SCALE = 3;                                 // a full-screen session may grow up to 3x the gadget size
+const maxScale = () => (focus ? FOCUS_SCALE : MAX_SCALE);
+const SWIPE_PX = 50;                                  // a horizontal swipe of 50 px or more turns the page
 const seen = new Map();                               // session id -> rank of its first appearance, the order of the grid
 const tiles = new Map();                              // tile key -> {box, canvas, screen, part}: kept between frames, never rebuilt. A session has a lead tile (key: its id) and, with sub-agents, a team tile (key: id + '#team')
 const keyOf = (id, part) => (part === 'team' ? `${id}#team` : id);
@@ -105,7 +109,7 @@ function fit(t) {
   const dpr = window.devicePixelRatio || 1;
   const bw = t.box.clientWidth, bh = t.box.clientHeight;
   if (!bw || !bh) return 0;
-  const k = Math.min(bw / FRAME.w, bh / FRAME.h, MAX_SCALE);            // one scale for both axes: text keeps its shape
+  const k = Math.min(bw / FRAME.w, bh / FRAME.h, maxScale());            // one scale for both axes: text keeps its shape
   const fw = Math.min(bw / k, FRAME.w * STRETCH);                       // a wider cell gets a wider frame (more room in the panels) up to STRETCH
   const w = Math.max(1, Math.round(fw * k * dpr)), h = Math.max(1, Math.round(FRAME.h * k * dpr));
   if (t.canvas.width !== w || t.canvas.height !== h) { t.canvas.width = w; t.canvas.height = h; }
@@ -134,7 +138,8 @@ function tap(t, e) {
   if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
   else if (hit.kind === 'back') lead.detail = null;
   else if (hit.kind === 'planStep') lead.planStep = lead.planStep && lead.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
-  else if (hit.kind === 'lead') lead.planStep = null;
+  else if (hit.kind === 'lead' && lead.planStep) lead.planStep = null;               // the first tap closes an open plan step
+  else if ((hit.kind === 'lead' || hit.kind === 'none') && expandable && !focus) { focus = s.id; render(); return; }
   for (const part of partsOf(s)) { const u = tiles.get(keyOf(s.id, part)); if (u) drawTile(s, u); }
 }
 
@@ -171,6 +176,11 @@ const footer = mountFooter($('bar'));
 // left and right keys turn the page; a dot is orange or red when a session on that page needs you or failed.
 const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager');
 function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
+const backBtn = $('back');
+backBtn.onclick = () => { focus = null; render(); };
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && focus && !document.querySelector('.settings-panel:not([hidden])') && !document.querySelector('dialog[open]')) { focus = null; render(); }
+});
 prevBtn.onclick = () => goto(page - 1);
 nextBtn.onclick = () => goto(page + 1);
 document.addEventListener('keydown', (e) => {
@@ -225,11 +235,16 @@ function render() {
   const sessions = state.sessions;
   for (const s of sessions) if (!seen.has(s.id)) seen.set(s.id, seen.size);
   const cap = capacity();
-  pages = paginate(orderSessions(sessions, seen, isIdle), { max: cap, cost: cellsOf });
-  page = Math.max(0, Math.min(page, pages.length - 1));
-  current = pages[page] ?? [];
+  expandable = cap > 1 && sessions.length > 1;
+  if (focus && (!expandable || !sessions.some((s) => s.id === focus))) focus = null;   // session gone, or the grid shrank to one cell
+  const focused = focus && sessions.find((s) => s.id === focus);
+  pages = focused ? [[focused]] : paginate(orderSessions(sessions, seen, isIdle), { max: cap, cost: cellsOf });
+  backBtn.hidden = !focused;
+  $('tiles').classList.toggle('expandable', expandable && !focused);
+  if (!focused) page = Math.max(0, Math.min(page, pages.length - 1));                  // the grid page is kept while a session is full screen
+  current = pages[focused ? 0 : page] ?? [];
   const grid = $('tiles');
-  const { cols, rows } = bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * MAX_SCALE, STRETCH);   // a team is 2 columns wide
+  const { cols, rows } = bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * maxScale(), STRETCH);   // a team is 2 columns wide
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);
   const nodes = current.map((s) => {
