@@ -75,7 +75,7 @@ export function startHub(opts = {}) {
   let serial = null;
   let relay = null;
   const relayInfo = () => (relay ? { mode: relayConf.mode, ...(serial ? { port: relayConf.port } : { host: relayConf.host }), ...relay.status() } : null);
-  const stateJson = () => ({ ...model.toState(now()), settings, ...(relayInfo() ? { relay: relayInfo() } : {}) });
+  const stateJson = () => ({ ...model.toState(now()), boot: startedAt, settings, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
     for (const res of clients) res.write(`data: ${payload}\n\n`);

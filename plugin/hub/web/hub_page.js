@@ -7,6 +7,7 @@ import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
 import { TILES_MAX } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
+import { createSessionCache } from './session_cache.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const $ = (id) => document.getElementById(id);
@@ -18,7 +19,8 @@ const FLASH_MS = 900;                                 // a tile's frame pulses o
 const MAX_SCALE = 1.5;                                // a lone session on a big screen stops growing at 1.5x the gadget size (708 px wide)
 const FRAME_MS = 100;                                 // redraw rate of the single page: the plan pulse runs on 100 ms phases
 
-let state = { sessions: [], settings: {} };
+const cache = createSessionCache(globalThis.localStorage);   // sessions survive a hub restart (stale until the hub confirms them)
+let state = { sessions: cache.restore(), settings: {} };
 let receivedAt = performance.now();
 let sound = 'ask';
 let counts = null;
@@ -59,12 +61,13 @@ function tileFor(s) {
     const canvas = el('canvas');
     const box = el('div', 'tile');
     box.dataset.session = s.id;
-    box.append(canvas);
+    box.append(canvas, el('span', 'stale-tag', 'stale'));
     t = { box, canvas, screen: createVectorScreen(canvas, { bare: true }), flashAt: 0, session: null, detail: null, planStep: null };
     canvas.addEventListener('click', (e) => tap(t, e));
     tiles.set(s.id, t);
   }
-  t.canvas.className = `${s.dot}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
+  t.box.classList.toggle('stale', !!s.stale);
+  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
   return t;
 }
 
@@ -114,7 +117,7 @@ function drawTile(s, t) {
 
 function draw() {
   const { tiles: shown } = planTiles(state.sessions, { max: maxTiles(), showAll });
-  for (const s of shown) { const t = tiles.get(s.id); if (t) { t.canvas.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false); drawTile(s, t); } }
+  for (const s of shown) { const t = tiles.get(s.id); if (t) { t.canvas.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false); t.canvas.classList.toggle('stale', !!s.stale); drawTile(s, t); } }
 }
 
 const footer = mountFooter($('bar'), { page: 'hub' });
@@ -155,7 +158,7 @@ function showState(next) {
 }
 
 const es = new EventSource('/events');                // the only stream: every tile reads the same state
-es.onmessage = (m) => { const next = JSON.parse(m.data); showState(next); render(); flashChanged(next); };
+es.onmessage = (m) => { const next = cache.merge(JSON.parse(m.data)); showState(next); render(); flashChanged(next); };
 es.onerror = () => document.body.classList.add('offline');
 es.onopen = () => document.body.classList.remove('offline');
 setInterval(render, 1000);                            // ages and the clock run on between events
