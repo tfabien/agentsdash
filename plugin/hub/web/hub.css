@@ -12,6 +12,11 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px "Segoe U
 #prev { left: 0; }
 #next { right: 0; }
 .nav[hidden], #pager[hidden] { display: none; }
+#back { position: absolute; top: 0; left: 0; z-index: 3; padding: 6px 14px; font: inherit; font-size: 15px; color: var(--text); background: rgba(18, 26, 38, .72);
+  border: 1px solid var(--edge); border-radius: 8px; cursor: pointer; }
+#back:hover { background: var(--chip); }
+#back[hidden] { display: none; }
+#tiles.expandable .tile canvas { cursor: zoom-in; }
 #pager { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; gap: 12px; padding: 8px 14px;
   background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; }        /* half on the stage, half on the bottom bar */
 .dot { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: var(--muted); opacity: .6; cursor: pointer; }
