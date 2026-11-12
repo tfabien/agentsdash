@@ -142,6 +142,7 @@ const leadRect = (nSubs, fw = 472) => (nSubs === 0 ? { x: 12, y: 36, w: fw - 12,
 const menuRow = (i) => ({ x: 12, y: 38 + i * 40, w: 460, h: 36 });
 const MUTE = { x: 370, y: 250, w: 42, h: 22 };
 const backRect = (p) => ({ x: p.x + p.w - 76, y: p.y + 4, w: 70, h: 22 });          // the BACK button of a sub-agent shown as a tile: closes it, the team list returns
+const backRectLow = (p) => ({ x: p.x + 6, y: p.y + p.h - 28, w: 70, h: 22 });         // the same BACK button on a session shown full screen: bottom left, the top right holds the context ring
 const inside = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
 // Where the team rows sit: beside a narrow lead panel (the single page), or across the whole frame (the team tile of a hub session).
@@ -185,6 +186,7 @@ export function hitTest(x, y, ctx) {
     return { kind: 'none' };
   }
   const nSubs = ctx.part === 'lead' ? 0 : s && !s.ask ? s.agents.length - 1 : 0;
+  if (ctx.back && ctx.part === 'lead' && inside(backRectLow(leadRect(0, ctx.frameW)), x, y)) return { kind: 'back' };
   if (s && !s.ask && s.plan) {                          // a step of the plan bar (a taller target than the bar itself)
     const b = planBar(leadRect(nSubs, ctx.frameW), s.plan.total);
     if (x >= b.x && x < b.x + b.w && y >= b.y - 8 && y < b.y + b.h + 8) return { kind: 'planStep', index: Math.min(s.plan.total - 1, Math.floor((x - b.x) / b.step)) };
@@ -229,6 +231,11 @@ export function renderScreen(screen, state, ui) {
     if (!ui.bare) drawTopBar(sessions, sel);
     if (ui.part === 'team') { if (detailSlot) drawAgentTile(subs[detailSlot - 1]); else drawTeam(s, subs, 0, true); return; }
     drawLeadPanel(s, subs, panelSubs, detailSlot, sessions, sel);
+    if (ui.back && ui.part === 'lead' && !ui.menu) {       // a session shown full screen: BACK returns to the grid
+      const r = backRectLow(leadRect(0, ui.frameW));
+      screen.fill(r.x, r.y, r.w, r.h, COLOR.CHIP);
+      screen.text(r.x, r.y + 2, r.w, S16, COLOR.TEXT, COLOR.CHIP, 'BACK', 1);
+    }
     if (panelSubs > 0) drawTeam(s, subs, detailSlot);
   }
 
