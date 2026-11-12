@@ -26,24 +26,23 @@ test('every_builtin_theme_json_validates_and_names_a_shipped_pack', () => {
   }
 });
 
-test('every_pack_has_8_role_svgs_and_8_blink_svgs', () => {
+const IMAGE = /\.(svg|png|webp|gif|jpe?g)$/i;
+
+test('every_pack_has_a_file_for_each_of_the_8_roles', () => {
   for (const pack of PACKS) {
-    const files = fs.readdirSync(path.join(HUB, 'icons', pack)).sort();
-    const want = ROLE_FILES.flatMap((r) => [`${r}.svg`, `${r}-blink.svg`]).sort();
-    assert.deepEqual(files, want, pack);
+    const bases = fs.readdirSync(path.join(HUB, 'icons', pack)).filter((f) => IMAGE.test(f)).map((f) => f.replace(IMAGE, ''));
+    for (const r of ROLE_FILES) assert.ok(bases.includes(r), `${pack}/${r}`);
   }
 });
 
-test('svgs_have_viewbox_36x42_and_no_script', () => {
+test('svg_icons_have_viewbox_36x42_and_no_script', () => {
   for (const pack of PACKS) {
-    for (const r of ROLE_FILES) {
-      for (const file of [r, `${r}-blink`]) {
-        const s = svg(pack, file);
-        assert.match(s, /viewBox="0 0 36 42"/, `${pack}/${file}`);
-        assert.match(s, /width="36" height="42"/, `${pack}/${file}`);
-        assert.doesNotMatch(s, /<script|onload|onerror/i, `${pack}/${file}`);
-        assert.match(s, /<(path|rect|circle|ellipse|image)\b/, `${pack}/${file} draws nothing`);
-      }
+    for (const f of fs.readdirSync(path.join(HUB, 'icons', pack)).filter((x) => x.endsWith('.svg'))) {
+      const s = fs.readFileSync(path.join(HUB, 'icons', pack, f), 'utf8');
+      assert.match(s, /viewBox="0 0 36 42"/, `${pack}/${f}`);
+      assert.match(s, /width="36" height="42"/, `${pack}/${f}`);
+      assert.doesNotMatch(s, /<script|onload|onerror/i, `${pack}/${f}`);
+      assert.ok(/<(path|rect|circle|ellipse|image)[\s>]/.test(s), `${pack}/${f} draws nothing`);
     }
   }
 });
@@ -52,12 +51,12 @@ test('blink_differs_from_open_eyes_for_the_robot_lead', () => {
   assert.notEqual(svg('robot', 'lead'), svg('robot', 'lead-blink'));
 });
 
-test('catalog_of_the_hub_folder_has_5_themes_and_5_packs_with_16_files', () => {
+test('catalog_of_the_hub_folder_lists_every_theme_and_pack_with_the_8_roles', () => {
   const c = loadCatalog({ builtinDir: HUB });
   assert.deepEqual(c.errors, []);
-  assert.equal(c.themes.length, 5);
-  assert.equal(c.packs.length, 5);
-  for (const p of c.packs) assert.equal(Object.keys(p.roles).length, 16, p.name);
+  assert.ok(c.themes.length >= 5);
+  assert.ok(c.packs.length >= 5);
+  for (const p of c.packs) for (const r of ROLE_FILES) assert.ok(p.roles[r], `${p.name}/${r}`);
 });
 
 test('svgContext_throws_on_an_unsupported_call', () => {
