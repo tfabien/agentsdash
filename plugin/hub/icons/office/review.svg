@@ -12,4 +12,4 @@
 <path d="M19.861 22.952A2.3 2.3 0 0 1 16.139 22.952" fill="none" stroke="#a8664f" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M22.5 36A4.5 2.6 0 1 1 13.5 36A4.5 2.6 0 1 1 22.5 36" fill="none" stroke="#f4f7ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M19.2 36A1.2 1.2 0 1 1 16.8 36A1.2 1.2 0 1 1 19.2 36" fill="#f4f7ff"/>
-</svg>
+<g transform="translate(29 35)"><circle r="6.1" fill="#121b24" stroke="#f0a5aa" stroke-width="1.2"/><g fill="#f0a5aa" stroke-linecap="round" stroke-linejoin="round"><path d="M-4 0L-1 3L4 -3" fill="none" stroke="#f0a5aa" stroke-width="2"/></g></g></svg>

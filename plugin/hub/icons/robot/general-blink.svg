@@ -6,4 +6,4 @@
 <path d="M12 19.5L16 19.5M20 19.5L24 19.5" fill="none" stroke="#e6edf3" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M15 31H21A5 5 0 0 1 26 36V36A5 5 0 0 1 21 41H15A5 5 0 0 1 10 36V36A5 5 0 0 1 15 31Z" fill="#4d56a9"/>
 <path d="M20.2 36A2.2 2.2 0 1 1 15.8 36A2.2 2.2 0 1 1 20.2 36" fill="none" stroke="#f0f3f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+<g transform="translate(29 35)"><circle r="6.1" fill="#121b24" stroke="#75cdd5" stroke-width="1.2"/><g fill="#75cdd5" stroke-linecap="round" stroke-linejoin="round"><path d="M-4 -2H4V2H-4Z M-2 -4V-2 M2 -4V-2"/></g></g></svg>
