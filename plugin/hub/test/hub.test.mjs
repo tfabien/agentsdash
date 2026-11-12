@@ -311,3 +311,18 @@ test('reload_rejects_foreign_host_and_origin', () => withHub(async (hub) => {
   const r = await fetch(`http://127.0.0.1:${hub.port}/reload`, { method: 'POST', headers: { Origin: 'http://evil.example' } });
   assert.equal(r.status, 403);
 }));
+
+test('raster_icons_are_served_with_their_own_mime', async () => {
+  const d = catalogDirs();
+  for (const file of ['plan.png', 'test.gif', 'code.webp', 'review.jpg']) {
+    fs.writeFileSync(path.join(d.userDir, 'icons', 'cats', file), 'x');
+  }
+  await withHub(async (hub) => {
+    for (const [file, mime] of [['plan.png', 'image/png'], ['test.gif', 'image/gif'], ['code.webp', 'image/webp'], ['review.jpg', 'image/jpeg']]) {
+      const r = await get(hub, `/icons/cats/${file}`);
+      assert.equal(r.status, 200, file);
+      assert.equal(r.headers.get('content-type'), mime, file);
+      assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+    }
+  }, { builtinDir: d.builtinDir, userDir: d.userDir });
+});

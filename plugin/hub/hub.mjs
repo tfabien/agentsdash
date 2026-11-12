@@ -5,7 +5,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadCatalog } from './themes_loader.mjs';
+import { loadCatalog, ICON_TYPES } from './themes_loader.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModel } from './model.mjs';
 import { validRules } from './rules.mjs';
@@ -200,7 +200,7 @@ export function startHub(opts = {}) {
           if (!file) return text(res, 404, 'not found');
           let data;
           try { data = fs.readFileSync(file); } catch { return text(res, 404, 'not found'); }
-          res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });
+          res.writeHead(200, { 'Content-Type': ICON_TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream', 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });
           return res.end(data);
         }
         if (req.method === 'GET') return serveStatic(res, url.pathname);
