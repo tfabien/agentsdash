@@ -8,6 +8,7 @@ import { TILES_MAX } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
+import { applyTheme } from './themes.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const $ = (id) => document.getElementById(id);
@@ -49,7 +50,7 @@ const maxTiles = () => Math.min(TILES_MAX, Math.max(2, maxParam || state.setting
 const isIdle = (s) => idleFor(s, elapsed());          // greyed out after 5 minutes waiting for you; the hub drops the session after 10
 
 // The frame is the one place that says how a session is doing: orange when it needs you, red on an error, a light blue pulse on an event.
-const FRAME_RGB = rgb565(COLOR.FRAME), PULSE_RGB = [126, 170, 235];
+const frameRgb = () => rgb565(COLOR.FRAME), PULSE_RGB = [126, 170, 235];
 const ALERT_RGB = { needs_you: [247, 138, 59], error: [235, 77, 77] };
 const mix = (a, b, k) => a.map((c, i) => c + (b[i] - c) * k);
 
@@ -108,7 +109,7 @@ function drawTile(s, t) {
   if (!scale) return;
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
-  const base = ALERT_RGB[s.dot] ?? FRAME_RGB;
+  const base = ALERT_RGB[s.dot] ?? frameRgb();
   t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null);
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [] }, {
     bare: true, elapsedS: elapsed(), menu: false, detail: t.detail, planStep: t.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
@@ -148,6 +149,7 @@ function render() {
 
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
+  applyTheme(next.settings?.theme);
   footer.settings.update(next.settings ?? {});
   const now = countStates(next.sessions);
   const times = beepsFor(counts, now, sound);

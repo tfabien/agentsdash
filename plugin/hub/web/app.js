@@ -6,6 +6,7 @@ import { createVectorScreen } from './vector_screen.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { mountFooter } from './footer.js';
 import { createSessionCache } from './session_cache.js';
+import { applyTheme } from './themes.js';
 
 const MENU_MS = 8000;       // the session list closes by itself after 8 s
 const DETAIL_MS = 10000;    // a tapped agent's detail stays 10 s
@@ -41,6 +42,7 @@ let landed = false;
 
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
+  applyTheme(next.settings?.theme);
   footer.settings.update(next.settings ?? {});
   // The main address opens the view chosen in the settings; "?stay" (or a ?session link) keeps this one.
   if (!landed) {

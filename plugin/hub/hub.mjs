@@ -22,10 +22,11 @@ const SETTING_RULES = {
   sound: (v) => SOUNDS.includes(v),
   view: (v) => VIEWS.includes(v),
   max_tiles: (v) => Number.isInteger(v) && v >= 2 && v <= 32,
+  theme: (v) => typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v),
   pulse: (v) => typeof v === 'boolean',
   dim_idle: (v) => typeof v === 'boolean',
 };
-const SETTING_DEFAULTS = { sound: 'ask', view: 'single', max_tiles: 12, pulse: true, dim_idle: true };
+const SETTING_DEFAULTS = { sound: 'ask', view: 'single', max_tiles: 12, theme: 'default', pulse: true, dim_idle: true };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -157,7 +158,7 @@ export function startHub(opts = {}) {
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
-          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), view (single, hub), max_tiles (2 to 32), pulse, dim_idle');
+          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), view (single, hub), max_tiles (2 to 32), theme (a theme name), pulse, dim_idle');
           settings = { ...settings, ...next };
           for (const fn of settingsTaps) { try { fn({ sound: settings.sound }); } catch { /* tap errors stay local */ } }
           if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
