@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gridShape, bestGrid, isIdle, planTiles, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { gridShape, bestGrid, isIdle, planTiles, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
 const agent = (over = {}) => ({ id: 'lead', role: 'lead', state: 'working', cmd: 'Edit app.js', age: 100, tok: 0, prev: '', prev_age: 0, ...over });
@@ -110,6 +110,12 @@ test('bestGrid_picks_the_columns_that_make_the_screens_biggest', () => {
   assert.deepEqual(bestGrid(4, 1000, 800, aspect), { cols: 2, rows: 2 });
 });
 
+test('bestGrid_with_stretch_keeps_wide_cells_when_they_make_the_biggest_screens', () => {
+  const aspect = 472 / 216;
+  assert.deepEqual(bestGrid(5, 1008, 500, aspect, 12, 708, 1.5), { cols: 2, rows: 3 }, 'wide cells are filled by stretching');
+  assert.deepEqual(bestGrid(2, 2000, 300, aspect, 12, 708, 1.5), { cols: 2, rows: 1 });
+});
+
 test('bestGrid_stops_rewarding_size_past_the_cap_and_prefers_columns_on_a_tie', () => {
   assert.deepEqual(bestGrid(2, 2000, 1000, 468 / 216, 12, 700), { cols: 2, rows: 1 });
 });
@@ -121,4 +127,15 @@ test('isIdle_after_five_minutes_waiting_for_the_user_only', () => {
   assert.equal(isIdle(s('done', 400)), true);
   assert.equal(isIdle(s('working', 900)), false, 'a working session is never idle');
   assert.equal(isIdle(s('needs_you', 900)), false);
+});
+
+test('a_session_with_sub_agents_takes_two_cells_and_planTiles_counts_them', () => {
+  const team = (id, dot) => sess(id, dot, { agents: [agent({ state: dot }), agent({ id: 'x1', parent: 'lead', state: 'working' })] });
+  assert.equal(cellsOf(sess('a')), 1);
+  assert.equal(cellsOf(team('b', 'working')), 2);
+  const all = [team('t1', 'working'), team('t2', 'your_turn'), sess('s1', 'needs_you')];
+  assert.equal(planTiles(all, { max: 5, cost: cellsOf }).hidden, 0, '2 + 2 + 1 cells fit in 5');
+  const { tiles, hidden } = planTiles(all, { max: 4, cost: cellsOf });
+  assert.deepEqual(tiles.map((s) => s.id), ['t1', 's1'], 'the least urgent team folds first; one cell stays for the placeholder');
+  assert.equal(hidden, 1);
 });

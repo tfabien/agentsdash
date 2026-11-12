@@ -24,6 +24,7 @@ function drawRobot(ctx, role, x, y, k, blink) {
  */
 export function createVectorScreen(canvas, { bare = false } = {}) {
   const ctx = canvas.getContext('2d');
+  let frameW = 472;                                    // width of a hub tile's frame in screen units: 472, or more when the cell is wide (the panels grow, nothing is stretched)
   let frameRgb = null;                                 // [r, g, b] of the frame when a hub tile tints it (alert, pulse); null: the usual colour
 
   const path = (x, y, w, h, r) => { ctx.beginPath(); if (r > 0) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
@@ -34,10 +35,10 @@ export function createVectorScreen(canvas, { bare = false } = {}) {
 
   function drawBackground() {
     // A hub tile (bare) is the frame alone, as wide on the right as on the left, over a transparent canvas.
-    if (bare) rect(6, 30, 472, 216, 7, frameCss());
+    if (bare) rect(6, 30, frameW, 216, 7, frameCss());
     else { rect(0, 0, 480, 272, 0, css(COLOR.BAR)); rect(6, 30, 468, 216, 7, frameCss()); }
     rect(12, 36, 150, 204, 6, css(COLOR.PANEL));
-    rect(170, 36, 302, 204, 6, css(COLOR.PANEL));
+    rect(170, 36, bare ? frameW - 170 : 302, 204, 6, css(COLOR.PANEL));
   }
 
   const font = (id) => { ctx.font = FONT[id]; };
@@ -46,8 +47,9 @@ export function createVectorScreen(canvas, { bare = false } = {}) {
 
   return {
     /** `origin`: top left corner of the part of the 480x272 screen the canvas shows (a tile shows the frame only). */
-    begin(scale, origin = { x: 0, y: 0 }, frame = null) {
+    begin(scale, origin = { x: 0, y: 0 }, frame = null, width = 472) {
       frameRgb = frame;
+      frameW = width;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(scale, 0, 0, scale, -origin.x * scale, -origin.y * scale);

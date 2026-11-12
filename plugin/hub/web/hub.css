@@ -12,5 +12,9 @@ main { flex: 1; min-height: 0; display: grid; gap: 12px; grid-template-columns: 
 .tile.stale .stale-tag { display: block; }
 .tile canvas.stale { opacity: .5; }
 .tile canvas.idle { filter: grayscale(1); opacity: .5; }
+.tile .trash { display: none; position: absolute; top: 8px; left: 10px; padding: 2px 6px; font-size: 14px; line-height: 1; color: var(--text);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; cursor: pointer; }
+.tile .trash:hover { background: var(--chip); border-color: var(--error); }
+.tile.idle .trash { display: block; }
 .tile.empty { color: #55606e; background: transparent; border: 2px dashed var(--edge); border-radius: 12px; font: inherit; cursor: pointer; }
 .offline main { opacity: .4; }

@@ -16,14 +16,16 @@ export function gridShape(n) {
   return { cols, rows: Math.ceil(n / cols) };
 }
 
-/** Columns and rows that give the biggest tiles (up to `maxW` wide) when `n` screens of the given aspect ratio (w / h) share a box of `boxW` x `boxH`. */
-export function bestGrid(n, boxW, boxH, aspect, gap = 12, maxW = Infinity) {
+/** Columns and rows that give the biggest tiles (up to `maxW` tall-equivalent width) when `n` screens of the given aspect ratio (w / h) share a box of `boxW` x `boxH`.
+ * `stretch` > 1 lets a screen be that much wider than its aspect ratio (its frame grows, the drawing is not scaled wider), so a wide cell is filled. */
+export function bestGrid(n, boxW, boxH, aspect, gap = 12, maxW = Infinity, stretch = 1) {
   if (n <= 1 || !(boxW > 0) || !(boxH > 0)) return gridShape(n);
   let best = null;
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);
     const w = (boxW - gap * (cols - 1)) / cols, h = (boxH - gap * (rows - 1)) / rows;
-    const k = Math.min(w, h * aspect, maxW);                 // screens stop growing at maxW: past it, more columns win a tie
+    const h0 = Math.min(h, maxW / aspect), w0 = Math.min(w, h0 * aspect * stretch), h1 = Math.min(h0, w0 / aspect);
+    const k = Math.sqrt(w0 * h1 * aspect);                  // screens stop growing at maxW: past it, more columns win a tie
     if (!best || k >= best.k - 1e-9) best = { cols, rows, k };
   }
   return { cols: best.cols, rows: best.rows };
@@ -34,11 +36,21 @@ export function isIdle(s, elapsedS = 0, limitS = 5 * 60) {
   return (s.dot === 'your_turn' || s.dot === 'done') && s.agents[0].age + elapsedS >= limitS;
 }
 
-/** Sessions that get a tile, and how many are folded. Past `max` the most urgent keep a tile (needs you, error, working, ...),
- * shown in the order of the hub so the grid does not jump; one cell is kept for the placeholder. */
-export function planTiles(sessions, { max = MAX_TILES, showAll = false } = {}) {
-  if (showAll || sessions.length <= max) return { tiles: sessions, hidden: 0 };
-  const keep = new Set(sessions.map((s, i) => ({ s, i })).sort((a, b) => urgency(a.s) - urgency(b.s) || a.i - b.i).slice(0, max - 1).map((x) => x.s));
+/** A session with sub-agents gets a second tile beside its own: the team. */
+export const hasTeam = (s) => s.agents.length > 1;
+export const cellsOf = (s) => (hasTeam(s) ? 2 : 1);
+
+/** Sessions that get a tile, and how many are folded. Past `max` cells the most urgent keep theirs (needs you, error, working, ...),
+ * shown in the order of the hub so the grid does not jump; one cell is kept for the placeholder. `cost(s)`: cells a session takes (default 1). */
+export function planTiles(sessions, { max = MAX_TILES, showAll = false, cost = () => 1 } = {}) {
+  if (showAll || sessions.reduce((n, s) => n + cost(s), 0) <= max) return { tiles: sessions, hidden: 0 };
+  const keep = new Set();
+  let used = 0;
+  for (const { s } of sessions.map((s, i) => ({ s, i })).sort((a, b) => urgency(a.s) - urgency(b.s) || a.i - b.i)) {
+    if (used + cost(s) > max - 1) continue;
+    keep.add(s);
+    used += cost(s);
+  }
   return { tiles: sessions.filter((s) => keep.has(s)), hidden: sessions.length - keep.size };
 }
 
