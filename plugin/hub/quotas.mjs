@@ -191,6 +191,7 @@ export function createQuotaPoller(opts) {
     pollOnce,
     /** Show the last good numbers (marked old by their age) until the first poll succeeds. */
     restore(now = Date.now() / 1000) {
+      if (!opts.enabled) return;        // quotas off: no numbers from disk either (and tests do not read the real state folder)
       const last = loadLast(opts.stateDir, now);
       if (last) opts.apply(bodyFromLimits(last.limits, last.at, null), last.at * 1000);
     },
