@@ -217,7 +217,52 @@ function imageFor(url) {
   return img;
 }
 /** Forgets the loaded images so the next draw fetches every SVG again (after the hub rescanned the icon folders). */
-export function clearIconCache() { images.clear(); }
+export function clearIconCache() { images.clear(); animations.clear(); }
+
+// Animated GIF and WebP: a canvas draws only the first frame of an <img>, so the frames are decoded once with ImageDecoder (Chrome and Edge)
+// and the one that matches the clock is drawn. Without ImageDecoder the first frame stands in.
+const animations = new Map();                                // url -> { frames: [{ bitmap, ms }], total } | 'loading' | 'static'
+const ANIMATED = /\.(gif|webp)$/i;
+const TYPES = { gif: 'image/gif', webp: 'image/webp' };
+let tickTimer = null;
+
+function startAnimation(url) {
+  animations.set(url, 'loading');
+  const done = (v) => { animations.set(url, v); for (const cb of [...loadedListeners]) cb(); };
+  if (typeof ImageDecoder === 'undefined') return done('static');
+  (async () => {
+    const data = await (await fetch(url)).arrayBuffer();
+    const decoder = new ImageDecoder({ data, type: TYPES[url.slice(url.lastIndexOf('.') + 1).toLowerCase()] });
+    await decoder.tracks.ready;
+    const count = decoder.tracks.selectedTrack.frameCount;
+    const frames = [];
+    let total = 0;
+    for (let i = 0; i < count; i++) {
+      const { image } = await decoder.decode({ frameIndex: i });
+      const ms = Math.max(20, (image.duration ?? 100000) / 1000);
+      frames.push({ bitmap: await createImageBitmap(image), ms });
+      total += ms;
+      image.close();
+    }
+    done(frames.length > 1 ? { frames, total } : 'static');
+  })().catch(() => done('static'));
+}
+
+/** The frame of an animated icon for the clock, `null` while it decodes or when only the static image can be shown. */
+function animatedFrame(url) {
+  let a = animations.get(url);
+  if (a === undefined) { startAnimation(url); a = 'loading'; }
+  if (typeof a !== 'object') return a === 'loading' ? 'loading' : null;
+  let t = performance.now() % a.total;
+  for (const f of a.frames) { if (t < f.ms) return f.bitmap; t -= f.ms; }
+  return a.frames[0].bitmap;
+}
+
+/** While an animated icon is drawn, asks the page for another redraw in 80 ms (the redraw draws it again, which keeps the loop going). */
+function tick() {
+  if (tickTimer) return;
+  tickTimer = setTimeout(() => { tickTimer = null; for (const cb of [...loadedListeners]) cb(); }, 80);
+}
 
 const ready = (img) => !!img && img.complete !== false && (img.naturalWidth === undefined || img.naturalWidth > 0);
 
@@ -228,6 +273,11 @@ export function svgPack(name, roles) {
     draw(ctx, role, blink) {
       const key = ROLE_KEYS[role];
       const url = (blink && roles[`${key}-blink`]) || roles[key];
+      if (url && ANIMATED.test(url)) {
+        const frame = animatedFrame(url);
+        if (frame && frame !== 'loading') { ctx.drawImage(frame, 0, 0, ICON_W, ICON_H); tick(); return; }
+        if (frame === 'loading') { drawRobot(ctx, role, blink); return; }
+      }
       const img = url ? imageFor(url) : null;
       if (ready(img)) ctx.drawImage(img, 0, 0, ICON_W, ICON_H);
       else drawRobot(ctx, role, blink);
