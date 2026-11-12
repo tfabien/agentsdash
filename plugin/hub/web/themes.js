@@ -32,7 +32,7 @@ export const THEMES = {
     name: 'office', label: 'Office', author: 'standup-bot', version: '1', iconPack: 'office',
     colors: {
       SCREEN: '#14181f', BAR: '#1d2430', FRAME: '#3d556e', PANEL: '#1d2430', ROW: '#283241', TEXT: '#eef2f7', LIGHT: '#c3cdd9', FAINT: '#7d8a9a',
-      WORKING: '#6cc96f', NEEDS: '#f0a53a', ERROR: '#ef5b5b', YOURTURN: '#6fa8e8', WAITING: '#7fc8d9', ACCENT: '#8ec1f0', CHIP: '#3a475a',
+      WORKING: '#6cc96f', NEEDS: '#f0a53a', ERROR: '#ef5b5b', YOURTURN: '#6fa8e8', WAITING: '#7fc8d9', ACCENT: '#8ec1f0', CHIP: '#46566c',
       ACCENT_DIM: '#2f4560', NEEDS_DIM: '#755020',
     },
   },
