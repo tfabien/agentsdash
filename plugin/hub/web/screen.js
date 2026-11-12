@@ -423,7 +423,7 @@ export function renderScreen(screen, state, ui) {
 
   // ----- bottom bar: quotas, sound button, clock -----
   function drawBottom() {
-    if (ui.bare) return;                                // a grid tile: no status bar, the hub page shows the quotas once
+    if (ui.bare || ui.noBottom) return;                 // a grid tile, or the single page: the bottom bar is the page's own (footer.js)
     screen.erase(0, 250, SCR_W, 22);
     const u = state.usage;
     const stale = !u || u.age_s + ui.elapsedS > STALE_S;

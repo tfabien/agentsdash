@@ -1,3 +1,5 @@
+:root { --ok: #5eed6e; --needs: #f78a3b; --error: #fa5555; --muted: #8b98a8; }
+.spacer { flex: 1; }
 .chip { background: #1c2638; color: #c9d4e0; border: 0; border-radius: 8px; padding: 5px 12px; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; }
 .chip:hover { background: #26334a; }
 .gear { font-size: 17px; line-height: 1; padding: 4px 9px; }
@@ -16,3 +18,13 @@
 .switch { width: 40px; height: 22px; border: 0; border-radius: 11px; background: #2a3344; position: relative; cursor: pointer; padding: 0; }
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #c9d4e0; transition: transform .15s; }
 .switch.on { background: #3b6fd4; } .switch.on::after { transform: translateX(18px); background: #fff; }
+
+#bar { display: flex; align-items: center; gap: 24px; background: #0f1520; border-radius: 10px; padding: 10px 16px; color: #e6edf3; font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+#bar .quotas { display: flex; gap: 28px; }
+.quota { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.quota .track { width: 60px; flex: none; height: 7px; border-radius: 4px; background: #2a3344; overflow: hidden; }
+.quota .fill { height: 100%; border-radius: 4px; background: var(--ok); }
+.quota.ok .fill { background: var(--ok); } .quota.tight .fill { background: var(--needs); } .quota.over .fill { background: var(--error); } .quota.unknown .fill, .quota.stale .fill { background: #555e6a; }
+.quota b { color: var(--ok); } .quota.tight b { color: var(--needs); } .quota.over b { color: var(--error); } .quota.stale b, .quota.unknown b { color: var(--muted); }
+#bar .clock { font-size: 20px; font-weight: 700; }
+#bar .sound { font-size: 16px; padding: 3px 9px; }

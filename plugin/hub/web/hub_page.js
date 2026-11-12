@@ -1,11 +1,12 @@
 // The sessions hub page: the agent screen of each session (same drawing as the single page, without its title bar and status bar)
 // in a grid, the quotas once in the bar at the bottom. One SSE stream feeds every tile. Logic (which sessions, grid shape) is in
 // hub_view.js, the beep rule in alerts.js.
-import { bestGrid, planTiles, quotaBars, isIdle as idleFor, MAX_TILES } from './hub_view.js';
+import { bestGrid, planTiles, isIdle as idleFor, MAX_TILES } from './hub_view.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { relayLabel } from './format.js';
-import { renderScreen, COLOR, rgb565 } from './screen.js';
-import { createSettingsMenu, TILES_MAX } from './settings.js';
+import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
+import { TILES_MAX } from './settings.js';
+import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -13,6 +14,7 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const maxParam = Number(params.get('max'));         // ?max=N overrides the setting for this tab
 const FRAME = { x: 6, y: 30, w: 472, h: 216 };      // the part of the 480x272 screen a tile shows: the frame, 6 units around the panels on every side
+const DETAIL_MS = 10000;                              // a tapped agent or plan step stays open 10 s, like on the single page
 const FLASH_MS = 900;                                 // a tile's frame pulses once when something happens in its session
 const MAX_SCALE = 1.5;                                // a lone session on a big screen stops growing at 1.5x the gadget size (708 px wide)
 const FRAME_MS = 100;                                 // redraw rate of the single page: the plan pulse runs on 100 ms phases
@@ -22,6 +24,7 @@ let receivedAt = performance.now();
 let sound = 'ask';
 let counts = null;
 let showAll = false;
+const seen = new Map();                               // session id -> rank of its first appearance, the order of the grid
 const tiles = new Map();                              // session id -> {box, canvas, screen}: kept between frames, never rebuilt
 
 const sigs = new Map();                               // session id -> what it showed last, without the ticking ages
@@ -56,8 +59,10 @@ function tileFor(s) {
   if (!t) {
     const canvas = el('canvas');
     const box = el('div', 'tile');
+    box.dataset.session = s.id;
     box.append(canvas);
-    t = { box, canvas, screen: createVectorScreen(canvas, { bare: true }), flashAt: 0 };
+    t = { box, canvas, screen: createVectorScreen(canvas, { bare: true }), flashAt: 0, session: null, detail: null, planStep: null };
+    canvas.addEventListener('click', (e) => tap(t, e));
     tiles.set(s.id, t);
   }
   t.canvas.className = `${s.dot}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
@@ -78,16 +83,33 @@ function fit(t) {
   return w / FRAME.w;
 }
 
+/** A tap on a tile works like a tap on the single page: a team row opens that agent for 10 s, a plan step previews it, the lead panel closes them. */
+function tap(t, e) {
+  const s = t.session;
+  if (!s) return;
+  const box = t.canvas.getBoundingClientRect();
+  const x = FRAME.x + ((e.clientX - box.left) * FRAME.w) / box.width, y = FRAME.y + ((e.clientY - box.top) * FRAME.h) / box.height;
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false });
+  const until = Date.now() + DETAIL_MS;
+  if (hit.kind === 'row') t.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until };
+  else if (hit.kind === 'planStep') t.planStep = t.planStep && t.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
+  else if (hit.kind === 'lead') { t.detail = null; t.planStep = null; }
+  drawTile(s, t);
+}
+
 function drawTile(s, t) {
+  t.session = s;
+  const now = Date.now();
+  if (t.detail && now >= t.detail.until) t.detail = null;
+  if (t.planStep && now >= t.planStep.until) t.planStep = null;
   const scale = fit(t);
   if (!scale) return;
-  const now = Date.now();
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? FRAME_RGB;
   t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null);
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [] }, {
-    bare: true, elapsedS: elapsed(), menu: false, detail: null, planStep: null, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
+    bare: true, elapsedS: elapsed(), menu: false, detail: t.detail, planStep: t.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
 }
 
@@ -96,9 +118,7 @@ function draw() {
   for (const s of shown) { const t = tiles.get(s.id); if (t) { t.canvas.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false); drawTile(s, t); } }
 }
 
-const SOUND_ICON = { all: '🔊', ask: '🔔', off: '🔇' }, SOUND_LABEL = { all: 'all events', ask: 'questions only', off: 'off' };
-const settingsMenu = createSettingsMenu({ page: 'hub' });
-$('gear').append(settingsMenu.button);
+const footer = mountFooter($('bar'), { page: 'hub' });
 
 const hiddenBtn = el('button', 'tile empty');         // one node for good: a node replaced between mouse down and up loses the click
 hiddenBtn.onclick = () => { showAll = true; render(); };
@@ -111,8 +131,9 @@ function render() {
   const { cols, rows } = bestGrid(cells, grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * MAX_SCALE);
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);
-  const nodes = shown.map((s) => tileFor(s).box);
-  for (const id of [...tiles.keys()]) if (!sessions.some((s) => s.id === id)) tiles.delete(id);
+  for (const s of sessions) if (!seen.has(s.id)) seen.set(s.id, seen.size);
+  const nodes = [...shown].sort((x, y) => seen.get(x.id) - seen.get(y.id)).map((s) => tileFor(s).box);   // first seen, first placed: tiles do not jump under the pointer when the hub reorders
+  for (const id of [...tiles.keys()]) if (!sessions.some((s) => s.id === id)) { tiles.delete(id); seen.delete(id); }
   if (hidden) {
     hiddenBtn.textContent = `${hidden} more session${hidden === 1 ? '' : 's'} hidden (click to show)`;
     nodes.push(hiddenBtn);
@@ -120,23 +141,12 @@ function render() {
   if (!sessions.length) nodes.push(el('div', 'tile empty', `No sessions yet. Events go to ${location.host}`));
   if (nodes.length !== grid.children.length || nodes.some((n, i) => grid.children[i] !== n)) grid.replaceChildren(...nodes);
   draw();
-  $('sound').textContent = SOUND_ICON[sound] ?? SOUND_ICON.ask;
-  $('sound').title = `Beeps: ${SOUND_LABEL[sound] ?? sound} (click to change)`;
-  $('quotas').replaceChildren(...quotaBars(state.usage, elapsed()).map((q) => {
-    const d = el('div', `quota ${q.stale ? 'stale' : q.level}`);
-    const track = el('div', 'track'), fill = el('div', 'fill');
-    fill.style.width = `${Math.min(100, q.pct)}%`;
-    track.append(fill);
-    const [pct, ...rest] = q.text.split(' ');
-    d.append(el('span', '', q.label), track, el('b', '', pct), el('span', '', rest.join(' ')));
-    return d;
-  }));
-  $('clock').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  footer.update(state, elapsed());
 }
 
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
-  settingsMenu.update(next.settings ?? {});
+  footer.settings.update(next.settings ?? {});
   const now = countStates(next.sessions);
   const times = beepsFor(counts, now, sound);
   if (times) beep(times);
@@ -147,11 +157,6 @@ function showState(next) {
   relayEl.hidden = !label;
   if (label) { relayEl.textContent = label.text; relayEl.title = label.why; relayEl.className = label.ok ? 'ok' : 'down'; }
 }
-
-$('sound').onclick = () => {
-  const next = sound === 'all' ? 'ask' : sound === 'ask' ? 'off' : 'all';
-  fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sound: next }) });
-};
 
 const es = new EventSource('/events');                // the only stream: every tile reads the same state
 es.onmessage = (m) => { const next = JSON.parse(m.data); showState(next); render(); flashChanged(next); };
