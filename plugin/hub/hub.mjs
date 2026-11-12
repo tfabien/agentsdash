@@ -3,7 +3,9 @@
 // serves the browser page and pushes the state over SSE. Binds to 127.0.0.1 only.
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { loadCatalog } from './themes_loader.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModel } from './model.mjs';
 import { validRules } from './rules.mjs';
@@ -76,7 +78,24 @@ export function startHub(opts = {}) {
   let serial = null;
   let relay = null;
   const relayInfo = () => (relay ? { mode: relayConf.mode, ...(serial ? { port: relayConf.port } : { host: relayConf.host }), ...relay.status() } : null);
-  const stateJson = () => ({ ...model.toState(now()), boot: startedAt, settings, ...(relayInfo() ? { relay: relayInfo() } : {}) });
+  // Themes and icon packs from the built-in and user folders. `iconFiles` maps a served URL to its file: no path comes from a request.
+  const catalogDirs = { builtinDir: opts.builtinDir ?? HUB_DIR, userDir: opts.userDir ?? path.join(os.homedir(), '.claude', 'standup-bot') };
+  let catalog = { themes: [], packs: [], errors: [] };
+  let iconFiles = new Map();
+  function reloadCatalog() {
+    catalog = loadCatalog(catalogDirs);
+    iconFiles = new Map();
+    for (const dir of [catalogDirs.builtinDir, catalogDirs.userDir]) {       // same order as the loader: the user folder wins
+      for (const p of catalog.packs) {
+        for (const url of Object.values(p.roles)) {
+          const file = path.join(dir, 'icons', p.name, path.basename(url));
+          if (fs.existsSync(file)) iconFiles.set(url, file);
+        }
+      }
+    }
+  }
+  reloadCatalog();
+  const stateJson = () => ({ ...model.toState(now()), boot: startedAt, settings, catalog, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
     for (const res of clients) res.write(`data: ${payload}\n\n`);
@@ -108,6 +127,11 @@ export function startHub(opts = {}) {
         if (opts.onShutdown) setTimeout(opts.onShutdown, 50);
         return undefined;
       case 'GET /state': return json(res, stateJson());
+      case 'POST /reload':                          // rescan the theme and icon folders (the body, if any, is ignored)
+        await readBody(req).catch(() => '');
+        reloadCatalog();
+        publish();
+        return text(res, 200, 'ok');
       case 'GET /relay': return json(res, relayInfo() ?? { mode: 'none' });
       case 'GET /relay/ports': return json(res, await (opts.listPorts ?? listSerialPorts)());
       case 'POST /relay/test': return json(res, await testRelay());
@@ -171,6 +195,14 @@ export function startHub(opts = {}) {
         return text(res, 200, 'ok');
       }
       default:
+        if (req.method === 'GET' && url.pathname.startsWith('/icons/')) {
+          const file = iconFiles.get(url.pathname);   // exact catalog URL only, so traversal and unlisted names are 404
+          if (!file) return text(res, 404, 'not found');
+          let data;
+          try { data = fs.readFileSync(file); } catch { return text(res, 404, 'not found'); }
+          res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });
+          return res.end(data);
+        }
         if (req.method === 'GET') return serveStatic(res, url.pathname);
         return text(res, 404, 'not found');
     }
