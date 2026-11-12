@@ -216,6 +216,9 @@ function imageFor(url) {
   }
   return img;
 }
+/** Forgets the loaded images so the next draw fetches every SVG again (after the hub rescanned the icon folders). */
+export function clearIconCache() { images.clear(); }
+
 const ready = (img) => !!img && img.complete !== false && (img.naturalWidth === undefined || img.naturalWidth > 0);
 
 /** A pack drawn from SVG files: `roles` maps 'lead'..'generic' (and '<role>-blink') to URLs. A role without a file, or whose image is not loaded yet, draws the robot. */

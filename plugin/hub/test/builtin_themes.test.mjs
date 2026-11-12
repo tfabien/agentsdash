@@ -13,14 +13,16 @@ const HUB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACKS = Object.keys(ICON_PACKS);
 const svg = (pack, file) => fs.readFileSync(path.join(HUB, 'icons', pack, `${file}.svg`), 'utf8');
 
-test('every_builtin_theme_json_validates_and_equals_the_old_table', () => {
-  assert.equal(Object.keys(THEMES).length, 5);
-  for (const old of Object.values(THEMES)) {
-    const raw = JSON.parse(fs.readFileSync(path.join(HUB, 'themes', `${old.name}.json`), 'utf8'));
-    const r = validateTheme(raw);
-    assert.equal(r.ok, true, old.name);
-    assert.deepEqual(r.ignored, []);
-    assert.deepEqual(r.theme, validateTheme(old).theme, old.name);
+// The files are the source of truth (edit them freely); the old THEMES table only has to keep a valid `default`.
+test('every_builtin_theme_json_validates_and_names_a_shipped_pack', () => {
+  const files = fs.readdirSync(path.join(HUB, 'themes')).filter((f) => f.endsWith('.json'));
+  assert.ok(files.includes('default.json'));
+  for (const f of files) {
+    const r = validateTheme(JSON.parse(fs.readFileSync(path.join(HUB, 'themes', f), 'utf8')));
+    assert.equal(r.ok, true, f);
+    assert.deepEqual(r.ignored, [], f);
+    assert.equal(r.theme.name, f.replace(/\.json$/, ''));
+    assert.ok(PACKS.includes(r.theme.iconPack), `${f} names pack ${r.theme.iconPack}`);
   }
 });
 

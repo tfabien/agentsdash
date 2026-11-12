@@ -44,6 +44,7 @@
   box-shadow: 0 20px 60px #000c; font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
 .theme-dialog::backdrop { background: #000a; }
 .thead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.tactions { display: flex; gap: 8px; }
 .ttitle { font-size: 18px; font-weight: 700; }
 .tlist { display: grid; gap: 12px; margin-top: 14px; }
 .tcard { display: grid; gap: 4px; justify-items: start; text-align: left; background: #0b111b; color: inherit; border: 2px solid #1f2a3a; border-radius: 12px; padding: 12px; font: inherit; cursor: pointer; }
