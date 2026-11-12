@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { asciiDeep } from './ascii.mjs';
+import { forDevice } from './ascii.mjs';
 
 export const defaultLockFile = () => path.join(os.tmpdir(), 'agent-gadget-tft.lock');
 const FAILURE_PAUSE_MS = 3000;
@@ -69,7 +69,7 @@ export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLock
   return {
     send(route, body) {
       if (stopped) return;
-      body = asciiDeep(body);                 // the gadget fonts are ASCII only
+      body = forDevice(route, body);          // ASCII only (the gadget fonts) and cut to the firmware's buffers
       queue.push({ route, body, key: route === '/usage' ? 'usage' : route === '/settings' ? 'settings' : route === '/dismiss' ? `dismiss:${body.session}` : `${body.session}:${body.agent}` });
       if (queue.length > maxQueue) {
         coalesce();

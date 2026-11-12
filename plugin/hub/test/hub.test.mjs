@@ -99,7 +99,7 @@ test('non_ascii_cmd_does_not_crash', () => withHub(async (hub) => {
   const r = await post(hub, '/event', { ...EV, cmd: 'café 中文 😀' });
   assert.equal(r.status, 200);
   const st = await (await get(hub, '/state')).json();
-  assert.match(st.sessions[0].agents[0].cmd, /^caf\? /);
+  assert.equal(st.sessions[0].agents[0].cmd, 'café 中文 😀');
 }));
 
 test('oversized_body_returns_413', () => withHub(async (hub) => {

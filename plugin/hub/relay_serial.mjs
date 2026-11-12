@@ -2,7 +2,7 @@
 // Line: {"type":"event"|"usage"|"dismiss"|"settings","body":{...}}\n  (body = the POST body, same wire format as over Wi-Fi).
 // The hub owns the COM port: release() lets another tool (pio upload, hmi_bridge) take it, reopen() takes it back.
 // Needs the optional `serialport` package, loaded only when the port is opened.
-import { asciiDeep } from './ascii.mjs';
+import { forDevice } from './ascii.mjs';
 
 export const SETTLE_MS = 2500;      // opening the port resets the ESP32: it needs about 2.5 s before it reads again
 export const RETRY_MS = 5000;       // reconnect delay when the port is missing or lost
@@ -94,7 +94,7 @@ export function createSerialRelay({ path, baud = 115200, open = defaultOpen, set
   return {
     start: connect,
     send(route, body) {
-      body = asciiDeep(body);                 // the gadget fonts are ASCII only
+      body = forDevice(route, body);          // ASCII only (the gadget fonts) and cut to the firmware's buffers
       const type = route === '/usage' ? 'usage' : route === '/settings' ? 'settings' : route === '/dismiss' ? 'dismiss' : 'event';
       queue.push({ type, body, key: type === 'usage' ? 'usage' : type === 'settings' ? 'settings' : type === 'dismiss' ? `dismiss:${body.session}` : `${body.session}:${body.agent}` });
       if (queue.length > maxQueue) { coalesce(); if (queue.length > maxQueue) queue = queue.slice(-maxQueue); }
