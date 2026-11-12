@@ -36,9 +36,9 @@ const TEAM_ROWS = 7;
 const STALE_S = 15 * 60;                                // quotas not refreshed for 15 minutes show faint
 const PULSE_STEPS = 12;
 
-const STATE_COLOR = { needs_you: COLOR.NEEDS, error: COLOR.ERROR, your_turn: COLOR.YOURTURN, working: COLOR.WORKING, waiting_subs: COLOR.WAITING, done: COLOR.FAINT };
 export const STATE_LABEL = { needs_you: 'needs you', error: 'error', your_turn: 'your turn', working: 'working', waiting_subs: 'waiting', done: 'done' };
-const stateColor = (s) => STATE_COLOR[s] ?? COLOR.FAINT;
+// Read at each call: a theme change rewrites COLOR in place.
+const stateColor = (s) => ({ needs_you: COLOR.NEEDS, error: COLOR.ERROR, your_turn: COLOR.YOURTURN, working: COLOR.WORKING, waiting_subs: COLOR.WAITING }[s] ?? COLOR.FAINT);
 
 /** Role (agent_type) to sprite index; unknown roles get the generic look. */
 export function roleIndex(role) {
@@ -116,7 +116,7 @@ export function paceLevel({ pct, proj }) {
   if (proj > 100) return 'over';
   return proj >= 85 ? 'tight' : 'ok';
 }
-const PACE_COLOR = { ok: COLOR.WORKING, tight: COLOR.NEEDS, over: COLOR.ERROR, unknown: COLOR.FAINT };
+const paceColor = (level) => ({ ok: COLOR.WORKING, tight: COLOR.NEEDS, over: COLOR.ERROR }[level] ?? COLOR.FAINT);
 
 function lerp565(a, b, t, n) {
   const ch = (v, sh, mask) => (v >> sh) & mask;
@@ -469,7 +469,7 @@ export function renderScreen(screen, state, ui) {
   function quota(x, slotEnd, y, label, key, u, stale) {
     const pct = u[`${key}_pct`], proj = u[`${key}_proj`];
     const level = paceLevel({ pct, proj });
-    const col = stale ? COLOR.FAINT : PACE_COLOR[level];
+    const col = stale ? COLOR.FAINT : paceColor(level);
     const lw = screen.measure(label, S16) + 4;
     screen.text(x, y, lw, S16, COLOR.LIGHT, COLOR.BAR, label);
     x += lw;
