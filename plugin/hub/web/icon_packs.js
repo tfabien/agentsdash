@@ -283,15 +283,21 @@ export function svgPack(name, roles) {
     label: name.charAt(0).toUpperCase() + name.slice(1),
     draw(ctx, role, blink, agentId) {
       const key = variantKey(roles, ROLE_KEYS[role], agentId);
-      const url = (blink && roles[`${key}-blink`]) || roles[key];
-      if (url && ANIMATED.test(url)) {
-        const frame = animatedFrame(url);
-        if (frame && frame !== 'loading') { ctx.drawImage(frame, 0, 0, ICON_W, ICON_H); tick(); return; }
-        if (frame === 'loading') { drawRobot(ctx, role, blink); return; }
+      const plain = roles[key];
+      const blinkUrl = roles[`${key}-blink`];
+      const url = (blink && blinkUrl) || plain;
+      if (!url) { drawRobot(ctx, role, blink); return; }            // the pack has no file for this role
+      if (!blink && blinkUrl && !ANIMATED.test(blinkUrl)) imageFor(blinkUrl);   // load the blink frame early: no gap when the eyes close
+      // The blink frame or the animation not ready yet: show the plain icon, never another character (no flash of the robot).
+      for (const u of url === plain ? [url] : [url, plain]) {
+        if (ANIMATED.test(u)) {
+          const frame = animatedFrame(u);
+          if (frame && frame !== 'loading') { ctx.drawImage(frame, 0, 0, ICON_W, ICON_H); tick(); return; }
+        }
+        const img = imageFor(u);
+        if (ready(img)) { ctx.drawImage(img, 0, 0, ICON_W, ICON_H); return; }
       }
-      const img = url ? imageFor(url) : null;
-      if (ready(img)) ctx.drawImage(img, 0, 0, ICON_W, ICON_H);
-      else drawRobot(ctx, role, blink);
+      // Nothing is loaded yet: draw nothing, the page redraws when the image arrives.
     },
   };
 }
