@@ -132,6 +132,7 @@ const planRunning = (p, i) => (planParallel(p) ? p.state[i] === 'r' : i === p.do
 const leadRect = (nSubs, fw = 472) => (nSubs === 0 ? { x: 12, y: 36, w: fw - 12, h: 204 } : { x: 12, y: 36, w: 150, h: 204 });
 const menuRow = (i) => ({ x: 12, y: 38 + i * 40, w: 460, h: 36 });
 const MUTE = { x: 370, y: 250, w: 42, h: 22 };
+const backRect = (p) => ({ x: p.x + p.w - 76, y: p.y + 4, w: 70, h: 22 });          // the BACK button of a sub-agent shown as a tile: closes it, the team list returns
 const inside = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
 // Where the team rows sit: beside a narrow lead panel (the single page), or across the whole frame (the team tile of a hub session).
@@ -154,7 +155,8 @@ export function planBar(p, total) {
 /**
  * Tap at (x, y) in screen pixels. ctx: {sessions, selected, menu, asking?, part?}. `part` is 'lead' (a hub tile with the lead panel alone, full width)
  * or 'team' (a hub tile with the team rows alone, full width); left out, the screen shows both side by side. `frameW`: width of the frame in units (default 472).
- * @returns {{kind: 'planStep'|'tab'|'mute'|'lead'|'row'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
+ * `detailOpen` (team part): a sub-agent is open as a tile, so the only target is its BACK button.
+ * @returns {{kind: 'planStep'|'tab'|'mute'|'lead'|'row'|'back'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
  */
 export function hitTest(x, y, ctx) {
   if (y < 34) return inside({ x: 6, y: 0, w: 468, h: 34 }, x, y) ? { kind: 'tab' } : { kind: 'none' };
@@ -168,6 +170,7 @@ export function hitTest(x, y, ctx) {
   }
   const s = ctx.sessions[ctx.selected];
   if (ctx.part === 'team') {
+    if (ctx.detailOpen) return inside(backRect(leadRect(0, ctx.frameW)), x, y) ? { kind: 'back' } : { kind: 'none' };
     const n = s ? s.agents.length - 1 : 0, rows = layoutRows(n, teamFull(ctx.frameW));
     for (let i = 0; i < rows.length; i++) if (inside(rows[i], x, y)) return n >= 8 && i === 6 ? { kind: 'more' } : { kind: 'row', index: i };
     return { kind: 'none' };
@@ -211,9 +214,9 @@ export function renderScreen(screen, state, ui) {
     const subs = s.agents.slice(1);
     const asking = Boolean(s.ask);
     const panelSubs = asking || ui.menu || ui.part ? 0 : subs.length;
-    const detailSlot = asking || ui.menu || !ui.detail || ui.detail.session !== s.id ? 0 : subs.findIndex((a) => a.id === ui.detail.agent) + 1;
+    const detailSlot = asking || ui.menu || ui.part === 'lead' || !ui.detail || ui.detail.session !== s.id ? 0 : subs.findIndex((a) => a.id === ui.detail.agent) + 1;
     if (!ui.bare) drawTopBar(sessions, sel);
-    if (ui.part === 'team') { drawTeam(s, subs, detailSlot, true); return; }
+    if (ui.part === 'team') { if (detailSlot) drawAgentTile(subs[detailSlot - 1]); else drawTeam(s, subs, 0, true); return; }
     drawLeadPanel(s, subs, panelSubs, detailSlot, sessions, sel);
     if (panelSubs > 0) drawTeam(s, subs, detailSlot);
   }
@@ -375,12 +378,20 @@ export function renderScreen(screen, state, ui) {
     opts.slice(0, maxOpt).forEach((o, i) => line(x, oy + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, `${i + 1}. ${o}`));
   }
 
-  // Detail of a tapped sub-agent: role, state, tokens, command (cmd + detail), previous command, hint.
-  function drawDetail(a, p) {
+  // A sub-agent opened from the team tile: the whole tile shows it like a lead, with a BACK button that returns to the list.
+  function drawAgentTile(a) {
+    const p = leadRect(0, ui.frameW);
+    screen.erase(p.x, p.y, p.w, p.h);
+    screen.fill(156, 36, 20, 204, COLOR.PANEL);
+    drawDetail(a, p, true);
+  }
+
+  // Detail of a tapped sub-agent: role, state, tokens, command (cmd + detail), previous command, hint (or the BACK button of a tile).
+  function drawDetail(a, p, back = false) {
     const x = p.x + 6, w = p.w - 12;
     sprite(x, p.y + 6, PIC.SPRITE_BIG + roleIndex(a.role), a.state, 0);
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
-    line(tx, p.y + 4, tw, S20, COLOR.TEXT, COLOR.PANEL, a.role);
+    line(tx, p.y + 4, back ? tw - 80 : tw, S20, COLOR.TEXT, COLOR.PANEL, a.role);
     line(tx, p.y + 26, tw, S16, stateColor(a.state), COLOR.PANEL, `${STATE_LABEL[a.state]} ${ageOf(a)}`);
     const info = [a.model ? modelLabel(a.model) : '', a.tok ? `${formatTokens(a.tok)} tokens` : ''].filter(Boolean).join(' - ');
     if (info) line(tx, p.y + 44, tw, S16, COLOR.LIGHT, COLOR.PANEL, info);
@@ -391,7 +402,11 @@ export function renderScreen(screen, state, ui) {
       screen.text(x, p.y + 142, w, S16, COLOR.ACCENT, COLOR.PANEL, 'BEFORE');
       line(x, p.y + 160, w, S16, COLOR.LIGHT, COLOR.PANEL, `${a.prev} (${formatAge(a.prev_age + ui.elapsedS)} ago)`);
     }
-    screen.text(x, p.y + p.h - 22, w, S16, COLOR.FAINT, COLOR.PANEL, 'tap here to go back');
+    if (back) {
+      const r = backRect(p);
+      screen.fill(r.x, r.y, r.w, r.h, COLOR.CHIP);
+      screen.text(r.x, r.y + 2, r.w, S16, COLOR.TEXT, COLOR.CHIP, 'BACK', 1);
+    } else screen.text(x, p.y + p.h - 22, w, S16, COLOR.FAINT, COLOR.PANEL, 'tap here to go back');
   }
 
   // Session menu: one 36 px row per session; the selected one is framed.

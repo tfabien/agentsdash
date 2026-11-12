@@ -3,11 +3,9 @@
 import { formatAge, fmtDuration } from './format.js';
 import { paceLevel, STATE_LABEL } from './screen.js';
 
-export const MAX_TILES = 12;                  // past this many sessions the least urgent fold into one placeholder
+export const MAX_TILES = 12;                  // the most cells a page holds
 const MAX_DOTS = 5;                          // agent dots in a tile header
 const STALE_S = 15 * 60;                     // same rule as the screen: quotas older than 15 minutes show faint
-const URGENCY = { needs_you: 0, error: 1, working: 2, waiting_subs: 3, your_turn: 4, done: 5 };
-const urgency = (s) => URGENCY[s.dot] ?? 5;
 
 /** Columns and rows of the grid for `n` tiles (placeholder included): wide screens like 3 columns, 4 tiles make a square. */
 export function gridShape(n) {
@@ -31,6 +29,29 @@ export function bestGrid(n, boxW, boxH, aspect, gap = 12, maxW = Infinity, stret
   return { cols: best.cols, rows: best.rows };
 }
 
+/** Rows used by items of the given column `spans` placed in order in a grid of `cols` columns: an item that does not fit the rest of a row starts the next one. */
+export function packRows(spans, cols) {
+  let rows = 0, used = cols;
+  for (const sp of spans) { if (used + sp > cols) { rows++; used = 0; } used += sp; }
+  return rows;
+}
+
+/** Like bestGrid, for items that span 1 column (a session) or 2 (a session and its team, kept side by side): the columns and rows that give the biggest tiles. */
+export function bestLayout(spans, boxW, boxH, aspect, gap = 12, maxW = Infinity, stretch = 1) {
+  if (!spans.length) return { cols: 1, rows: 1 };
+  const total = spans.reduce((a, b) => a + b, 0), widest = Math.max(...spans);
+  if (total <= 1 || !(boxW > 0) || !(boxH > 0)) { const cols = Math.max(widest, gridShape(total).cols); return { cols, rows: packRows(spans, cols) }; }
+  let best = null;
+  for (let cols = widest; cols <= Math.max(widest, total); cols++) {
+    const rows = packRows(spans, cols);
+    const w = (boxW - gap * (cols - 1)) / cols, h = (boxH - gap * (rows - 1)) / rows;
+    const h0 = Math.min(h, maxW / aspect), w0 = Math.min(w, h0 * aspect * stretch), h1 = Math.min(h0, w0 / aspect);
+    const k = Math.sqrt(w0 * h1 * aspect);
+    if (!best || k >= best.k - 1e-9) best = { cols, rows, k };
+  }
+  return { cols: best.cols, rows: best.rows };
+}
+
 /** A session waiting for the user (your turn, done) for `limitS` seconds or more is idle: its tile is greyed out. */
 export function isIdle(s, elapsedS = 0, limitS = 5 * 60) {
   return (s.dot === 'your_turn' || s.dot === 'done') && s.agents[0].age + elapsedS >= limitS;
@@ -40,19 +61,36 @@ export function isIdle(s, elapsedS = 0, limitS = 5 * 60) {
 export const hasTeam = (s) => s.agents.length > 1;
 export const cellsOf = (s) => (hasTeam(s) ? 2 : 1);
 
-/** Sessions that get a tile, and how many are folded. Past `max` cells the most urgent keep theirs (needs you, error, working, ...),
- * shown in the order of the hub so the grid does not jump; one cell is kept for the placeholder. `cost(s)`: cells a session takes (default 1). */
-export function planTiles(sessions, { max = MAX_TILES, showAll = false, cost = () => 1 } = {}) {
-  if (showAll || sessions.reduce((n, s) => n + cost(s), 0) <= max) return { tiles: sessions, hidden: 0 };
-  const keep = new Set();
-  let used = 0;
-  for (const { s } of sessions.map((s, i) => ({ s, i })).sort((a, b) => urgency(a.s) - urgency(b.s) || a.i - b.i)) {
-    if (used + cost(s) > max - 1) continue;
-    keep.add(s);
-    used += cost(s);
-  }
-  return { tiles: sessions.filter((s) => keep.has(s)), hidden: sessions.length - keep.size };
+/** Active sessions first, idle ones last; each group keeps the order of `rank` (session id -> first appearance), so the grid does not jump. */
+export function orderSessions(sessions, rank, idle) {
+  const key = (s) => [idle(s) ? 1 : 0, rank.get(s.id) ?? 0];
+  return [...sessions].sort((a, b) => { const [ia, ra] = key(a), [ib, rb] = key(b); return ia - ib || ra - rb; });
 }
+
+/** Cells that fit a box without a tile dropping under MIN_SCALE times the gadget screen (the "Auto" tiles per page), at most `cap`. */
+export function autoCapacity(boxW, boxH, frameW, frameH, { gap = 12, minScale = 0.8, cap = MAX_TILES } = {}) {
+  if (!(boxW > 0) || !(boxH > 0)) return cap;
+  const cols = Math.floor((boxW + gap) / (frameW * minScale + gap)), rows = Math.floor((boxH + gap) / (frameH * minScale + gap));
+  return Math.max(1, Math.min(cap, cols * rows));
+}
+
+/** Cuts the ordered sessions into pages of at most `max` cells, in order, never splitting a session (its lead and team tiles stay together).
+ * A session bigger than a page (a team at `max` 1) gets a page of its own. `cost(s)`: cells a session takes (default 1). */
+export function paginate(sessions, { max = MAX_TILES, cost = () => 1 } = {}) {
+  const pages = [];
+  let cur = [], used = 0;
+  for (const s of sessions) {
+    const c = cost(s);
+    if (cur.length && used + c > max) { pages.push(cur); cur = []; used = 0; }
+    cur.push(s);
+    used += c;
+  }
+  if (cur.length) pages.push(cur);
+  return pages;
+}
+
+/** The most urgent state of a page that deserves a dot of color in the pager: 'needs_you', 'error' or ''. */
+export const pageAlert = (page) => (page.some((s) => s.dot === 'needs_you') ? 'needs_you' : page.some((s) => s.dot === 'error') ? 'error' : '');
 
 const ctxLevel = (pct) => (pct === null || pct === undefined ? 'unknown' : pct >= 80 ? 'bad' : pct >= 60 ? 'warn' : 'ok');
 

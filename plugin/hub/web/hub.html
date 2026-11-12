@@ -3,12 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sessions hub</title>
+<title>Agent standup</title>
 <link rel="stylesheet" href="/settings.css">
 <link rel="stylesheet" href="/hub.css">
 </head>
 <body>
+<div id="stage">
 <main id="tiles"></main>
+<button id="prev" class="nav" aria-label="Previous page" title="Previous page" hidden>&#8249;</button>
+<button id="next" class="nav" aria-label="Next page" title="Next page" hidden>&#8250;</button>
+<div id="pager" hidden></div>
+</div>
 <footer id="bar"></footer>
 <script type="module" src="/hub_page.js"></script>
 </body>

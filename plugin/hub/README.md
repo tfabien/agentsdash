@@ -22,15 +22,16 @@ form. It reads the same state as the gadget, so the two always agree. Taps work 
 opens the session list, a team row shows that agent for 10 s, the speaker button cycles the beeps (all, ask only, off).
 Under the screen a line shows whether the relay reaches the gadget.
 
-## Sessions hub page
+## Sessions page
 
-<http://127.0.0.1:8765/hub> shows every session as a tile in a grid; `/` is still the one-session screen, linked from the hub header ("full page") and back ("Sessions hub").
+<http://127.0.0.1:8765/> (also `/hub`) shows every session as a tile in a grid. It is the only page.
 
-- Files: `web/hub.html`, `hub.css`, `hub_page.js` (DOM), `hub_view.js` (pure logic: grid shape, which sessions get a tile, what a tile says, quota bars), `alerts.js` (beep rule shared with the main page).
-- One `EventSource('/events')` feeds all tiles. Tiles are links to `/?session=<id>`; the main page then calls `POST /select` for that session.
-- Grid: auto-fit by count (1: 1x1, 2: 2x1, 3: 3x1, 4: 2x2, 5 to 9: 3 columns, then about the square root). Query `?max=N` changes the tile limit (default 6).
-- Past the limit the most urgent sessions keep a tile (needs you, error, working, waiting, your turn, done), in the hub order; the others fold into one placeholder tile. Click it or the "show all" chip to show them.
-- `needs_you` tiles are orange, `error` tiles red. The beeps follow the same rule and the same shared setting as the main page (the "beeps" chip cycles it).
+- Files: `web/hub.html`, `hub.css`, `hub_page.js` (DOM), `hub_view.js` (pure logic: grid shape, pages, what a tile says, quota bars), `alerts.js` (beep rule).
+- One `EventSource('/events')` feeds all tiles.
+- Tiles per page (setting `max_tiles`, 0 = Auto, 1 to 12; `?max=N` overrides it for one tab): Auto counts the tiles that fit the window at 0.8 times the gadget screen. 1 shows one session at a time; a session with sub-agents then shows its lead and team side by side, half a width each.
+- Sessions keep their first-seen order, idle ones (waiting for you 5 minutes) last. They are cut into pages in that order; a session (lead and team tiles) is never split across pages.
+- Pages turn with the side arrows, the dots (orange for `needs_you`, red for `error` on that page), a horizontal swipe or the left and right keys.
+- `needs_you` tiles are orange, `error` tiles red. The beeps follow the shared beeps setting (the bell chip cycles it).
 - Quotas and clock: once, in the bottom bar, with the pace colors of the screen. Tiles show the context fill, not the quotas.
 - Small tiles drop details through container queries: plan text first, then the command.
 - The hub keeps 12 sessions. `max_sessions` in the config file (or env `CLAUDE_GADGET_MAX_SESSIONS`, 1 to 32) raises it; the relayed device keeps its own limit.
@@ -109,7 +110,7 @@ change and every second), `GET /health` and `GET /` (the page).
 - `relay_http.mjs`, `relay_serial.mjs` forward events to a gadget (Wi-Fi, USB); `relay_config.mjs` validates a relay chosen from the page.
 - `tui.mjs` terminal view.
 - `quotas.mjs` plan quota poller (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed).
-- `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `app.js` wires SSE, taps and beeps.
+- `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `hub_page.js` wires SSE, taps, pages and beeps.
 
 ## Tests
 

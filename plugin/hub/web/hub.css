@@ -4,7 +4,28 @@
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; }
-main { flex: 1; min-height: 0; display: grid; gap: 12px; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr)); }
+#stage { flex: 1; min-height: 0; position: relative; display: flex; touch-action: pan-y; }
+.nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 34px; height: 64px; padding: 0; font-size: 30px; line-height: 1;
+  color: var(--text); background: rgba(18, 26, 38, .72); border: 1px solid var(--edge); border-radius: 8px; cursor: pointer; }
+.nav:hover:not(:disabled) { background: var(--chip); }
+.nav:disabled { opacity: .25; cursor: default; }
+#prev { left: 0; }
+#next { right: 0; }
+.nav[hidden], #pager[hidden] { display: none; }
+#pager { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; gap: 12px; padding: 8px 14px;
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; }        /* half on the stage, half on the bottom bar */
+.dot { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: var(--muted); opacity: .6; cursor: pointer; }
+.dot:hover { opacity: 1; }
+.dot.on { opacity: 1; background: var(--text); }
+.dot.needs_you { background: var(--needs); opacity: 1; }
+.dot.error { background: var(--error); opacity: 1; }
+.dot.on { box-shadow: 0 0 0 2px var(--edge), 0 0 0 3px var(--text); }
+main { flex: 1; min-height: 0; min-width: 0; display: grid; gap: 12px; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr)); }
+.group { grid-column: span 2; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-width: 0; min-height: 0; }
+.group .tile[data-part="lead"] { justify-content: flex-end; }      /* the canvases stay against the seam when a cell is wider than a frame can grow */
+.group .tile[data-part="team"] { justify-content: flex-start; }
+.group .link { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 1; padding: 1px 8px; font-size: 12px; line-height: 1.4;
+  color: var(--ok); background: var(--chip); border: 1.5px solid var(--ok); border-radius: 11px; white-space: nowrap; pointer-events: none; }
 .tile { display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; }
 .tile canvas { display: block; transition: filter .6s, opacity .6s; }
 .tile { position: relative; }
