@@ -5,7 +5,7 @@ import { renderScreen, hitTest, teamOrder, SCR_W, SCR_H } from './screen.js';
 import { createVectorScreen } from './vector_screen.js';
 import { relayLabel } from './format.js';
 import { countStates, beepsFor, beep } from './alerts.js';
-import { createSettingsMenu } from './settings.js';
+import { mountFooter } from './footer.js';
 
 const MENU_MS = 8000;       // the session list closes by itself after 8 s
 const DETAIL_MS = 10000;    // a tapped agent's detail stays 10 s
@@ -34,13 +34,13 @@ function alerts(next) {
   counts = now;
 }
 
-const settingsMenu = createSettingsMenu({ page: 'single' });
-document.getElementById('gear').append(settingsMenu.button);
+const footer = mountFooter(document.getElementById('bar'), { page: 'single' });
+const SHOWN_H = 250;                                   // the screen without its bottom bar: the page draws that bar itself
 let landed = false;
 
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
-  settingsMenu.update(next.settings ?? {});
+  footer.settings.update(next.settings ?? {});
   // The main address opens the view chosen in the settings; "?stay" (or a ?session link) keeps this one.
   if (!landed) {
     landed = true;
@@ -66,6 +66,7 @@ function uiNow() {
     sound,
     tick: Math.floor(now / 300),
     pulse: Math.floor(now / 100),
+    noBottom: true,
     timeText: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
     eventsTo: location.host,
   };
@@ -74,6 +75,7 @@ function uiNow() {
 function draw() {
   screen.begin(scale);
   renderScreen(screen, state, uiNow());
+  footer.update(state, Math.floor((performance.now() - receivedAt) / 1000));
 }
 
 /** The backing store follows the size on screen and the pixel ratio: every shape and letter is drawn sharp. */
@@ -81,7 +83,7 @@ function resize() {
   const dpr = window.devicePixelRatio || 1;
   const width = Math.max(1, Math.round(canvas.clientWidth * dpr));
   canvas.width = width;
-  canvas.height = Math.round((width * SCR_H) / SCR_W);
+  canvas.height = Math.round((width * SHOWN_H) / SCR_W);
   scale = width / SCR_W;
   draw();
 }

@@ -4,19 +4,10 @@
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; }
-.spacer { flex: 1; }
 main { flex: 1; min-height: 0; display: grid; gap: 12px; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr)); }
 .tile { display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; }
 .tile canvas { display: block; transition: filter .6s, opacity .6s; }
 .tile canvas.idle { filter: grayscale(1); opacity: .5; }
 .tile.empty { color: #55606e; background: transparent; border: 2px dashed var(--edge); border-radius: 12px; font: inherit; cursor: pointer; }
 #relay { margin: 0; font-size: 12px; } #relay.ok { color: var(--ok); } #relay.down { color: var(--needs); font-weight: 600; }
-footer { display: flex; align-items: center; gap: 24px; background: #0f1520; border-radius: 10px; padding: 10px 16px; }
-#quotas { display: flex; gap: 28px; }
-.quota { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.quota .track { width: 60px; flex: none; }
-.quota.ok .fill { background: var(--ok); } .quota.tight .fill { background: var(--needs); } .quota.over .fill { background: var(--error); } .quota.unknown .fill, .quota.stale .fill { background: #555e6a; }
-.quota b { color: var(--ok); } .quota.tight b { color: var(--needs); } .quota.over b { color: var(--error); } .quota.stale b, .quota.unknown b { color: var(--muted); }
-#clock { font-size: 20px; font-weight: 700; }
-#sound { font-size: 16px; padding: 3px 9px; }
 .offline main { opacity: .4; }
