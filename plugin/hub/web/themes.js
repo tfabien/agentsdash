@@ -28,6 +28,14 @@ export const THEMES = {
       ACCENT_DIM: '#4a4a1e', NEEDS_DIM: '#7a5316',
     },
   },
+  office: {
+    name: 'office', label: 'Office', author: 'standup-bot', version: '1', iconPack: 'office',
+    colors: {
+      SCREEN: '#14181f', BAR: '#1d2430', FRAME: '#3d556e', PANEL: '#1d2430', ROW: '#283241', TEXT: '#eef2f7', LIGHT: '#c3cdd9', FAINT: '#7d8a9a',
+      WORKING: '#6cc96f', NEEDS: '#f0a53a', ERROR: '#ef5b5b', YOURTURN: '#6fa8e8', WAITING: '#7fc8d9', ACCENT: '#8ec1f0', CHIP: '#3a475a',
+      ACCENT_DIM: '#2f4560', NEEDS_DIM: '#755020',
+    },
+  },
 };
 
 /**
@@ -47,6 +55,14 @@ export function validateTheme(raw) {
   }
   const pack = typeof raw.iconPack === 'string' && ICON_PACKS[raw.iconPack] ? raw.iconPack : DEFAULT_PACK;
   return { ok: true, ignored, theme: { name: raw.name, label: typeof raw.label === 'string' ? raw.label : raw.name, author: String(raw.author ?? ''), version: String(raw.version ?? ''), iconPack: pack, colors } };
+}
+
+/** A color of `theme` as a CSS string (the built-in value when the theme leaves it out). */
+export function themeColor(theme, key) {
+  const hex = theme.colors[key];
+  if (hex && HEX.test(hex)) return hex;
+  const v = BASE[key];
+  return `rgb(${[((v >> 11) & 31) * 255 / 31, ((v >> 5) & 63) * 255 / 63, (v & 31) * 255 / 31].map(Math.floor).join(',')})`;
 }
 
 let active = THEMES[DEFAULT_THEME];

@@ -1,6 +1,6 @@
 # Themes and icon packs
 
-The page has one global theme, chosen in the page settings (gear, "Theme"). The hub keeps the choice (`theme` in `hub-settings.json`), so every page and browser follows without a restart. The physical screen is not affected.
+The page has one global theme, chosen with the palette button of the bottom bar (a dialog with a preview of each theme). The hub keeps the choice (`theme` in `hub-settings.json`), so every page and browser follows without a restart. The physical screen is not affected.
 
 ## Built-in themes
 
@@ -8,7 +8,8 @@ The page has one global theme, chosen in the page settings (gear, "Theme"). The 
 | --- | --- | --- |
 | `default` | `robot` | Colors of the firmware (`ui_theme.h`), the 8 role robots |
 | `cat` | `cat` | Warm brown palette, one cat coat per role |
-| `lemmings` | `lemmings` | Dark green palette, a lemming with the tool of a skill per role |
+| `lemmings` | `lemmings` | Dark green palette, the walking lemming of the game (green hair, blue robe) with the tool of a skill per role |
+| `office` | `office` | Slate blue palette, a colleague in a suit per role (headset, glasses, cap) |
 
 ## Theme format
 
@@ -31,6 +32,6 @@ A theme is an object (code: `plugin/hub/web/themes.js`, `validateTheme`):
 ## Add a theme
 
 1. Add an entry to `THEMES` in `themes.js` (and a pack to `ICON_PACKS` if it needs its own drawing).
-2. The settings panel lists every `THEMES` entry.
+2. The theme dialog lists every `THEMES` entry (`theme_dialog.js`).
 
 Not done yet (issue #16): drop-in folders (`~/.claude/standup-bot/themes/`), SVG icons, and per-project rules (icon pack and badge color).

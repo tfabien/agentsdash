@@ -1,7 +1,6 @@
 // The settings menu, shared by the single page and the hub page: a gear button that opens a panel above it. Every option is kept by the
 // hub (POST /settings, state.settings), so all pages and all browsers follow. Adding an option = one entry in OPTIONS.
 import { relayLabel } from './format.js';
-import { THEMES } from './themes.js';
 
 export const TILES_MIN = 2, TILES_MAX = 12;
 
@@ -16,7 +15,6 @@ export const OPTIONS = [
   { key: 'view', label: 'View', kind: 'choice', choices: [['hub', 'Hub'], ['single', 'Single']], hint: 'What the main address opens',
     after: (v, page) => { if (page !== v) location.assign(v === 'hub' ? '/hub' : '/?stay'); } },
   { key: 'max_tiles', label: 'Sessions shown on the hub', kind: 'stepper', min: TILES_MIN, max: TILES_MAX, hint: 'The least urgent fold into one tile' },
-  { key: 'theme', label: 'Theme', kind: 'choice', choices: Object.values(THEMES).map((t) => [t.name, t.label]), hint: 'Colors and agent icons of the page' },
   { key: 'sound', label: 'Beeps', kind: 'choice', choices: [['all', 'All'], ['ask', 'Questions'], ['off', 'Off']], hint: 'Shared with the gadget buzzer' },
   { key: 'pulse', label: 'Pulse on events', kind: 'toggle', hint: 'A tile frame lights up when something happens' },
   { key: 'dim_idle', label: 'Grey out idle sessions', kind: 'toggle', hint: 'After 5 minutes waiting for you' },

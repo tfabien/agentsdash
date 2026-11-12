@@ -84,32 +84,65 @@ function drawCat(ctx, role, blink) {
 }
 
 // ---- lemmings ----
-// Per role: the tool or hat of a lemming skill (lead: blocker arms, general: floater umbrella, explore: miner lamp, plan: builder brick,
-// review: climber, test: bomber, code: digger pick, generic: plain walker). Robe color per role.
-const LEM_ROBE = ['#3a56c8', '#3a56c8', '#3a56c8', '#3a56c8', '#3a56c8', '#3a56c8', '#3a56c8', '#4a63d6'];
-const LEM_HAIR = '#3fc94f', LEM_SKIN = '#f3d3b0', LEM_EYE = '#ffffff', LEM_PUPIL = '#101828';
+// A lemming of the game, walking to the right: green hair, pale face with a round nose, blue robe, little feet. The role is the skill
+// it carries (lead: crown, general: floater umbrella, explore: miner helmet, plan: builder cap, review: glasses, test: bomber, code: digger pick).
+const LEM = { hair: '#35c24a', hairShade: '#27983a', skin: '#f6d9bd', robe: '#2f4fd0', robeShade: '#2640a8', eye: '#ffffff', pupil: '#101828' };
 
 function drawLemming(ctx, role, blink) {
-  const robe = LEM_ROBE[role];
   const { rr, dot, stroke, poly } = tools(ctx);
-  if (role === 0) { rr(2, 31.5, 8, 3.2, 1.6, LEM_SKIN); rr(26, 31.5, 8, 3.2, 1.6, LEM_SKIN); }                          // blocker: arms out
-  if (role === 1) { ctx.beginPath(); ctx.moveTo(18, 12); ctx.lineTo(18, 4); stroke('#8a8f99', 1.2); ctx.beginPath(); ctx.ellipse(18, 6.5, 15, 6.5, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fillStyle = '#e5484d'; ctx.fill(); }   // umbrella
-  if (role === 6) { ctx.beginPath(); ctx.moveTo(28, 40); ctx.lineTo(33, 31); stroke('#8a5a2b', 1.8); poly([[30, 29.5], [35.5, 31], [32.5, 34]], '#b8bec9'); }   // pick
-  if (role === 4) { ctx.beginPath(); ctx.moveTo(28, 40); ctx.lineTo(32, 30); stroke('#c98b4a', 1.6); }                    // rope
-  rr(9, 30, 18, 11, 5.5, robe);                                                                                           // robe
-  dot(18, 19.5, 10.4, LEM_SKIN);                                                                                          // head
-  ctx.beginPath(); ctx.arc(18, 17, 11.6, Math.PI * 1.02, Math.PI * 1.98); ctx.closePath(); ctx.fillStyle = LEM_HAIR; ctx.fill();   // hair
-  poly([[10, 12], [13, 6], [16, 11]], LEM_HAIR); poly([[20, 11], [23, 6], [26, 12]], LEM_HAIR);
-  if (role === 2) { rr(9.5, 5.5, 17, 6, 3, '#e0b83a'); dot(18, 8.5, 1.6, '#fff6c2'); }                                   // miner helmet and lamp
-  if (role === 3) poly([[11, 8.5], [17, 3.5], [25, 8.5], [18, 11]], '#2b2f45');
-  if (role === 5) { dot(28.5, 6.5, 3.4, '#252a34'); ctx.beginPath(); ctx.moveTo(28.5, 3.2); ctx.lineTo(30, 1.2); stroke('#f2cc60', 1); dot(30, 1.2, 1, '#ff7a3d'); }   // bomb and fuse
-  if (role === 7) poly([[15, 5], [18, 1.5], [21, 5]], LEM_HAIR);
+  const oval = (cx, cy, rx, ry, fill) => { ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); };
+  if (role === 6) { ctx.beginPath(); ctx.moveTo(29, 28); ctx.lineTo(33, 39); stroke('#8a5a2b', 1.8); poly([[29.5, 24.5], [35.5, 27], [31, 29.5]], '#b8bec9'); }      // pick, behind the hand
+  oval(14.5, 40.2, 3.8, 1.8, LEM.skin); oval(23.5, 40.2, 3.8, 1.8, LEM.skin);                                      // feet
+  ctx.beginPath(); ctx.moveTo(12, 22); ctx.lineTo(25, 22); ctx.lineTo(28.5, 39.5); ctx.lineTo(8.5, 39.5); ctx.closePath();   // robe
+  ctx.fillStyle = LEM.robe; ctx.fill();
+  rr(8.5, 37.4, 20, 2.4, 1.2, LEM.robeShade);
+  rr(23, 25, 7.5, 3.4, 1.7, LEM.skin);                                                                              // arm and hand
+  if (role === 5) { dot(32, 25, 3.2, '#252a34'); ctx.beginPath(); ctx.moveTo(32, 21.8); ctx.lineTo(33.6, 19.8); stroke('#f2cc60', 1); dot(33.6, 19.8, 1, '#ff7a3d'); }
+  dot(16.5, 12.5, 10.6, LEM.hair);                                                                                   // hair, behind the face
+  oval(21.5, 16.2, 6.6, 6.8, LEM.skin); dot(28.4, 17.6, 2.3, LEM.skin);                                              // face and nose
+  ctx.beginPath(); ctx.ellipse(18, 10.5, 11, 6, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fillStyle = LEM.hair; ctx.fill();   // fringe
+  poly([[8, 12], [6.5, 18], [11.5, 17]], LEM.hairShade);                                                             // back of the hair
+  if (role === 0) poly([[10, 6], [10, -0.5], [13.7, 3.2], [17.5, -2], [21.3, 3.2], [25, -0.5], [25, 6]], '#f2cc60');
+  if (role === 1) { ctx.beginPath(); ctx.moveTo(17.5, 7); ctx.lineTo(17.5, 1); stroke('#8a8f99', 1.2); ctx.beginPath(); ctx.ellipse(17.5, 3.5, 15, 6.5, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fillStyle = '#e5484d'; ctx.fill(); }
+  if (role === 2) { rr(8, 3.2, 17, 6, 3, '#e0b83a'); dot(16.5, 5.8, 1.6, '#fff6c2'); }
+  if (role === 3) poly([[9, 6.5], [18, 1.2], [27, 6.5], [18, 9.5]], '#2b2f45');
+  if (blink) { ctx.beginPath(); ctx.moveTo(20.6, 15); ctx.lineTo(25, 15); stroke(LEM.pupil, 1.3); }
+  else { oval(23, 14.8, 2.5, 3, LEM.eye); dot(24, 15.2, 1.3, LEM.pupil); }
+  if (role === 4) { ctx.beginPath(); ctx.arc(23, 14.8, 4.2, 0, Math.PI * 2); stroke('#101828', 1.1); }
+  ctx.beginPath(); ctx.arc(24.5, 19.5, 2, 0.15 * Math.PI, 0.8 * Math.PI); stroke('#b0705a', 0.9);                   // mouth
+  chestIcon(ctx, role, '#f4f7ff');
+}
+
+// ---- office ----
+// A colleague at the desk, seen from the front: suit per role, a different hair, plus the badge of the role (lead: gold tie, general: headset,
+// explore: flat cap, plan: glasses and a bun, review: round glasses, test: pencil behind the ear, code: big headphones, generic: plain).
+const OFFICE = [
+  ['#2d3a52', '#6b5a4a'], ['#4a5a6e', '#2b2420'], ['#556b4f', '#8a5a2b'], ['#6a4a6e', '#3b2a22'],
+  ['#4a4f5a', '#b9a37a'], ['#7a5a3a', '#d9b36a'], ['#2b2f38', '#1d1b1a'], ['#5a6472', '#5a4030'],
+];
+const SKIN = '#f2cfae';
+
+function drawOffice(ctx, role, blink) {
+  const [suit, hair] = OFFICE[role];
+  const { rr, dot, stroke, poly } = tools(ctx);
+  if (role === 6) { ctx.beginPath(); ctx.arc(18, 19, 14, Math.PI * 1.03, Math.PI * 1.97); stroke('#1f242c', 2); }       // headphone band, behind the head
+  rr(8, 29.5, 20, 12, 5, suit);                                                                                         // jacket
+  poly([[13.2, 29.5], [18, 33.2], [22.8, 29.5]], '#eef2f7');                                                            // shirt collar
+  if (role === 0) poly([[17, 31.2], [19, 31.2], [19.8, 34], [18, 36], [16.2, 34]], '#e0b83a');                           // gold tie
+  rr(15.5, 25.5, 5, 5, 2, SKIN);                                                                                        // neck
+  dot(18, 17.5, 9.2, SKIN);                                                                                             // head
+  if (role === 3) { dot(18, 5.5, 3.6, hair); }
+  ctx.beginPath(); ctx.ellipse(18, 13, 9.6, 6.8, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fillStyle = role === 2 ? SKIN : hair; ctx.fill();   // hair
+  if (role === 2) { ctx.beginPath(); ctx.ellipse(18, 11.2, 10.4, 5.4, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fillStyle = hair; ctx.fill(); rr(15, 11, 17, 2.6, 1.3, hair); }   // flat cap
+  if (role === 6) { rr(6.2, 14.5, 4, 8, 1.8, '#1f242c'); rr(25.8, 14.5, 4, 8, 1.8, '#1f242c'); }
   for (const x of [14.2, 21.8]) {
-    if (blink) { ctx.beginPath(); ctx.moveTo(x - 2.2, 20); ctx.lineTo(x + 2.2, 20); stroke(LEM_PUPIL, 1.3); }
-    else { dot(x, 20, 3.1, LEM_EYE); dot(x + 0.5, 20.4, 1.5, LEM_PUPIL); }
+    if (blink) { ctx.beginPath(); ctx.moveTo(x - 1.8, 18.2); ctx.lineTo(x + 1.8, 18.2); stroke('#2b2420', 1.3); } else dot(x, 18.2, 1.5, '#2b2420');
   }
-  if (role === 4) { for (const cx of [14.2, 21.8]) { ctx.beginPath(); ctx.arc(cx, 20, 3.9, 0, Math.PI * 2); stroke('#101828', 1); } }
-  ctx.beginPath(); ctx.arc(18, 24.6, 2, 0.15 * Math.PI, 0.85 * Math.PI); stroke('#b0705a', 0.9);                        // mouth
+  if (role === 3) { for (const x of [14.2, 21.8]) { ctx.beginPath(); ctx.roundRect(x - 3.3, 15.2, 6.6, 6, 1.4); stroke('#3b3f4a', 1.1); } ctx.beginPath(); ctx.moveTo(17.5, 17.8); ctx.lineTo(18.5, 17.8); stroke('#3b3f4a', 1.1); }
+  if (role === 4) { for (const x of [14.2, 21.8]) { ctx.beginPath(); ctx.arc(x, 18.2, 3.6, 0, Math.PI * 2); stroke('#3b3f4a', 1.2); } ctx.beginPath(); ctx.moveTo(17.8, 18.2); ctx.lineTo(18.2, 18.2); stroke('#3b3f4a', 1.2); }
+  if (role === 5) { ctx.beginPath(); ctx.moveTo(26.2, 12.5); ctx.lineTo(29.5, 20); stroke('#e0b83a', 1.5); }
+  if (role === 1) { ctx.beginPath(); ctx.arc(18, 17, 11.2, Math.PI * 1.02, Math.PI * 1.98); stroke('#2b2f38', 1.5); rr(5.2, 15, 3.2, 6, 1.4, '#2b2f38'); ctx.beginPath(); ctx.moveTo(6.8, 21); ctx.quadraticCurveTo(7, 25.5, 12.5, 25.5); stroke('#2b2f38', 1.2); dot(12.8, 25.5, 1.4, '#2b2f38'); }
+  ctx.beginPath(); ctx.arc(18, 21.6, 2.3, 0.2 * Math.PI, 0.8 * Math.PI); stroke('#a8664f', 0.9);                      // smile
   chestIcon(ctx, role, '#f4f7ff');
 }
 
@@ -118,6 +151,7 @@ export const ICON_PACKS = {
   robot: { label: 'Robot', draw: drawRobot },
   cat: { label: 'Cat', draw: drawCat },
   lemmings: { label: 'Lemmings', draw: drawLemming },
+  office: { label: 'Office', draw: drawOffice },
 };
 /** The pack of that name; a missing or unknown name gives the built-in robots. */
 export const iconPack = (name) => ICON_PACKS[name] ?? ICON_PACKS[DEFAULT_PACK];

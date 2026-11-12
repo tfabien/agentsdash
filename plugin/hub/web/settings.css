@@ -37,3 +37,18 @@
 #bar .tools { display: flex; align-items: center; gap: 4px; }
 #bar .relay { font-size: 15px; padding: 0 6px; cursor: default; }
 #bar .relay.down { filter: grayscale(1); opacity: .5; text-decoration: line-through; }
+
+.themebtn { font-size: 16px; padding: 3px 9px; }
+.theme-dialog { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 16px 18px; background: #121a26; border: 1px solid #2a3850; border-radius: 14px; color: #e6edf3;
+  box-shadow: 0 20px 60px #000c; font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+.theme-dialog::backdrop { background: #000a; }
+.thead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.ttitle { font-size: 18px; font-weight: 700; }
+.tlist { display: grid; gap: 12px; margin-top: 14px; }
+.tcard { display: grid; gap: 4px; justify-items: start; text-align: left; background: #0b111b; color: inherit; border: 2px solid #1f2a3a; border-radius: 12px; padding: 12px; font: inherit; cursor: pointer; }
+.tcard:hover { border-color: #3a4d6b; }
+.tcard.on { border-color: #3b6fd4; background: #0f1a2e; }
+.tname { font-weight: 700; font-size: 15px; margin-top: 4px; }
+.tpreview { max-width: 100%; }
+.tswatches { display: flex; gap: 4px; margin-top: 4px; }
+.tsw { width: 18px; height: 18px; border-radius: 5px; border: 1px solid #ffffff22; }
