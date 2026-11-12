@@ -24,7 +24,7 @@ const STALE_S = 15 * 60;                                // quotas not refreshed 
 const PULSE_STEPS = 12;
 
 const STATE_COLOR = { needs_you: COLOR.NEEDS, error: COLOR.ERROR, your_turn: COLOR.YOURTURN, working: COLOR.WORKING, waiting_subs: COLOR.WAITING, done: COLOR.FAINT };
-const STATE_LABEL = { needs_you: 'needs you', error: 'error', your_turn: 'your turn', working: 'working', waiting_subs: 'waiting', done: 'done' };
+export const STATE_LABEL = { needs_you: 'needs you', error: 'error', your_turn: 'your turn', working: 'working', waiting_subs: 'waiting', done: 'done' };
 const stateColor = (s) => STATE_COLOR[s] ?? COLOR.FAINT;
 
 /** Role (agent_type) to sprite index; unknown roles get the generic look. */
