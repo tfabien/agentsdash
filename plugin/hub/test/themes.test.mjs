@@ -29,9 +29,9 @@ test('the_default_theme_keeps_the_palette_of_the_firmware', () => {
   assert.deepEqual({ ...COLOR }, before);
 });
 
-test('cat_lemmings_and_office_change_every_color_and_the_icon_pack', () => {
+test('cat_lemmings_office_and_pirates_change_every_color_and_the_icon_pack', () => {
   const base = { ...COLOR };
-  for (const name of ['cat', 'lemmings', 'office']) {
+  for (const name of ['cat', 'lemmings', 'office', 'pirates']) {
     applyTheme(name);
     assert.equal(activeTheme().name, name);
     assert.equal(activeTheme().iconPack, name);

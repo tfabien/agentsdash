@@ -1,6 +1,7 @@
 // The settings menu, shared by the single page and the hub page: a gear button that opens a panel above it. Every option is kept by the
 // hub (POST /settings, state.settings), so all pages and all browsers follow. Adding an option = one entry in OPTIONS.
 import { relayLabel } from './format.js';
+import { icon } from './icons.js';
 
 export const TILES_MIN = 2, TILES_MAX = 12;
 
@@ -103,7 +104,8 @@ function createDeviceSection() {
  * @returns {{button: HTMLButtonElement, update: (settings: object) => void, updateRelay: (relay: object|undefined) => void}}
  */
 export function createSettingsMenu({ page }) {
-  const button = el('button', 'chip gear', '⚙');
+  const button = el('button', 'chip gear');
+  button.append(icon('gear'));
   button.title = 'Settings';
   button.setAttribute('aria-label', 'Settings');
   const panel = el('div', 'settings-panel');

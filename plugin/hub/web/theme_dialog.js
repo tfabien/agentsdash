@@ -3,6 +3,7 @@
 import { THEMES, themeColor } from './themes.js';
 import { iconPack } from './icon_packs.js';
 import { postSettings } from './settings.js';
+import { icon } from './icons.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const SWATCHES = ['FRAME', 'PANEL', 'TEXT', 'WORKING', 'NEEDS', 'ERROR', 'ACCENT'];
@@ -25,7 +26,8 @@ function drawPreview(canvas, theme) {
  * @returns {{button: HTMLButtonElement, update: (name: string|undefined) => void}}
  */
 export function createThemeDialog() {
-  const button = el('button', 'chip themebtn', '🎨');
+  const button = el('button', 'chip themebtn');
+  button.append(icon('palette'));
   button.title = 'Theme';
   button.setAttribute('aria-label', 'Theme');
   const dialog = el('dialog', 'theme-dialog');

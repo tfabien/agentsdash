@@ -146,12 +146,52 @@ function drawOffice(ctx, role, blink) {
   chestIcon(ctx, role, '#f4f7ff');
 }
 
+// ---- pirates ----
+// A crew member at the rail, seen from the front: coat per role, a hat or bandana, and what the role carries (lead: captain with a skull on the hat,
+// general: red bandana, explore: tricorn and spyglass, plan: bearded navigator, review: eye patch, test: green bandana, code: blue bandana and earring).
+const PIRATE = [
+  ['#8c1f2b', '#1d1a22'], ['#2d4a7a', '#b3262d'], ['#3b5b3f', '#2a2118'], ['#5a3a6a', '#1a2a4a'],
+  ['#5a4a3a', '#2b2b33'], ['#7a4a2a', '#2f7a4a'], ['#243a5a', '#2c5fa8'], ['#4a4f58', '#c9b37a'],
+];
+const PSKIN = '#e0ae82';
+
+function drawPirate(ctx, role, blink) {
+  const [coat, hat] = PIRATE[role];
+  const { rr, dot, stroke, poly } = tools(ctx);
+  const tricorn = role === 0 || role === 2 || role === 3 || role === 4;
+  if (role === 2) { ctx.beginPath(); ctx.moveTo(26, 30); ctx.lineTo(34, 24); stroke('#6b4a2a', 2.6); ctx.beginPath(); ctx.moveTo(32, 25.4); ctx.lineTo(34.6, 23.4); stroke('#e0b83a', 3); }   // spyglass
+  rr(8, 29.5, 20, 12, 5, coat);                                                                                         // coat
+  poly([[13, 29.5], [18, 33.2], [23, 29.5]], '#efe6d2');                                                                // shirt collar
+  rr(15.5, 25.5, 5, 5, 2, PSKIN);                                                                                       // neck
+  dot(18, 18, 9.2, PSKIN);                                                                                              // head
+  if (role === 0 || role === 3) { ctx.beginPath(); ctx.ellipse(18, 20.5, 8.8, 7.6, 0, 0.12 * Math.PI, 0.88 * Math.PI); ctx.closePath(); ctx.fillStyle = role === 0 ? '#2a1d16' : '#8a8f99'; ctx.fill(); }   // beard
+  if (tricorn) {
+    poly([[3, 13.5], [9.5, 4.5], [18, 8], [26.5, 4.5], [33, 13.5], [18, 11.2]], hat);
+    rr(4.5, 11, 27, 3.4, 1.7, hat);
+    if (role === 0) { dot(18, 8.4, 2.1, '#f4efe6'); dot(17.2, 8.2, 0.55, hat); dot(18.8, 8.2, 0.55, hat); }            // skull
+  } else {
+    ctx.beginPath(); ctx.ellipse(18, 13.4, 9.6, 6, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fillStyle = hat; ctx.fill();   // bandana
+    rr(8.4, 12.2, 19.2, 2.6, 1.3, hat);
+    poly([[26.5, 12.5], [31.5, 10.5], [30.2, 16.2]], hat);                                                              // knot
+    if (role === 7) for (const x of [12, 17, 22]) dot(x, 10.6, 0.9, '#f4efe6');
+  }
+  for (const x of [14.2, 21.8]) {
+    if (role === 4 && x === 14.2) continue;                                                                             // under the patch
+    if (blink) { ctx.beginPath(); ctx.moveTo(x - 1.8, 18.6); ctx.lineTo(x + 1.8, 18.6); stroke('#2b2420', 1.3); } else dot(x, 18.6, 1.5, '#2b2420');
+  }
+  if (role === 4) { ctx.beginPath(); ctx.moveTo(9.5, 14); ctx.lineTo(26.5, 16); stroke('#15110e', 1); rr(11.2, 15.4, 6, 5.4, 2.4, '#15110e'); }   // eye patch
+  if (role === 6) dot(27.3, 22.6, 1.4, '#e0b83a');                                                                      // earring
+  if (role !== 0 && role !== 3) { ctx.beginPath(); ctx.arc(18, 22, 2.3, 0.2 * Math.PI, 0.8 * Math.PI); stroke('#8c4a3a', 0.9); }   // smile
+  chestIcon(ctx, role, '#f6e7c1');
+}
+
 export const DEFAULT_PACK = 'robot';
 export const ICON_PACKS = {
   robot: { label: 'Robot', draw: drawRobot },
   cat: { label: 'Cat', draw: drawCat },
   lemmings: { label: 'Lemmings', draw: drawLemming },
   office: { label: 'Office', draw: drawOffice },
+  pirates: { label: 'Pirates', draw: drawPirate },
 };
 /** The pack of that name; a missing or unknown name gives the built-in robots. */
 export const iconPack = (name) => ICON_PACKS[name] ?? ICON_PACKS[DEFAULT_PACK];

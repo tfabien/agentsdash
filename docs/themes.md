@@ -10,6 +10,7 @@ The page has one global theme, chosen with the palette button of the bottom bar 
 | `cat` | `cat` | Warm brown palette, one cat coat per role |
 | `lemmings` | `lemmings` | Dark green palette, the walking lemming of the game (green hair, blue robe) with the tool of a skill per role |
 | `office` | `office` | Slate blue palette, a colleague in a suit per role (headset, glasses, cap) |
+| `pirates` | `pirates` | Night sea palette with a wood frame, a crew member per role (captain with a skull hat, eye patch, spyglass) |
 
 ## Theme format
 
