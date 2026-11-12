@@ -16,4 +16,4 @@
 <path d="M18 23.5L11.5 22.2M18 25L11.5 26" fill="none" stroke="#f4efe6" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M16.6 22.4L19.4 22.4L18 24Z" fill="#f2a3b3"/>
 <path d="M20.2 36A2.2 2.2 0 1 1 15.8 36A2.2 2.2 0 1 1 20.2 36" fill="none" stroke="#fbf3e6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+<g transform="translate(29 35)"><circle r="6.1" fill="#121b24" stroke="#eaa66c" stroke-width="1.2"/><g fill="#eaa66c" stroke-linecap="round" stroke-linejoin="round"><path d="M-4 -2H4V2H-4Z M-2 -4V-2 M2 -4V-2"/></g></g></svg>

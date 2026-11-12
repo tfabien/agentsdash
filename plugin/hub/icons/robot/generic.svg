@@ -7,4 +7,4 @@
 <path d="M15.6 36A1.1 1.1 0 1 1 13.4 36A1.1 1.1 0 1 1 15.6 36" fill="#f0f3f6"/>
 <path d="M19.1 36A1.1 1.1 0 1 1 16.9 36A1.1 1.1 0 1 1 19.1 36" fill="#f0f3f6"/>
 <path d="M22.6 36A1.1 1.1 0 1 1 20.4 36A1.1 1.1 0 1 1 22.6 36" fill="#f0f3f6"/>
-</svg>
+<g transform="translate(29 35)"><circle r="6.1" fill="#121b24" stroke="#c5cbd3" stroke-width="1.2"/><g fill="#c5cbd3" stroke-linecap="round" stroke-linejoin="round"><circle r="2.5"/><circle cy="-4" r=".7"/></g></g></svg>

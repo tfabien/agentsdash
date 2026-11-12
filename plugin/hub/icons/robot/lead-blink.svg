@@ -5,4 +5,4 @@
 <path d="M12 19.5L16 19.5M20 19.5L24 19.5" fill="none" stroke="#e6edf3" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M15 31H21A5 5 0 0 1 26 36V36A5 5 0 0 1 21 41H15A5 5 0 0 1 10 36V36A5 5 0 0 1 15 31Z" fill="#94741e"/>
 <path d="M13.5 38L13.5 33.5L15.7 35.7L18 33L20.3 35.7L22.5 33.5L22.5 38Z" fill="#f0f3f6"/>
-</svg>
+<g transform="translate(29 35)"><circle r="6.1" fill="#121b24" stroke="#f2c46f" stroke-width="1.2"/><g fill="#f2c46f" stroke-linecap="round" stroke-linejoin="round"><path d="M-4 0L-2 -3L0 -1L2 -3L4 0V2H-4Z"/></g></g></svg>

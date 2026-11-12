@@ -9,4 +9,4 @@
 <path d="M26.2 12.5L29.5 20" fill="none" stroke="#e0b83a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M19.861 22.952A2.3 2.3 0 0 1 16.139 22.952" fill="none" stroke="#a8664f" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M18 33.4L22 38.6L14 38.6Z" fill="#f4f7ff"/>
-</svg>
+<g transform="translate(29 35)"><circle r="6.1" fill="#121b24" stroke="#e9a76e" stroke-width="1.2"/><g fill="#e9a76e" stroke-linecap="round" stroke-linejoin="round"><path d="M-2 -4H2 M-1 -4V-1L-4 4H4L1 -1V-4"/></g></g></svg>

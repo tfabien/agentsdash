@@ -1,7 +1,7 @@
 // The theme button of the bottom bar and its dialog: one card per theme with a preview (its colors and its eight agents), a click applies it.
 // The choice is the `theme` setting of the hub, so every page follows (see themes.js).
 import { listThemes, themeColor } from './themes.js';
-import { iconPackFor, onIconsLoaded } from './icon_packs.js';
+import { iconPackFor, onIconsLoaded, clearIconCache } from './icon_packs.js';
 import { postSettings } from './settings.js';
 import { icon } from './icons.js';
 
@@ -34,7 +34,16 @@ export function createThemeDialog() {
   const head = el('div', 'thead');
   const close = el('button', 'chip', '✕');
   close.setAttribute('aria-label', 'Close');
-  head.append(el('div', 'ttitle', 'Theme'), close);
+  const reload = el('button', 'chip', '↻ Reload');
+  reload.title = 'Rescan the theme and icon folders';
+  reload.onclick = async () => {                             // the hub rescans and pushes the new catalog to every page
+    reload.disabled = true;
+    try { await fetch('/reload', { method: 'POST' }); clearIconCache(); } catch { /* the hub is unreachable: nothing changes */ }
+    reload.disabled = false;
+  };
+  const actions = el('div', 'tactions');
+  actions.append(reload, close);
+  head.append(el('div', 'ttitle', 'Theme'), actions);
   const list = el('div', 'tlist');
   dialog.append(head, el('div', 'shint', 'Colors and agent icons of the page, for every browser'), list);
   document.body.append(dialog);
