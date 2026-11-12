@@ -66,6 +66,19 @@ If the gadget is down, the hub keeps working and retries after 3 seconds (only t
 The gadget aborts a screen upload (`/tft`) on any other request: create the file `agent-gadget-tft.lock` in the temp
 folder before uploading and delete it afterwards, and the relay sends nothing meanwhile.
 
+## Choosing the device from the page
+
+The gear menu has a **Device** section: relay state, the choice (None, Wi-Fi host, USB port from a list), **Apply** and **Test**.
+Apply swaps the relay while the hub runs and writes the `relay` key of `~/.claude/agent-gadget.json` (the other keys stay).
+Test sends `GET /state` to the gadget (Wi-Fi) or reports the state of the open port (USB); it waits while a screen upload holds the lock file.
+
+- `POST /relay {"mode":"none"|"http"|"serial","host","port"}` validates and applies the choice; answers `{"ok":true,"saved":bool}`.
+- `POST /relay/test` returns `{"ok":true,"detail"}` or `{"ok":false,"error"}`. `GET /relay/ports` lists serial ports (`error` says `serialport` is missing).
+- The hub sends requests to the host it is given, so only local devices are accepted: a private IP (10.x, 172.16-31.x, 192.168.x, 169.254.x, fc00::/7, fe80::/10)
+  or a `.local` name whose addresses are all private when it is looked up. Loopback is refused (the hub would relay to itself). The name is resolved again at each request.
+- The USB port must look like `COM3` or `/dev/ttyUSB0`. Requests from another web page are refused like every other route.
+- One device only, entered by hand (no discovery).
+
 ## Relay to a gadget (USB)
 
 For places without Wi-Fi: `"relay": {"mode": "serial", "port": "COM3"}`. The hub opens the port at 115200 baud
@@ -93,7 +106,7 @@ change and every second), `GET /health` and `GET /` (the page).
 
 - `hub.mjs` HTTP server and wiring, `config.mjs` configuration.
 - `model.mjs` state rules, a port of `model.cpp` (5 sessions, 12 sub-agents each, "needs you" first, TTLs, selection).
-- `relay_http.mjs`, `relay_serial.mjs` forward events to a gadget (Wi-Fi, USB).
+- `relay_http.mjs`, `relay_serial.mjs` forward events to a gadget (Wi-Fi, USB); `relay_config.mjs` validates a relay chosen from the page.
 - `tui.mjs` terminal view.
 - `quotas.mjs` plan quota poller (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed).
 - `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `app.js` wires SSE, taps and beeps.

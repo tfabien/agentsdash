@@ -15,6 +15,16 @@ async function defaultOpen(path, baud) {
   });
 }
 
+/** Serial ports of this computer, for the settings page. `error` says why there is no list (serialport missing). */
+export async function listSerialPorts() {
+  let mod;
+  try { mod = await import('serialport'); } catch { return { ports: [], error: 'serialport package not installed (run: npm install serialport, in plugin/hub)' }; }
+  try {
+    const found = await mod.SerialPort.list();
+    return { ports: found.map((p) => ({ path: p.path, label: [p.friendlyName, p.manufacturer].filter(Boolean).join(' - ') })) };
+  } catch (e) { return { ports: [], error: String(e?.message ?? e) }; }
+}
+
 /**
  * @param {{path: string, baud?: number, open?: (path: string, baud: number) => Promise<object>, settleMs?: number, retryMs?: number, maxQueue?: number}} opts
  * `open` returns a port with write(data, cb), close(cb) and on('error'|'close', fn).

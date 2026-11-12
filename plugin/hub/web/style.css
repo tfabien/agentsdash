@@ -1,4 +1,6 @@
 body { margin: 0; background: #0b0b0d; color: #b0b0b0; font: 14px "Segoe UI", system-ui, sans-serif; display: grid; justify-items: center; gap: 10px; padding: 16px; }
 canvas { width: min(960px, 100%); aspect-ratio: 480 / 250; background: #000; border-radius: 6px; cursor: pointer; }
 canvas.offline { opacity: .4; }
+canvas.stale { opacity: .5; }
+#stale { color: #e0b050; font-size: 12px; }
 #bar { width: min(960px, 100%); box-sizing: border-box; }

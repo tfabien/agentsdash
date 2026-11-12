@@ -5,6 +5,7 @@ import { renderScreen, hitTest, teamOrder, SCR_W, SCR_H } from './screen.js';
 import { createVectorScreen } from './vector_screen.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { mountFooter } from './footer.js';
+import { createSessionCache } from './session_cache.js';
 
 const MENU_MS = 8000;       // the session list closes by itself after 8 s
 const DETAIL_MS = 10000;    // a tapped agent's detail stays 10 s
@@ -14,7 +15,8 @@ const canvas = document.getElementById('screen');
 const screen = createVectorScreen(canvas);
 
 let scale = 1;
-let state = { sessions: [], view: {}, agents: [] };
+const cache = createSessionCache(globalThis.localStorage);   // sessions survive a hub restart (stale until the hub confirms them)
+let state = { sessions: cache.restore(), view: {}, agents: [] };
 let receivedAt = performance.now();
 let menuUntil = 0;
 let planStep = null;                                 // {session, index, until}: a tapped step of the plan bar
@@ -32,6 +34,7 @@ function alerts(next) {
   counts = now;
 }
 
+const staleTag = document.getElementById('stale');
 const footer = mountFooter(document.getElementById('bar'), { page: 'single' });
 const SHOWN_H = 250;                                   // the screen without its bottom bar: the page draws that bar itself
 let landed = false;
@@ -68,6 +71,10 @@ function uiNow() {
 }
 
 function draw() {
+  const shown = state.sessions.find((s) => s.id === state.view?.session) ?? state.sessions[0];
+  const stale = !!shown?.stale;
+  canvas.classList.toggle('stale', stale);
+  staleTag.hidden = !stale;
   screen.begin(scale);
   renderScreen(screen, state, uiNow());
   footer.update(state, Math.floor((performance.now() - receivedAt) / 1000));
@@ -96,6 +103,8 @@ canvas.addEventListener('click', (e) => {
     fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sound }) });
   } else if (hit.kind === 'trashRow') {
     menuUntil = now + MENU_MS;                      // the list stays open: several sessions can be hidden in a row
+    cache.forget(state.sessions[hit.index].id);
+    state = { ...state, sessions: state.sessions.filter((_, i) => i !== hit.index) };
     fetch('/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: state.sessions[hit.index].id }) });
   }
   else if (hit.kind === 'menuRow') {
@@ -119,7 +128,7 @@ if (wanted) fetch('/select', { method: 'POST', headers: { 'Content-Type': 'appli
 
 function connect() {
   const es = new EventSource('/events');
-  es.onmessage = (m) => { showState(JSON.parse(m.data)); draw(); };
+  es.onmessage = (m) => { showState(cache.merge(JSON.parse(m.data))); draw(); };
   es.onerror = () => { canvas.classList.add('offline'); };
   es.onopen = () => { canvas.classList.remove('offline'); };
 }

@@ -12,7 +12,7 @@ const FAILURE_PAUSE_MS = 3000;
  * @param {{host: string, timeoutMs?: number, lockFile?: string, retryMs?: number, maxQueue?: number, fetchImpl?: Function}} opts
  * While `lockFile` exists (a screen .tft upload is running: the gadget aborts it on any other request) nothing is sent.
  * After a failure the relay waits 3 s, keeping only the latest queued item of each agent.
- * @returns {{send: (route: '/event'|'/usage'|'/dismiss'|'/settings', body: object) => void, status: () => {ok: boolean, lastError: string, queued: number}}}
+ * @returns {{send: (route: '/event'|'/usage'|'/dismiss'|'/settings', body: object) => void, stop: () => void, status: () => {ok: boolean, lastError: string, queued: number}}}
  */
 export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLockFile(), retryMs = 1000, maxQueue = 50, fetchImpl = globalThis.fetch }) {
   let queue = [];
@@ -21,6 +21,7 @@ export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLock
   let lastError = '';
   let pauseUntil = 0;
   let timer = null;
+  let stopped = false;
 
   const wake = (ms) => {
     if (timer) return;
@@ -41,7 +42,7 @@ export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLock
     if (running) return;
     running = true;
     try {
-      while (queue.length) {
+      while (queue.length && !stopped) {
         if (fs.existsSync(lockFile)) { wake(retryMs); return; }
         const wait = pauseUntil - Date.now();
         if (wait > 0) { wake(wait); return; }
@@ -66,6 +67,7 @@ export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLock
 
   return {
     send(route, body) {
+      if (stopped) return;
       queue.push({ route, body, key: route === '/usage' ? 'usage' : route === '/settings' ? 'settings' : route === '/dismiss' ? `dismiss:${body.session}` : `${body.session}:${body.agent}` });
       if (queue.length > maxQueue) {
         coalesce();
@@ -73,6 +75,8 @@ export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLock
       }
       pump();
     },
+    /** The hub swapped to another device: forget what is queued and send nothing more. */
+    stop() { stopped = true; queue = []; clearTimeout(timer); timer = null; },
     status: () => ({ ok, lastError, queued: queue.length }),
   };
 }
