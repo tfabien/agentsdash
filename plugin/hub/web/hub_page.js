@@ -1,101 +1,127 @@
-// The sessions hub page: one tile per session in a grid, the quotas once in the bar at the bottom. One SSE stream feeds every
-// tile. A tile is a link to that session full page. Logic (what to show) is in hub_view.js, the beep rule in alerts.js.
-import { gridShape, planTiles, tileModel, quotaBars, summaryText, MAX_TILES } from './hub_view.js';
+// The sessions hub page: the agent screen of each session (same drawing as the single page, without its title bar and status bar)
+// in a grid, the quotas once in the bar at the bottom. One SSE stream feeds every tile. Logic (which sessions, grid shape) is in
+// hub_view.js, the beep rule in alerts.js.
+import { bestGrid, planTiles, quotaBars, isIdle as idleFor, MAX_TILES } from './hub_view.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { relayLabel } from './format.js';
+import { renderScreen, COLOR, rgb565 } from './screen.js';
+import { createSettingsMenu, TILES_MAX } from './settings.js';
+import { createVectorScreen } from './vector_screen.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const $ = (id) => document.getElementById(id);
-const hue = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
 const params = new URLSearchParams(location.search);
-const max = Math.max(2, Number(params.get('max')) || MAX_TILES);
+const maxParam = Number(params.get('max'));         // ?max=N overrides the setting for this tab
+const FRAME = { x: 6, y: 30, w: 472, h: 216 };      // the part of the 480x272 screen a tile shows: the frame, 6 units around the panels on every side
+const FLASH_MS = 900;                                 // a tile's frame pulses once when something happens in its session
+const MAX_SCALE = 1.5;                                // a lone session on a big screen stops growing at 1.5x the gadget size (708 px wide)
+const FRAME_MS = 100;                                 // redraw rate of the single page: the plan pulse runs on 100 ms phases
 
-let state = { sessions: [] };
+let state = { sessions: [], settings: {} };
 let receivedAt = performance.now();
 let sound = 'ask';
 let counts = null;
 let showAll = false;
-const tileEls = new Map();                         // session id -> its <a>: kept between frames so a click is never lost to a redraw
+const tiles = new Map();                              // session id -> {box, canvas, screen}: kept between frames, never rebuilt
+
+const sigs = new Map();                               // session id -> what it showed last, without the ticking ages
+
+// Something happened in a session: its tile frame pulses once (drawn in the canvas, see vector_screen.js). Ages and the clock are left out of the comparison; a session
+// that went idle (your turn, done) does not flash.
+const IDLE = new Set(['your_turn', 'done']);
+const strip = (s) => JSON.stringify(s, (k, v) => (k === 'age' || k === 'prev_age' ? undefined : v));
+function flashChanged(next) {
+  for (const s of next.sessions) {
+    const sig = strip(s), before = sigs.get(s.id);
+    sigs.set(s.id, sig);
+    const t = tiles.get(s.id);
+    if (before === undefined || before === sig || !t || IDLE.has(s.dot)) continue;
+    t.flashAt = Date.now();
+  }
+  for (const id of [...sigs.keys()]) if (!next.sessions.some((s) => s.id === id)) sigs.delete(id);
+}
+
+const maxTiles = () => Math.min(TILES_MAX, Math.max(2, maxParam || state.settings?.max_tiles || MAX_TILES));
+const isIdle = (s) => idleFor(s, elapsed());          // greyed out after 5 minutes waiting for you; the hub drops the session after 10
+
+// The frame is the one place that says how a session is doing: orange when it needs you, red on an error, a light blue pulse on an event.
+const FRAME_RGB = rgb565(COLOR.FRAME), PULSE_RGB = [126, 170, 235];
+const ALERT_RGB = { needs_you: [247, 138, 59], error: [235, 77, 77] };
+const mix = (a, b, k) => a.map((c, i) => c + (b[i] - c) * k);
 
 const elapsed = () => Math.floor((performance.now() - receivedAt) / 1000);
 
-function tileEl(t) {
-  const a = tileEls.get(t.id) ?? el('a', 'tile');
-  tileEls.set(t.id, a);
-  a.className = `tile ${t.stateKey}`;
-  a.href = `/?session=${encodeURIComponent(t.id)}`;
-  a.title = 'Open this session full page';
-  const top = el('div', 'top');
-  const avatar = el('div', 'avatar');
-  avatar.style.setProperty('--c', `hsl(${hue(t.project)} 55% 55%)`);
-  const who = el('div', 'who');
-  who.append(el('div', 'name', t.title), el('div', `state ${t.stateKey}`, t.stateText));
-  const dots = el('div', 'dots');
-  for (const d of t.dots) dots.append(el('span', `dot ${d}`));
-  if (t.moreDots) dots.append(el('span', '', `+${t.moreDots}`));
-  top.append(avatar, who, dots);
-  const kids = [top];
-  if (t.ctxPct !== null) {
-    const ctx = el('div', `ctx ${t.ctxLevel}`);
-    const track = el('div', 'track');
-    const fill = el('div', 'fill');
-    fill.style.width = `${Math.min(100, t.ctxPct)}%`;
-    track.append(fill);
-    ctx.append(track, el('span', 'pct', `${t.ctxPct}%`));
-    ctx.title = 'context used';
-    kids.push(ctx);
+function tileFor(s) {
+  let t = tiles.get(s.id);
+  if (!t) {
+    const canvas = el('canvas');
+    const box = el('div', 'tile');
+    box.append(canvas);
+    t = { box, canvas, screen: createVectorScreen(canvas, { bare: true }), flashAt: 0 };
+    tiles.set(s.id, t);
   }
-  if (t.ask) {
-    const ask = el('div', 'ask');
-    ask.append(el('b', '', t.ask.question));
-    const opts = el('div', 'opts');
-    t.ask.options.forEach((o, i) => { const s = el('span'); s.append(el('i', '', String(i + 1)), o); opts.append(s); });
-    ask.append(opts);
-    kids.push(ask);
-  } else if (t.cmd) kids.push(el('div', 'cmd', t.cmd));
-  kids.push(el('div', 'grow'));
-  if (t.plan && !t.ask) {
-    const plan = el('div', 'plan');
-    const segs = el('div', 'segs');
-    if (t.plan.segs) for (const k of t.plan.segs) segs.append(el('span', `seg ${k}`));
-    else {
-      const done = el('span', 'seg d');
-      done.style.flex = 'none';
-      done.style.width = `${t.plan.frac * 100}%`;
-      segs.append(done, el('span', 'seg'));
-    }
-    plan.append(el('div', 'label', t.plan.label), segs);
-    if (t.plan.cur) plan.append(el('div', 'cur', t.plan.cur));
-    if (t.plan.next) plan.append(el('div', 'next', `next: ${t.plan.next}`));
-    kids.push(plan);
-  } else if (!t.plan && !t.ask) kids.push(el('div', 'noplan', 'no plan'));
-  a.replaceChildren(...kids);
-  return a;
+  t.canvas.className = `${s.dot}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
+  return t;
 }
+
+/** The canvas takes the largest size of the frame's aspect ratio that fits its cell, at the pixel ratio of the display. */
+function fit(t) {
+  const dpr = window.devicePixelRatio || 1;
+  const bw = t.box.clientWidth, bh = t.box.clientHeight;
+  if (!bw || !bh) return 0;
+  const k = Math.min(bw / FRAME.w, bh / FRAME.h, MAX_SCALE);
+  const w = Math.max(1, Math.round(FRAME.w * k * dpr)), h = Math.max(1, Math.round((FRAME.h * w) / FRAME.w));
+  if (t.canvas.width !== w || t.canvas.height !== h) { t.canvas.width = w; t.canvas.height = h; }
+  t.canvas.style.width = `${w / dpr}px`;               // one canvas pixel per device pixel: no resampling, the frame stays even on every side
+  t.canvas.style.height = `${h / dpr}px`;
+  t.canvas.style.borderRadius = `${(7 * w) / FRAME.w / dpr}px`;       // the corner radius of the frame
+  return w / FRAME.w;
+}
+
+function drawTile(s, t) {
+  const scale = fit(t);
+  if (!scale) return;
+  const now = Date.now();
+  const age = now - t.flashAt;
+  const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
+  const base = ALERT_RGB[s.dot] ?? FRAME_RGB;
+  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null);
+  renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [] }, {
+    bare: true, elapsedS: elapsed(), menu: false, detail: null, planStep: null, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
+  });
+}
+
+function draw() {
+  const { tiles: shown } = planTiles(state.sessions, { max: maxTiles(), showAll });
+  for (const s of shown) { const t = tiles.get(s.id); if (t) { t.canvas.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false); drawTile(s, t); } }
+}
+
+const SOUND_ICON = { all: '🔊', ask: '🔔', off: '🔇' }, SOUND_LABEL = { all: 'all events', ask: 'questions only', off: 'off' };
+const settingsMenu = createSettingsMenu({ page: 'hub' });
+$('gear').append(settingsMenu.button);
+
+const hiddenBtn = el('button', 'tile empty');         // one node for good: a node replaced between mouse down and up loses the click
+hiddenBtn.onclick = () => { showAll = true; render(); };
 
 function render() {
   const sessions = state.sessions;
-  const { tiles, hidden } = planTiles(sessions, { max, showAll });
-  const cells = tiles.length + (hidden ? 1 : 0);
-  const { cols, rows } = gridShape(cells);
+  const { tiles: shown, hidden } = planTiles(sessions, { max: maxTiles(), showAll });
+  const cells = shown.length + (hidden ? 1 : 0);
   const grid = $('tiles');
+  const { cols, rows } = bestGrid(cells, grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * MAX_SCALE);
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);
-  const nodes = tiles.map((s) => tileEl(tileModel(s, elapsed())));
-  for (const id of [...tileEls.keys()]) if (!sessions.some((s) => s.id === id)) tileEls.delete(id);
+  const nodes = shown.map((s) => tileFor(s).box);
+  for (const id of [...tiles.keys()]) if (!sessions.some((s) => s.id === id)) tiles.delete(id);
   if (hidden) {
-    const b = el('button', 'tile empty', `${hidden} more session${hidden === 1 ? '' : 's'} hidden (click to show)`);
-    b.onclick = () => { showAll = true; render(); };
-    nodes.push(b);
+    hiddenBtn.textContent = `${hidden} more session${hidden === 1 ? '' : 's'} hidden (click to show)`;
+    nodes.push(hiddenBtn);
   }
   if (!sessions.length) nodes.push(el('div', 'tile empty', `No sessions yet. Events go to ${location.host}`));
-  grid.replaceChildren(...nodes);
-  $('summary').textContent = summaryText(sessions);
-  $('grid').textContent = `grid ${cols} x ${rows}`;
-  const fold = $('fold');
-  fold.hidden = sessions.length <= max;
-  fold.textContent = showAll ? 'fold idle' : 'show all';
-  $('sound').textContent = `beeps: ${sound}`;
+  if (nodes.length !== grid.children.length || nodes.some((n, i) => grid.children[i] !== n)) grid.replaceChildren(...nodes);
+  draw();
+  $('sound').textContent = SOUND_ICON[sound] ?? SOUND_ICON.ask;
+  $('sound').title = `Beeps: ${SOUND_LABEL[sound] ?? sound} (click to change)`;
   $('quotas').replaceChildren(...quotaBars(state.usage, elapsed()).map((q) => {
     const d = el('div', `quota ${q.stale ? 'stale' : q.level}`);
     const track = el('div', 'track'), fill = el('div', 'fill');
@@ -110,6 +136,7 @@ function render() {
 
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
+  settingsMenu.update(next.settings ?? {});
   const now = countStates(next.sessions);
   const times = beepsFor(counts, now, sound);
   if (times) beep(times);
@@ -125,11 +152,12 @@ $('sound').onclick = () => {
   const next = sound === 'all' ? 'ask' : sound === 'ask' ? 'off' : 'all';
   fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sound: next }) });
 };
-$('fold').onclick = () => { showAll = !showAll; render(); };
 
 const es = new EventSource('/events');                // the only stream: every tile reads the same state
-es.onmessage = (m) => { showState(JSON.parse(m.data)); render(); };
+es.onmessage = (m) => { const next = JSON.parse(m.data); showState(next); render(); flashChanged(next); };
 es.onerror = () => document.body.classList.add('offline');
 es.onopen = () => document.body.classList.remove('offline');
 setInterval(render, 1000);                            // ages and the clock run on between events
+setInterval(draw, FRAME_MS);
+new ResizeObserver(draw).observe($('tiles'));
 render();

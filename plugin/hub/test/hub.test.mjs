@@ -179,6 +179,15 @@ test('settings_default_to_beeps_for_questions_only_and_are_shared_by_every_page'
   assert.equal((await (await get(hub, '/state')).json()).settings.sound, 'off');
   assert.equal((await post(hub, '/settings', { sound: 'loud' })).status, 400);
   assert.equal((await (await get(hub, '/state')).json()).settings.sound, 'off', 'a bad value changes nothing');
+  const s0 = (await (await get(hub, '/state')).json()).settings;
+  assert.deepEqual([s0.view, s0.max_tiles, s0.pulse, s0.dim_idle], ['single', 12, true, true]);
+  assert.equal((await post(hub, '/settings', { view: 'hub', max_tiles: 8, pulse: false })).status, 200);
+  const s1 = (await (await get(hub, '/state')).json()).settings;
+  assert.deepEqual([s1.sound, s1.view, s1.max_tiles, s1.pulse, s1.dim_idle], ['off', 'hub', 8, false, true], 'a partial update keeps the rest');
+  assert.equal((await post(hub, '/settings', { view: 'grid', max_tiles: 1 })).status, 400, 'nothing valid in it');
+  assert.equal((await post(hub, '/settings', { view: 'single', max_tiles: 99 })).status, 200, 'the valid part is kept');
+  const s2 = (await (await get(hub, '/state')).json()).settings;
+  assert.deepEqual([s2.view, s2.max_tiles], ['single', 8]);
 }));
 
 test('settings_are_kept_in_a_file_for_the_next_hub', async () => {
@@ -196,7 +205,7 @@ test('hub_binds_loopback_only', () => withHub(async (hub) => {
 
 test('loadConfig_defaults_and_file_and_env', () => {
   const dflt = loadConfig(path.join(os.tmpdir(), 'no-such-agent-gadget.json'), {});
-  assert.deepEqual(dflt, { host: '127.0.0.1:8765', relay: { mode: 'none' }, quotas: true, context_window: 1000000, max_sessions: 5 });
+  assert.deepEqual(dflt, { host: '127.0.0.1:8765', relay: { mode: 'none' }, quotas: true, context_window: 1000000, max_sessions: 12 });
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubcfg-')), 'c.json');
   fs.writeFileSync(file, JSON.stringify({ host: '127.0.0.1:9000', relay: { mode: 'http', host: '192.168.1.100' }, quotas: false, context_window: 200000 }));
   const c = loadConfig(file, {});
@@ -204,8 +213,8 @@ test('loadConfig_defaults_and_file_and_env', () => {
   assert.deepEqual(c.relay, { mode: 'http', host: '192.168.1.100' });
   assert.equal(c.quotas, false);
   assert.equal(c.context_window, 200000);
-  assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '12' }).max_sessions, 12);
-  assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '99' }).max_sessions, 5);     // out of range: default
+  assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '7' }).max_sessions, 7);
+  assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '99' }).max_sessions, 12);     // out of range: default
   assert.equal(loadConfig(file, { CLAUDE_GADGET_HOST: 'h:1', CLAUDE_GADGET_QUOTAS: '0' }).host, 'h:1');
   fs.writeFileSync(file, '{broken');
   assert.equal(loadConfig(file, {}).host, '127.0.0.1:8765');

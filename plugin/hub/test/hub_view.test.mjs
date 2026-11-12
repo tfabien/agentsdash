@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gridShape, planTiles, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { gridShape, bestGrid, isIdle, planTiles, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
 const agent = (over = {}) => ({ id: 'lead', role: 'lead', state: 'working', cmd: 'Edit app.js', age: 100, tok: 0, prev: '', prev_age: 0, ...over });
@@ -100,4 +100,25 @@ test('beeps_follow_the_gadget_rule', () => {
   assert.equal(beepsFor(calm, turn, 'ask'), 0);
   assert.equal(beepsFor(calm, turn, 'all'), 1);
   assert.equal(beepsFor(asks, asks, 'all'), 0);
+});
+
+test('bestGrid_picks_the_columns_that_make_the_screens_biggest', () => {
+  const aspect = 468 / 216;
+  assert.deepEqual(bestGrid(1, 800, 600, aspect), { cols: 1, rows: 1 });
+  assert.deepEqual(bestGrid(3, 800, 600, aspect), { cols: 1, rows: 3 }, 'a tall box stacks the screens');
+  assert.deepEqual(bestGrid(3, 2000, 300, aspect), { cols: 3, rows: 1 }, 'a wide box puts them side by side');
+  assert.deepEqual(bestGrid(4, 1000, 800, aspect), { cols: 2, rows: 2 });
+});
+
+test('bestGrid_stops_rewarding_size_past_the_cap_and_prefers_columns_on_a_tie', () => {
+  assert.deepEqual(bestGrid(2, 2000, 1000, 468 / 216, 12, 700), { cols: 2, rows: 1 });
+});
+
+test('isIdle_after_five_minutes_waiting_for_the_user_only', () => {
+  const s = (dot, age) => ({ dot, agents: [{ age }] });
+  assert.equal(isIdle(s('your_turn', 299)), false);
+  assert.equal(isIdle(s('your_turn', 299), 1), true, 'the seconds since the state arrived count');
+  assert.equal(isIdle(s('done', 400)), true);
+  assert.equal(isIdle(s('working', 900)), false, 'a working session is never idle');
+  assert.equal(isIdle(s('needs_you', 900)), false);
 });

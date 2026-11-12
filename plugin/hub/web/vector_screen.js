@@ -60,16 +60,20 @@ function drawRobot(ctx, role, x, y, k, blink) {
  * @param {HTMLCanvasElement} canvas
  * @returns screen object for renderScreen, plus `begin(scale)`: call before each frame (sets the transform and clears).
  */
-export function createVectorScreen(canvas) {
+export function createVectorScreen(canvas, { bare = false } = {}) {
   const ctx = canvas.getContext('2d');
+  let frameRgb = null;                                 // [r, g, b] of the frame when a hub tile tints it (alert, pulse); null: the usual colour
 
   const path = (x, y, w, h, r) => { ctx.beginPath(); if (r > 0) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
   const rect = (x, y, w, h, r, fill) => { path(x, y, w, h, r); ctx.fillStyle = fill; ctx.fill(); };
 
   /** Decor of the .tft: picture 16. */
+  const frameCss = () => (frameRgb ? `rgb(${frameRgb.map(Math.round).join(',')})` : css(COLOR.FRAME));
+
   function drawBackground() {
-    rect(0, 0, 480, 272, 0, css(COLOR.BAR));
-    rect(6, 30, 468, 216, 7, css(COLOR.FRAME));
+    // A hub tile (bare) is the frame alone, as wide on the right as on the left, over a transparent canvas.
+    if (bare) rect(6, 30, 472, 216, 7, frameCss());
+    else { rect(0, 0, 480, 272, 0, css(COLOR.BAR)); rect(6, 30, 468, 216, 7, frameCss()); }
     rect(12, 36, 150, 204, 6, css(COLOR.PANEL));
     rect(170, 36, 302, 204, 6, css(COLOR.PANEL));
   }
@@ -79,9 +83,12 @@ export function createVectorScreen(canvas) {
   const radiusOf = (w, h) => (Math.min(w, h) <= 10 ? Math.min(w, h) / 2 : h >= 16 && h <= 40 && w > 20 ? 5 : 0);
 
   return {
-    begin(scale) {
-      ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      ctx.clearRect(0, 0, 480, 272);
+    /** `origin`: top left corner of the part of the 480x272 screen the canvas shows (a tile shows the frame only). */
+    begin(scale, origin = { x: 0, y: 0 }, frame = null) {
+      frameRgb = frame;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(scale, 0, 0, scale, -origin.x * scale, -origin.y * scale);
       ctx.textBaseline = 'middle';
     },
     measure(s, id) { font(id); return ctx.measureText(s).width; },      // in screen units: measureText ignores the transform

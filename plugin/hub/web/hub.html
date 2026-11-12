@@ -4,21 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sessions hub</title>
+<link rel="stylesheet" href="/settings.css">
 <link rel="stylesheet" href="/hub.css">
 </head>
 <body>
-<header>
-  <h1>Sessions hub</h1>
-  <span id="summary" class="muted"></span>
-  <span class="spacer"></span>
-  <button id="fold" class="chip" hidden></button>
-  <span id="grid" class="chip"></span>
-  <button id="sound" class="chip"></button>
-  <a class="chip" href="/" title="One session, full page">full page</a>
-</header>
 <main id="tiles"></main>
 <p id="relay" hidden></p>
-<footer id="bar"><span id="quotas"></span><span class="spacer"></span><span id="clock"></span></footer>
+<footer id="bar"><span id="quotas"></span><span class="spacer"></span><button id="sound" class="chip"></button><span id="gear"></span><span id="clock"></span></footer>
 <script type="module" src="/hub_page.js"></script>
 </body>
 </html>

@@ -22,7 +22,7 @@ export function loadConfig(file = defaultConfigPath(), env = process.env) {
   const relay = data.relay && typeof data.relay === 'object' && typeof data.relay.mode === 'string' ? data.relay : { mode: 'none' };
   const window = Number.isInteger(data.context_window) && data.context_window > 0 ? data.context_window : 1000000;
   const wanted = Number(env.CLAUDE_GADGET_MAX_SESSIONS ?? data.max_sessions);
-  const maxSessions = Number.isInteger(wanted) && wanted >= 1 && wanted <= 32 ? wanted : 5;
+  const maxSessions = Number.isInteger(wanted) && wanted >= 1 && wanted <= 32 ? wanted : 12;
   return {
     host: env.CLAUDE_GADGET_HOST || (typeof data.host === 'string' && data.host) || DEFAULT_HOST,
     relay,

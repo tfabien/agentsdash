@@ -5,6 +5,7 @@ import { renderScreen, hitTest, teamOrder, SCR_W, SCR_H } from './screen.js';
 import { createVectorScreen } from './vector_screen.js';
 import { relayLabel } from './format.js';
 import { countStates, beepsFor, beep } from './alerts.js';
+import { createSettingsMenu } from './settings.js';
 
 const MENU_MS = 8000;       // the session list closes by itself after 8 s
 const DETAIL_MS = 10000;    // a tapped agent's detail stays 10 s
@@ -33,8 +34,18 @@ function alerts(next) {
   counts = now;
 }
 
+const settingsMenu = createSettingsMenu({ page: 'single' });
+document.getElementById('gear').append(settingsMenu.button);
+let landed = false;
+
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
+  settingsMenu.update(next.settings ?? {});
+  // The main address opens the view chosen in the settings; "?stay" (or a ?session link) keeps this one.
+  if (!landed) {
+    landed = true;
+    if (next.settings?.view === 'hub' && !location.search) { location.replace('/hub'); return; }
+  }
   alerts(next);
   state = next;
   receivedAt = performance.now();

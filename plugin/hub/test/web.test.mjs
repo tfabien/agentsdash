@@ -51,7 +51,7 @@ test('hub_page_is_served_at_hub_and_shares_the_single_event_stream', async () =>
     }
     const page = await (await fetch(`${base}/hub_page.js`)).text();
     assert.equal((page.match(/new EventSource\(/g) ?? []).length, 1);    // one stream for all tiles
-    for (const f of ['hub_view.js', 'alerts.js', 'hub.css']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
-    assert.match(await (await fetch(`${base}/`)).text(), /href="\/hub"/);   // toggle from the full page
+    for (const f of ['hub_view.js', 'alerts.js', 'hub.css', 'settings.js', 'settings.css']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
+    assert.match(await (await fetch(`${base}/`)).text(), /id="gear"/);   // the settings menu switches to the hub from the full page
   } finally { await hub.close(); }
 });

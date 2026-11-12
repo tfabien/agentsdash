@@ -3,7 +3,7 @@
 import { formatAge, fmtDuration } from './format.js';
 import { paceLevel, STATE_LABEL } from './screen.js';
 
-export const MAX_TILES = 6;                  // past this many sessions the least urgent fold into one placeholder
+export const MAX_TILES = 12;                  // past this many sessions the least urgent fold into one placeholder
 const MAX_DOTS = 5;                          // agent dots in a tile header
 const STALE_S = 15 * 60;                     // same rule as the screen: quotas older than 15 minutes show faint
 const URGENCY = { needs_you: 0, error: 1, working: 2, waiting_subs: 3, your_turn: 4, done: 5 };
@@ -14,6 +14,24 @@ export function gridShape(n) {
   if (n <= 1) return { cols: 1, rows: 1 };
   const cols = n === 4 ? 2 : n <= 9 ? Math.min(3, n) : Math.ceil(Math.sqrt(n));
   return { cols, rows: Math.ceil(n / cols) };
+}
+
+/** Columns and rows that give the biggest tiles (up to `maxW` wide) when `n` screens of the given aspect ratio (w / h) share a box of `boxW` x `boxH`. */
+export function bestGrid(n, boxW, boxH, aspect, gap = 12, maxW = Infinity) {
+  if (n <= 1 || !(boxW > 0) || !(boxH > 0)) return gridShape(n);
+  let best = null;
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const w = (boxW - gap * (cols - 1)) / cols, h = (boxH - gap * (rows - 1)) / rows;
+    const k = Math.min(w, h * aspect, maxW);                 // screens stop growing at maxW: past it, more columns win a tie
+    if (!best || k >= best.k - 1e-9) best = { cols, rows, k };
+  }
+  return { cols: best.cols, rows: best.rows };
+}
+
+/** A session waiting for the user (your turn, done) for `limitS` seconds or more is idle: its tile is greyed out. */
+export function isIdle(s, elapsedS = 0, limitS = 5 * 60) {
+  return (s.dot === 'your_turn' || s.dot === 'done') && s.agents[0].age + elapsedS >= limitS;
 }
 
 /** Sessions that get a tile, and how many are folded. Past `max` the most urgent keep a tile (needs you, error, working, ...),
