@@ -7,7 +7,8 @@ import { TILES_MAX } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
-import { applyTheme } from './themes.js';
+import { applyTheme, setCatalog } from './themes.js';
+import { onIconsLoaded } from './icon_packs.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const $ = (id) => document.getElementById(id);
@@ -251,6 +252,7 @@ function render() {
 
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
+  if (next.catalog) setCatalog(next.catalog);
   applyTheme(next.settings?.theme);
   footer.settings.update(next.settings ?? {});
   const now = countStates(next.sessions);
@@ -267,5 +269,6 @@ es.onerror = () => document.body.classList.add('offline');
 es.onopen = () => document.body.classList.remove('offline');
 setInterval(render, 1000);                            // ages and the clock run on between events
 setInterval(draw, FRAME_MS);
+onIconsLoaded(draw);                                  // an SVG icon that just loaded replaces the robot at once
 new ResizeObserver(draw).observe($('tiles'));
 render();

@@ -1,7 +1,7 @@
 // The theme button of the bottom bar and its dialog: one card per theme with a preview (its colors and its eight agents), a click applies it.
 // The choice is the `theme` setting of the hub, so every page follows (see themes.js).
-import { THEMES, themeColor } from './themes.js';
-import { iconPack } from './icon_packs.js';
+import { listThemes, themeColor } from './themes.js';
+import { iconPackFor, onIconsLoaded } from './icon_packs.js';
 import { postSettings } from './settings.js';
 import { icon } from './icons.js';
 
@@ -18,7 +18,7 @@ function drawPreview(canvas, theme) {
   const ctx = canvas.getContext('2d');
   ctx.setTransform(k * ratio, 0, 0, k * ratio, 0, 0);
   ctx.fillStyle = themeColor(theme, 'PANEL'); ctx.beginPath(); ctx.roundRect(0, 0, w, h, 6); ctx.fill();
-  const pack = iconPack(theme.iconPack);
+  const pack = iconPackFor(theme.iconPack);
   for (let role = 0; role < 8; role++) { ctx.save(); ctx.translate(GAP + role * (ICON_W + GAP), GAP); pack.draw(ctx, role, false); ctx.restore(); }
 }
 
@@ -40,26 +40,37 @@ export function createThemeDialog() {
   document.body.append(dialog);
 
   const cards = new Map();
-  for (const theme of Object.values(THEMES)) {
-    const card = el('button', 'tcard');
-    card.type = 'button';
-    const preview = el('canvas', 'tpreview');
-    const swatches = el('div', 'tswatches');
-    for (const key of SWATCHES) { const s = el('span', 'tsw'); s.style.background = themeColor(theme, key); swatches.append(s); }
-    const name = el('div', 'tname', theme.label);
-    const by = el('div', 'shint', `${iconPack(theme.iconPack).label} icons${theme.author ? ` · ${theme.author}` : ''}`);
-    card.append(preview, name, by, swatches);
-    card.onclick = () => { update(theme.name); postSettings({ theme: theme.name }); };
-    list.append(card);
-    cards.set(theme.name, { card, preview, theme });
+  let shown = '', chosenName = 'default';
+  function rebuild() {                                       // the cards follow the catalog: rebuilt only when it changed
+    const themes = listThemes();
+    const key = JSON.stringify(themes);
+    if (key === shown) return;
+    shown = key;
+    cards.clear();
+    list.replaceChildren();
+    for (const theme of themes) {
+      const card = el('button', 'tcard');
+      card.type = 'button';
+      const preview = el('canvas', 'tpreview');
+      const swatches = el('div', 'tswatches');
+      for (const k of SWATCHES) { const sw = el('span', 'tsw'); sw.style.background = themeColor(theme, k); swatches.append(sw); }
+      const name = el('div', 'tname', theme.label ?? theme.name);
+      const by = el('div', 'shint', `${iconPackFor(theme.iconPack).label} icons${theme.author ? ` · ${theme.author}` : ''}`);
+      card.append(preview, name, by, swatches);
+      card.onclick = () => { update(theme.name); postSettings({ theme: theme.name }); };
+      list.append(card);
+      cards.set(theme.name, { card, preview, theme });
+    }
   }
 
   function update(name) {
-    const chosen = THEMES[name] ? name : 'default';
-    for (const [n, c] of cards) { c.card.classList.toggle('on', n === chosen); c.card.setAttribute('aria-pressed', String(n === chosen)); }
+    rebuild();
+    chosenName = cards.has(name) ? name : 'default';
+    for (const [n, c] of cards) { c.card.classList.toggle('on', n === chosenName); c.card.setAttribute('aria-pressed', String(n === chosenName)); }
   }
 
-  button.onclick = () => { for (const c of cards.values()) drawPreview(c.preview, c.theme); dialog.showModal(); };
+  button.onclick = () => { rebuild(); update(chosenName); for (const c of cards.values()) drawPreview(c.preview, c.theme); dialog.showModal(); };
+  onIconsLoaded(() => { if (dialog.open) for (const c of cards.values()) drawPreview(c.preview, c.theme); });
   close.onclick = () => dialog.close();
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });     // a click on the backdrop closes
 
