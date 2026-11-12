@@ -76,7 +76,14 @@ function tileFor(s, part = 'lead') {
     if (part === 'lead') {
       const trash = el('button', 'trash', '\u{1F5D1}');    // shown on greyed-out tiles: hides the session until it works again
       trash.title = 'Remove this session';
-      trash.onclick = (e) => { e.stopPropagation(); fetch('/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: s.id }) }).catch(() => {}); };
+      trash.onclick = (e) => {
+        e.stopPropagation();
+        const id = s.id;
+        cache.forget(id);                                  // a session the hub no longer knows (404) would come back from the cache otherwise
+        state = { ...state, sessions: state.sessions.filter((x) => x.id !== id) };
+        render();
+        fetch('/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: id }) }).catch(() => {});
+      };
       box.append(trash);
     }
     t = { box, canvas, screen: createVectorScreen(canvas, { bare: true }), part, flashAt: 0, session: null, detail: null, planStep: null };
@@ -105,6 +112,8 @@ function fit(t) {
   t.canvas.style.height = `${h / dpr}px`;
   const r = `${7 * k}px`;                                // the corner radius of the frame; a tile welded to its team or lead has square corners on that side
   t.canvas.style.borderRadius = weldOf(t) === 'right' ? `${r} 0 0 ${r}` : weldOf(t) === 'left' ? `0 ${r} ${r} 0` : r;
+  t.box.style.setProperty('--trash-x', `${(bw - w / dpr) / 2 + 10}px`);        // the trash button sits at the bottom right of the frame, under the context
+  t.box.style.setProperty('--trash-y', `${(bh - h / dpr) / 2 + 10}px`);
   t.frameW = fw;
   return k;
 }
