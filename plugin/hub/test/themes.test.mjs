@@ -47,6 +47,12 @@ test('an_unknown_theme_name_falls_back_to_the_default', () => {
   assert.equal(activeIconPack(), ICON_PACKS.robot);
 });
 
+test('a_missing_theme_setting_falls_back_to_the_default', () => {
+  applyTheme('cat');
+  applyTheme(undefined);
+  assert.equal(activeTheme().name, 'default');
+});
+
 test('a_missing_color_keeps_the_builtin_value_and_a_bad_one_is_dropped', () => {
   const base = { ...COLOR };
   const r = validateTheme({ name: 'mine', colors: { FRAME: '#ff0000', TEXT: 'red', BOGUS: '#000000' } });

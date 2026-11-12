@@ -260,3 +260,12 @@ test('hit_test_maps_taps_like_the_firmware', () => {
   assert.deepEqual(hitTest(100, 90, { ...ctxt, menu: true }), { kind: 'menuRow', index: 1 });
   assert.deepEqual(hitTest(100, 50, { ...ctxt, menu: true }), { kind: 'menuRow', index: 0 });
 });
+
+test('hitTest_on_the_team_part_of_a_hub_tile_finds_rows_across_the_full_width', () => {
+  const lead = { id: 'a', dot: 'working', ask: null, plan: null, agents: [{ state: 'working', age: 1 }, { state: 'working', age: 1 }, { state: 'done', age: 1 }] };
+  const ctx = { sessions: [lead], selected: 0, menu: false, part: 'team', frameW: 700 };
+  assert.deepEqual(hitTest(30, 60, ctx), { kind: 'row', index: 0 });
+  assert.deepEqual(hitTest(600, 105, ctx), { kind: 'row', index: 1 });
+  assert.deepEqual(hitTest(30, 230, ctx), { kind: 'none' });
+  assert.deepEqual(hitTest(30, 120, { ...ctx, part: 'lead' }), { kind: 'lead' }, 'the lead part is one wide panel whatever the sub-agents');
+});

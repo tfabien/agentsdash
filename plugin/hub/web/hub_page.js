@@ -1,7 +1,7 @@
 // The sessions hub page: the agent screen of each session (same drawing as the single page, without its title bar and status bar)
 // in a grid, the quotas once in the bar at the bottom. One SSE stream feeds every tile. Logic (which sessions, grid shape) is in
 // hub_view.js, the beep rule in alerts.js.
-import { bestGrid, planTiles, isIdle as idleFor, MAX_TILES } from './hub_view.js';
+import { bestGrid, planTiles, isIdle as idleFor, hasTeam, cellsOf, MAX_TILES } from './hub_view.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
 import { TILES_MAX } from './settings.js';
@@ -18,7 +18,8 @@ const FRAME = { x: 6, y: 30, w: 472, h: 216 };      // the part of the 480x272 s
 const DETAIL_MS = 10000;                              // a tapped agent or plan step stays open 10 s, like on the single page
 const FLASH_MS = 900;                                 // a tile's frame pulses once when something happens in its session
 const MAX_SCALE = 1.5;                                // a lone session on a big screen stops growing at 1.5x the gadget size (708 px wide)
-const FRAME_MS = 100;                                 // redraw rate of the single page: the plan pulse runs on 100 ms phases
+const STRETCH = 1.8;                                  // a tile frame may be up to 1.8 times wider than the gadget's: the panels grow, nothing is stretched
+const FRAME_MS = 100;                                // redraw rate of the single page: the plan pulse runs on 100 ms phases
 
 const cache = createSessionCache(globalThis.localStorage);   // sessions survive a hub restart (stale until the hub confirms them)
 let state = { sessions: cache.restore(), settings: {} };
@@ -27,7 +28,9 @@ let sound = 'ask';
 let counts = null;
 let showAll = false;
 const seen = new Map();                               // session id -> rank of its first appearance, the order of the grid
-const tiles = new Map();                              // session id -> {box, canvas, screen}: kept between frames, never rebuilt
+const tiles = new Map();                              // tile key -> {box, canvas, screen, part}: kept between frames, never rebuilt. A session has a lead tile (key: its id) and, with sub-agents, a team tile (key: id + '#team')
+const keyOf = (id, part) => (part === 'team' ? `${id}#team` : id);
+const partsOf = (s) => (hasTeam(s) ? ['lead', 'team'] : ['lead']);
 
 const sigs = new Map();                               // session id -> what it showed last, without the ticking ages
 
@@ -39,9 +42,8 @@ function flashChanged(next) {
   for (const s of next.sessions) {
     const sig = strip(s), before = sigs.get(s.id);
     sigs.set(s.id, sig);
-    const t = tiles.get(s.id);
-    if (before === undefined || before === sig || !t || IDLE.has(s.dot)) continue;
-    t.flashAt = Date.now();
+    if (before === undefined || before === sig || IDLE.has(s.dot)) continue;
+    for (const part of partsOf(s)) { const t = tiles.get(keyOf(s.id, part)); if (t) t.flashAt = Date.now(); }
   }
   for (const id of [...sigs.keys()]) if (!next.sessions.some((s) => s.id === id)) sigs.delete(id);
 }
@@ -56,18 +58,27 @@ const mix = (a, b, k) => a.map((c, i) => c + (b[i] - c) * k);
 
 const elapsed = () => Math.floor((performance.now() - receivedAt) / 1000);
 
-function tileFor(s) {
-  let t = tiles.get(s.id);
+function tileFor(s, part = 'lead') {
+  const key = keyOf(s.id, part);
+  let t = tiles.get(key);
   if (!t) {
     const canvas = el('canvas');
     const box = el('div', 'tile');
     box.dataset.session = s.id;
+    box.dataset.part = part;
     box.append(canvas, el('span', 'stale-tag', 'stale'));
-    t = { box, canvas, screen: createVectorScreen(canvas, { bare: true }), flashAt: 0, session: null, detail: null, planStep: null };
+    if (part === 'lead') {
+      const trash = el('button', 'trash', '\u{1F5D1}');    // shown on greyed-out tiles: hides the session until it works again
+      trash.title = 'Remove this session';
+      trash.onclick = (e) => { e.stopPropagation(); fetch('/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: s.id }) }).catch(() => {}); };
+      box.append(trash);
+    }
+    t = { box, canvas, screen: createVectorScreen(canvas, { bare: true }), part, flashAt: 0, session: null, detail: null, planStep: null };
     canvas.addEventListener('click', (e) => tap(t, e));
-    tiles.set(s.id, t);
+    tiles.set(key, t);
   }
   t.box.classList.toggle('stale', !!s.stale);
+  t.box.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false);
   t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
   return t;
 }
@@ -77,13 +88,15 @@ function fit(t) {
   const dpr = window.devicePixelRatio || 1;
   const bw = t.box.clientWidth, bh = t.box.clientHeight;
   if (!bw || !bh) return 0;
-  const k = Math.min(bw / FRAME.w, bh / FRAME.h, MAX_SCALE);
-  const w = Math.max(1, Math.round(FRAME.w * k * dpr)), h = Math.max(1, Math.round((FRAME.h * w) / FRAME.w));
+  const k = Math.min(bw / FRAME.w, bh / FRAME.h, MAX_SCALE);            // one scale for both axes: text keeps its shape
+  const fw = Math.min(bw / k, FRAME.w * STRETCH);                       // a wider cell gets a wider frame (more room in the panels) up to STRETCH
+  const w = Math.max(1, Math.round(fw * k * dpr)), h = Math.max(1, Math.round(FRAME.h * k * dpr));
   if (t.canvas.width !== w || t.canvas.height !== h) { t.canvas.width = w; t.canvas.height = h; }
   t.canvas.style.width = `${w / dpr}px`;               // one canvas pixel per device pixel: no resampling, the frame stays even on every side
   t.canvas.style.height = `${h / dpr}px`;
-  t.canvas.style.borderRadius = `${(7 * w) / FRAME.w / dpr}px`;       // the corner radius of the frame
-  return w / FRAME.w;
+  t.canvas.style.borderRadius = `${7 * k}px`;          // the corner radius of the frame
+  t.frameW = fw;
+  return k;
 }
 
 /** A tap on a tile works like a tap on the single page: a team row opens that agent for 10 s, a plan step previews it, the lead panel closes them. */
@@ -91,34 +104,42 @@ function tap(t, e) {
   const s = t.session;
   if (!s) return;
   const box = t.canvas.getBoundingClientRect();
-  const x = FRAME.x + ((e.clientX - box.left) * FRAME.w) / box.width, y = FRAME.y + ((e.clientY - box.top) * FRAME.h) / box.height;
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false });
+  const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * FRAME.h) / box.height;
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW });
   const until = Date.now() + DETAIL_MS;
-  if (hit.kind === 'row') t.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until };
-  else if (hit.kind === 'planStep') t.planStep = t.planStep && t.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
-  else if (hit.kind === 'lead') { t.detail = null; t.planStep = null; }
-  drawTile(s, t);
+  const lead = tiles.get(s.id) ?? t;                      // the agent opened from the team tile shows in the lead tile, which owns the detail
+  if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until };
+  else if (hit.kind === 'planStep') lead.planStep = lead.planStep && lead.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
+  else if (hit.kind === 'lead') { lead.detail = null; lead.planStep = null; }
+  for (const part of partsOf(s)) { const u = tiles.get(keyOf(s.id, part)); if (u) drawTile(s, u); }
 }
 
 function drawTile(s, t) {
   t.session = s;
   const now = Date.now();
-  if (t.detail && now >= t.detail.until) t.detail = null;
-  if (t.planStep && now >= t.planStep.until) t.planStep = null;
+  const owner = tiles.get(s.id) ?? t;                     // detail and plan step live on the lead tile; the team tile follows them
+  if (owner.detail && now >= owner.detail.until) owner.detail = null;
+  if (owner.planStep && now >= owner.planStep.until) owner.planStep = null;
   const scale = fit(t);
   if (!scale) return;
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
-  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null);
+  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW);
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [] }, {
-    bare: true, elapsedS: elapsed(), menu: false, detail: t.detail, planStep: t.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
+    bare: true, part: t.part, frameW: t.frameW, elapsedS: elapsed(), menu: false, detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
 }
 
 function draw() {
-  const { tiles: shown } = planTiles(state.sessions, { max: maxTiles(), showAll });
-  for (const s of shown) { const t = tiles.get(s.id); if (t) { t.canvas.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false); t.canvas.classList.toggle('stale', !!s.stale); drawTile(s, t); } }
+  const { tiles: shown } = planTiles(state.sessions, { max: maxTiles(), showAll, cost: cellsOf });
+  for (const s of shown) {
+    const idle = isIdle(s) && state.settings?.dim_idle !== false;
+    for (const part of partsOf(s)) {
+      const t = tiles.get(keyOf(s.id, part));
+      if (t) { t.box.classList.toggle('idle', idle); t.canvas.classList.toggle('idle', idle); t.canvas.classList.toggle('stale', !!s.stale); drawTile(s, t); }
+    }
+  }
 }
 
 const footer = mountFooter($('bar'), { page: 'hub' });
@@ -128,15 +149,20 @@ hiddenBtn.onclick = () => { showAll = true; render(); };
 
 function render() {
   const sessions = state.sessions;
-  const { tiles: shown, hidden } = planTiles(sessions, { max: maxTiles(), showAll });
-  const cells = shown.length + (hidden ? 1 : 0);
+  const { tiles: shown, hidden } = planTiles(sessions, { max: maxTiles(), showAll, cost: cellsOf });
+  const cells = shown.reduce((n, s) => n + cellsOf(s), 0) + (hidden ? 1 : 0);
   const grid = $('tiles');
-  const { cols, rows } = bestGrid(cells, grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * MAX_SCALE);
+  const { cols, rows } = bestGrid(cells, grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * MAX_SCALE, STRETCH);
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);
   for (const s of sessions) if (!seen.has(s.id)) seen.set(s.id, seen.size);
-  const nodes = [...shown].sort((x, y) => seen.get(x.id) - seen.get(y.id)).map((s) => tileFor(s).box);   // first seen, first placed: tiles do not jump under the pointer when the hub reorders
-  for (const id of [...tiles.keys()]) if (!sessions.some((s) => s.id === id)) { tiles.delete(id); seen.delete(id); }
+  const nodes = [...shown].sort((x, y) => seen.get(x.id) - seen.get(y.id)).flatMap((s) => partsOf(s).map((part) => tileFor(s, part).box));   // first seen, first placed: tiles do not jump under the pointer when the hub reorders
+  for (const key of [...tiles.keys()]) {
+    const team = key.endsWith('#team');
+    const s = sessions.find((x) => x.id === (team ? key.slice(0, -5) : key));
+    if (!s || (team && !hasTeam(s))) tiles.delete(key);
+  }
+  for (const id of [...seen.keys()]) if (!sessions.some((s) => s.id === id)) seen.delete(id);
   if (hidden) {
     hiddenBtn.textContent = `${hidden} more session${hidden === 1 ? '' : 's'} hidden (click to show)`;
     nodes.push(hiddenBtn);

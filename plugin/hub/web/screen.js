@@ -128,15 +128,20 @@ const planParallel = (p) => Boolean(p.state) && p.total <= 16 && p.state.length 
 const planRunning = (p, i) => (planParallel(p) ? p.state[i] === 'r' : i === p.done && Boolean(p.cur));
 
 // ---------- geometry (layout.cpp) ----------
-const leadRect = (nSubs) => (nSubs === 0 ? { x: 12, y: 36, w: 460, h: 204 } : { x: 12, y: 36, w: 150, h: 204 });
+// `fw`: width of the frame (472 on the gadget; a hub tile in a wide cell is wider, its panels grow with it).
+const leadRect = (nSubs, fw = 472) => (nSubs === 0 ? { x: 12, y: 36, w: fw - 12, h: 204 } : { x: 12, y: 36, w: 150, h: 204 });
 const menuRow = (i) => ({ x: 12, y: 38 + i * 40, w: 460, h: 36 });
 const MUTE = { x: 370, y: 250, w: 42, h: 22 };
 const inside = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
-function layoutRows(nSubs) {
+// Where the team rows sit: beside a narrow lead panel (the single page), or across the whole frame (the team tile of a hub session).
+const TEAM_BESIDE = { x: 176, w: 290 };
+const teamFull = (fw = 472) => ({ x: 18, w: fw - 24 });
+
+function layoutRows(nSubs, box = TEAM_BESIDE) {
   if (nSubs <= 0) return [];
-  if (nSubs <= 4) return Array.from({ length: nSubs }, (_, i) => ({ x: 176, y: 58 + i * 45, w: 290, h: 42 }));
-  return Array.from({ length: Math.min(nSubs, 7) }, (_, i) => ({ x: 176, y: 58 + i * 24, w: 290, h: 22 }));
+  if (nSubs <= 4) return Array.from({ length: nSubs }, (_, i) => ({ x: box.x, y: 58 + i * 45, w: box.w, h: 42 }));
+  return Array.from({ length: Math.min(nSubs, 7) }, (_, i) => ({ x: box.x, y: 58 + i * 24, w: box.w, h: 22 }));
 }
 
 /** Segments of the plan bar inside the lead panel `p`. Past 16 steps the bar is continuous (seg = w / total). */
@@ -147,7 +152,8 @@ export function planBar(p, total) {
 }
 
 /**
- * Tap at (x, y) in screen pixels. ctx: {sessions, selected, menu, asking?}.
+ * Tap at (x, y) in screen pixels. ctx: {sessions, selected, menu, asking?, part?}. `part` is 'lead' (a hub tile with the lead panel alone, full width)
+ * or 'team' (a hub tile with the team rows alone, full width); left out, the screen shows both side by side. `frameW`: width of the frame in units (default 472).
  * @returns {{kind: 'planStep'|'tab'|'mute'|'lead'|'row'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
  */
 export function hitTest(x, y, ctx) {
@@ -161,12 +167,17 @@ export function hitTest(x, y, ctx) {
     return { kind: 'none' };
   }
   const s = ctx.sessions[ctx.selected];
-  const nSubs = s && !s.ask ? s.agents.length - 1 : 0;
+  if (ctx.part === 'team') {
+    const n = s ? s.agents.length - 1 : 0, rows = layoutRows(n, teamFull(ctx.frameW));
+    for (let i = 0; i < rows.length; i++) if (inside(rows[i], x, y)) return n >= 8 && i === 6 ? { kind: 'more' } : { kind: 'row', index: i };
+    return { kind: 'none' };
+  }
+  const nSubs = ctx.part === 'lead' ? 0 : s && !s.ask ? s.agents.length - 1 : 0;
   if (s && !s.ask && s.plan) {                          // a step of the plan bar (a taller target than the bar itself)
-    const b = planBar(leadRect(nSubs), s.plan.total);
+    const b = planBar(leadRect(nSubs, ctx.frameW), s.plan.total);
     if (x >= b.x && x < b.x + b.w && y >= b.y - 8 && y < b.y + b.h + 8) return { kind: 'planStep', index: Math.min(s.plan.total - 1, Math.floor((x - b.x) / b.step)) };
   }
-  if (inside(leadRect(nSubs), x, y)) return { kind: 'lead' };
+  if (inside(leadRect(nSubs, ctx.frameW), x, y)) return { kind: 'lead' };
   const rows = layoutRows(nSubs);
   for (let i = 0; i < rows.length; i++) {
     if (inside(rows[i], x, y)) return nSubs >= 8 && i === 6 ? { kind: 'more' } : { kind: 'row', index: i };
@@ -199,9 +210,10 @@ export function renderScreen(screen, state, ui) {
     const s = sessions[sel];
     const subs = s.agents.slice(1);
     const asking = Boolean(s.ask);
-    const panelSubs = asking || ui.menu ? 0 : subs.length;
+    const panelSubs = asking || ui.menu || ui.part ? 0 : subs.length;
     const detailSlot = asking || ui.menu || !ui.detail || ui.detail.session !== s.id ? 0 : subs.findIndex((a) => a.id === ui.detail.agent) + 1;
     if (!ui.bare) drawTopBar(sessions, sel);
+    if (ui.part === 'team') { drawTeam(s, subs, detailSlot, true); return; }
     drawLeadPanel(s, subs, panelSubs, detailSlot, sessions, sel);
     if (panelSubs > 0) drawTeam(s, subs, detailSlot);
   }
@@ -209,7 +221,7 @@ export function renderScreen(screen, state, ui) {
   function drawEmpty() {
     screen.fill(6, 2, 468, 28, COLOR.FRAME);
     screen.text(14, 5, 440, S20, COLOR.FAINT, COLOR.FRAME, 'NO SESSION');
-    const p = leadRect(0);
+    const p = leadRect(0, ui.frameW);
     screen.erase(p.x, p.y, p.w, p.h);
     screen.fill(156, 36, 20, 204, COLOR.PANEL);
     line(p.x + 6, p.y + 8, p.w - 12, S20, COLOR.TEXT, COLOR.PANEL, 'No agents yet');
@@ -254,7 +266,7 @@ export function renderScreen(screen, state, ui) {
   }
 
   function drawLeadPanel(s, subs, panelSubs, detailSlot, all, sel) {
-    const p = leadRect(panelSubs);
+    const p = leadRect(panelSubs, ui.frameW);
     if (panelSubs === 0) { screen.erase(p.x, p.y, p.w, p.h); screen.fill(156, 36, 20, 204, COLOR.PANEL); } else screen.erase(12, 36, 158, 204);
     if (ui.menu) { drawMenu(all, sel); return; }
     if (detailSlot) { drawDetail(subs[detailSlot - 1], p); return; }
@@ -409,18 +421,20 @@ export function renderScreen(screen, state, ui) {
   }
 
   // ----- team panel -----
-  function drawTeam(s, subs, detailSlot) {
+  function drawTeam(s, subs, detailSlot, full = false) {
     const { order, more } = teamOrder(subs);
-    const rows = layoutRows(subs.length);
+    const fw = ui.frameW ?? 472;
+    const box = full ? teamFull(fw) : TEAM_BESIDE;
+    const rows = layoutRows(subs.length, box);
     const compact = subs.length > 4;
-    screen.erase(170, 36, 302, 204);
+    if (full) { screen.erase(12, 36, fw - 12, 204); screen.fill(156, 36, 20, 204, COLOR.PANEL); } else screen.erase(170, 36, 302, 204);    // full: one panel over the gap between the two
     if (more > 0 && rows.length === TEAM_ROWS) {
       const r = rows[TEAM_ROWS - 1];
       screen.pic(PIC.ROW_COMPACT, r.x, r.y);
       screen.text(r.x + 30, r.y + 2, r.w - 34, S16, COLOR.FAINT, COLOR.ROW, `+${more} more`);
     }
     const working = subs.filter((a) => a.state === 'working').length;
-    line(176, 38, 290, S16, COLOR.FAINT, COLOR.PANEL, `TEAM - ${subs.length} ${subs.length === 1 ? 'SUB-AGENT' : 'SUB-AGENTS'} - ${working} WORKING`);
+    line(box.x, 38, box.w, S16, COLOR.FAINT, COLOR.PANEL, `TEAM - ${subs.length} ${subs.length === 1 ? 'SUB-AGENT' : 'SUB-AGENTS'} - ${working} WORKING`);
     order.forEach((slot, i) => drawRow(subs[slot - 1], rows[i], compact, i + 1));
     const want = order.indexOf(detailSlot);
     if (detailSlot && want >= 0) screen.rect(rows[want].x - 1, rows[want].y - 1, rows[want].w + 2, rows[want].h + 2, COLOR.LIGHT);

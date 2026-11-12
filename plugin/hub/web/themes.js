@@ -75,9 +75,9 @@ export function themeColor(theme, key) {
 
 let active = THEMES[DEFAULT_THEME];
 
-/** Makes `theme` (an object of THEMES, or its name) the one every drawing reads. An unknown name gives the default theme. */
+/** Makes `theme` (an object of THEMES, or its name) the one every drawing reads. An unknown or missing name gives the default theme. */
 export function applyTheme(theme) {
-  const t = typeof theme === 'string' ? THEMES[theme] ?? THEMES[DEFAULT_THEME] : theme;
+  const t = (typeof theme === 'string' ? THEMES[theme] : theme) ?? THEMES[DEFAULT_THEME];
   Object.assign(COLOR, BASE);
   for (const [key, hex] of Object.entries(t.colors)) if (key in BASE && HEX.test(hex)) COLOR[key] = to565(hex);
   active = t;
