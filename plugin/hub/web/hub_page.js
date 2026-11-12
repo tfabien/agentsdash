@@ -132,10 +132,11 @@ function tap(t, e) {
   const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * FRAME.h) / box.height;
   const lead0 = tiles.get(s.id) ?? t;
   const detailOpen = Boolean(lead0.detail && s.agents.some((a) => a.id === lead0.detail.agent));
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, detailOpen });
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, detailOpen, back: Boolean(focus) });
   const until = Date.now() + DETAIL_MS;
   const lead = tiles.get(s.id) ?? t;                      // the agent opened from the team tile shows in the lead tile, which owns the detail
   if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
+  else if (hit.kind === 'back' && t.part === 'lead') { focus = null; render(); return; }       // BACK of the full-screen session
   else if (hit.kind === 'back') lead.detail = null;
   else if (hit.kind === 'planStep') lead.planStep = lead.planStep && lead.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
   else if (hit.kind === 'lead' && lead.planStep) lead.planStep = null;               // the first tap closes an open plan step
@@ -156,7 +157,7 @@ function drawTile(s, t) {
   const base = ALERT_RGB[s.dot] ?? frameRgb();
   t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t));
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
-    bare: true, part: t.part, frameW: t.frameW, elapsedS: elapsed(), menu: false, detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
+    bare: true, part: t.part, frameW: t.frameW, elapsedS: elapsed(), menu: false, back: Boolean(focus), detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
 }
 
@@ -176,8 +177,6 @@ const footer = mountFooter($('bar'));
 // left and right keys turn the page; a dot is orange or red when a session on that page needs you or failed.
 const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager');
 function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
-const backBtn = $('back');
-backBtn.onclick = () => { focus = null; render(); };
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && focus && !document.querySelector('.settings-panel:not([hidden])') && !document.querySelector('dialog[open]')) { focus = null; render(); }
 });
@@ -239,7 +238,6 @@ function render() {
   if (focus && (!expandable || !sessions.some((s) => s.id === focus))) focus = null;   // session gone, or the grid shrank to one cell
   const focused = focus && sessions.find((s) => s.id === focus);
   pages = focused ? [[focused]] : paginate(orderSessions(sessions, seen, isIdle), { max: cap, cost: cellsOf });
-  backBtn.hidden = !focused;
   $('tiles').classList.toggle('expandable', expandable && !focused);
   if (!focused) page = Math.max(0, Math.min(page, pages.length - 1));                  // the grid page is kept while a session is full screen
   current = pages[focused ? 0 : page] ?? [];
