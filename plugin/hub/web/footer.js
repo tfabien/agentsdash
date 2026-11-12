@@ -1,7 +1,6 @@
 // The bottom bar of the page: plan quotas, the beeps button, the theme button, the settings gear, the clock.
 import { quotaBars } from './hub_view.js';
-import { createSettingsMenu, postSettings } from './settings.js';
-import { relayLabel } from './format.js';
+import { createSettingsMenu, createDeviceMenu, postSettings } from './settings.js';
 import { createThemeDialog } from './theme_dialog.js';
 import { icon } from './icons.js';
 
@@ -17,9 +16,7 @@ const NEXT_SOUND = { all: 'ask', ask: 'off', off: 'all' };
  */
 export function mountFooter(root) {
   const quotas = el('span', 'quotas');
-  const relay = el('span', 'relay');
-  relay.append(icon('plug'));
-  relay.hidden = true;
+  const device = createDeviceMenu();
   const sound = el('button', 'chip sound');
   const gear = el('span', 'gearslot');
   const clock = el('span', 'clock');
@@ -27,7 +24,7 @@ export function mountFooter(root) {
   const themes = createThemeDialog();
   gear.append(settings.button);
   const tools = el('span', 'tools');
-  tools.append(relay, sound, themes.button, gear);                    // icons close together; the clock stays apart
+  tools.append(sound, themes.button, device.button, gear);                   // icons close together; the clock stays apart
   root.replaceChildren(quotas, el('span', 'spacer'), tools, clock);
   let mode = 'ask';
   sound.onclick = () => postSettings({ sound: NEXT_SOUND[mode] ?? 'ask' });
@@ -37,10 +34,7 @@ export function mountFooter(root) {
     update(state, elapsedS) {
       mode = state.settings?.sound ?? 'ask';
       themes.update(state.settings?.theme);
-      settings.updateRelay(state.relay);
-      const label = relayLabel(state.relay);              // a small plug: lit when the device answers, grey and crossed when it does not
-      relay.hidden = !label;
-      if (label) { relay.className = `relay ${label.ok ? 'ok' : 'down'}`; relay.title = `${label.text}. ${label.why}`; }
+      device.updateRelay(state.relay);
       if (sound.dataset.mode !== mode) { sound.dataset.mode = mode; sound.replaceChildren(icon(SOUND_ICON[mode] ?? SOUND_ICON.ask)); }
       sound.title = `Beeps: ${SOUND_LABEL[mode] ?? mode} (click to change)`;
       quotas.replaceChildren(...quotaBars(state.usage, elapsedS).map((q) => {

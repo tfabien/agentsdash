@@ -36,8 +36,9 @@
 #bar .clock { font-size: 20px; font-weight: 700; }
 #bar .sound { padding: 5px 8px; line-height: 1; }
 #bar .tools { display: flex; align-items: center; gap: 4px; }
-#bar .relay { display: inline-flex; padding: 0 6px; cursor: default; color: var(--ok); }
-#bar .relay.down { color: var(--muted); opacity: .6; }
+.devbtn { padding: 5px 8px; line-height: 1; }
+.devbtn.ok { color: var(--ok); } .devbtn.down { color: var(--needs); } .devbtn.none { color: var(--muted); }
+.sdevice { border-top: 0; padding-top: 4px; }
 
 .theme-dialog { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 16px 18px; background: #121a26; border: 1px solid #2a3850; border-radius: 14px; color: #e6edf3;
   box-shadow: 0 20px 60px #000c; font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
