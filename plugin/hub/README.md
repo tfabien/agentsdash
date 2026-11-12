@@ -22,6 +22,19 @@ form. It reads the same state as the gadget, so the two always agree. Taps work 
 opens the session list, a team row shows that agent for 10 s, the speaker button cycles the beeps (all, ask only, off).
 Under the screen a line shows whether the relay reaches the gadget.
 
+## Sessions hub page
+
+<http://127.0.0.1:8765/hub> shows every session as a tile in a grid; `/` is still the one-session screen, linked from the hub header ("full page") and back ("Sessions hub").
+
+- Files: `web/hub.html`, `hub.css`, `hub_page.js` (DOM), `hub_view.js` (pure logic: grid shape, which sessions get a tile, what a tile says, quota bars), `alerts.js` (beep rule shared with the main page).
+- One `EventSource('/events')` feeds all tiles. Tiles are links to `/?session=<id>`; the main page then calls `POST /select` for that session.
+- Grid: auto-fit by count (1: 1x1, 2: 2x1, 3: 3x1, 4: 2x2, 5 to 9: 3 columns, then about the square root). Query `?max=N` changes the tile limit (default 6).
+- Past the limit the most urgent sessions keep a tile (needs you, error, working, waiting, your turn, done), in the hub order; the others fold into one placeholder tile. Click it or the "show all" chip to show them.
+- `needs_you` tiles are orange, `error` tiles red. The beeps follow the same rule and the same shared setting as the main page (the "beeps" chip cycles it).
+- Quotas and clock: once, in the bottom bar, with the pace colors of the screen. Tiles show the context fill, not the quotas.
+- Small tiles drop details through container queries: plan text first, then the command.
+- The hub keeps 5 sessions like the gadget. `max_sessions` in the config file (or env `CLAUDE_GADGET_MAX_SESSIONS`, 1 to 32) raises it; the relayed device keeps its own limit.
+
 The hub binds to `127.0.0.1` only and has no authentication.
 
 ## Terminal view
@@ -43,6 +56,7 @@ and sub-agents, then the quotas. It follows `GET /events` and reconnects when th
 | `relay` | `{"mode":"none"}` | `{"mode":"http","host":"<gadget ip>"}` forwards events to a gadget over Wi-Fi; `{"mode":"serial","port":"COM3"}` over USB. |
 | `quotas` | `true` | Poll the 5-hour and weekly plan quotas (env `CLAUDE_GADGET_QUOTAS=0` turns it off). |
 | `context_window` | `1000000` | Context window used for the context estimate (tokens). |
+| `max_sessions` | `5` | Sessions the hub keeps (1 to 32, env `CLAUDE_GADGET_MAX_SESSIONS`). More than 5 only helps the `/hub` page. |
 
 ## Relay to a gadget (Wi-Fi)
 
