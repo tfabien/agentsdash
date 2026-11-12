@@ -3,7 +3,6 @@
 // the speaker button cycles the beeps.
 import { renderScreen, hitTest, teamOrder, SCR_W, SCR_H } from './screen.js';
 import { createVectorScreen } from './vector_screen.js';
-import { relayLabel } from './format.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { mountFooter } from './footer.js';
 
@@ -12,7 +11,6 @@ const DETAIL_MS = 10000;    // a tapped agent's detail stays 10 s
 const FRAME_MS = 100;       // redraw rate: the plan pulse runs on 100 ms phases, the robots blink on 300 ms ticks
 
 const canvas = document.getElementById('screen');
-const relayEl = document.getElementById('relay');
 const screen = createVectorScreen(canvas);
 
 let scale = 1;
@@ -49,9 +47,6 @@ function showState(next) {
   alerts(next);
   state = next;
   receivedAt = performance.now();
-  const label = relayLabel(next.relay);
-  relayEl.hidden = !label;
-  if (label) { relayEl.textContent = label.text; relayEl.title = label.why; relayEl.className = label.ok ? 'ok' : 'down'; }
 }
 
 function uiNow() {
