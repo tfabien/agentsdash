@@ -15,6 +15,19 @@ export const COLOR = {
 };
 export const rgb565 = (v) => [((v >> 11) & 31) * 255 / 31, ((v >> 5) & 63) * 255 / 63, (v & 31) * 255 / 31].map(Math.floor);
 
+/** Chip colors of a project (RGB565): the hue comes from a hash of the name, so tiles of one project share a color. */
+export function projectColors(name) {
+  let h = 0;
+  for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const hue = h % 360;
+  const hsl = (s, l) => {
+    const a = s * Math.min(l, 1 - l), f = (n) => { const k = (n + hue / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+    const c = (v) => Math.round(v * 255);
+    return ((c(f(0)) >> 3) << 11) | ((c(f(8)) >> 2) << 5) | (c(f(4)) >> 3);
+  };
+  return { bg: hsl(0.4, 0.26), fg: hsl(0.75, 0.78) };
+}
+
 // Picture ids of agent-gadget.tft.
 const PIC = { BACKGROUND: 16, ROW: 17, ROW_COMPACT: 18, SPRITE_BIG: 27, SPRITE_SMALL: 35, SPRITE_TINY: 43, BLINK: 36 };
 const S12 = 12, S16 = 16, S20 = 20;                               // font ids: secondary lines, names and titles
@@ -250,9 +263,13 @@ export function renderScreen(screen, state, ui) {
     sprite(x, p.y + 6, PIC.SPRITE_BIG, lead.state, 0);
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
     const wide = p.w > 200, ringW = wide ? 160 : 0;          // wide panel: the ring sits at the right end of the header
-    line(tx, p.y + 4, tw - ringW, S20, COLOR.TEXT, COLOR.PANEL, s.project);
+    // A hub tile has no title bar: the session title takes the name line and the project goes in a colored chip (wide: above the context
+    // ring, model and size on one line under it; narrow: under the state line, in the model's place).
+    line(tx, p.y + 4, tw - ringW, S20, COLOR.TEXT, COLOR.PANEL, ui.bare ? s.title || s.project : s.project);
     line(tx, p.y + 26, tw - ringW, S16, stateColor(lead.state), COLOR.PANEL, `${STATE_LABEL[lead.state]} ${ageOf(lead)}`);
-    drawCtxRing(p, wide, tx, tw, s.ctx_pct, s.ctx_k, lead.model);
+    const chip = ui.bare && s.title ? s.project : '';
+    drawCtxRing(p, wide, tx, tw, s.ctx_pct, s.ctx_k, chip && !wide ? '' : lead.model, chip);
+    if (chip && !wide) drawProjectChip(chip, tx, p.y + 44, tw - 30);
     if (s.ask) { drawQuestion(s.ask, x, p.y + 68, w, p); return; }
     wrapText(lead.cmd, w, 2, m(S16)).forEach((l, i) => screen.text(x, p.y + 68 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     const y = p.y + 110;
@@ -263,9 +280,17 @@ export function renderScreen(screen, state, ui) {
     }
   }
 
+  function drawProjectChip(project, x, y, maxW, right = false) {      // right: `x` is the right edge
+    const col = projectColors(project);
+    const w = Math.min(maxW, screen.measure(project, S16) + 14);
+    if (right) x -= w;
+    screen.fill(x, y, w, 20, col.bg);
+    screen.text(x + 7, y + 1, w - 14, S16, col.fg, col.bg, fit(project, w - 14, S16));
+  }
+
   // Context fill as a ring with the percentage in the middle. Wide panel: big ring at the right end of the header, model and size to its left.
   // Narrow panel (team beside it): model under the state line, small ring at its right end.
-  function drawCtxRing(p, wide, tx, tw, pct, ctxK, model) {
+  function drawCtxRing(p, wide, tx, tw, pct, ctxK, model, chip = '') {
     const known = pct !== null && pct !== undefined;
     const col = !known ? COLOR.FAINT : pct >= 80 ? COLOR.ERROR : pct >= 60 ? COLOR.NEEDS : COLOR.WORKING;
     const label = model ? modelLabel(model) : '';
@@ -274,6 +299,12 @@ export function renderScreen(screen, state, ui) {
       screen.ring(cx, cy, r, 5, known ? Math.min(pct, 100) / 100 : 0, col, COLOR.CHIP);
       if (known) screen.text(cx - 16, cy - 9, 32, S16, col, COLOR.PANEL, String(pct), 1);
       const rx = cx - r - 12, w = 140;
+      if (chip) {
+        drawProjectChip(chip, rx, p.y + 5, w, true);
+        const info = [label, ctxK > 0 ? `${ctxK}k` : ''].filter(Boolean).join(' · ');
+        if (info) screen.text(rx - w, p.y + 28, w, S16, COLOR.LIGHT, COLOR.PANEL, fit(info, w, S16), 2);
+        return;
+      }
       if (label) screen.text(rx - w, p.y + 8, w, S16, COLOR.LIGHT, COLOR.PANEL, fit(label, w, S16), 2);
       if (ctxK > 0) screen.text(rx - w, p.y + 28, w, S16, COLOR.FAINT, COLOR.PANEL, `${ctxK}k ctx`, 2);
       return;
