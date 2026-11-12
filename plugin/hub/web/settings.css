@@ -53,3 +53,9 @@
 .tpreview { max-width: 100%; }
 .tswatches { display: flex; gap: 4px; margin-top: 4px; }
 .tsw { width: 18px; height: 18px; border-radius: 5px; border: 1px solid #ffffff22; }
+
+.srules { padding: 10px 0 4px; border-top: 1px solid #1f2a3a; display: grid; gap: 8px; }
+.rlist { display: grid; gap: 6px; }
+.rrow { display: grid; grid-template-columns: 1fr 96px 74px auto; gap: 4px; align-items: center; }
+.rrow .dinput { min-width: 0; padding: 5px 6px; font-size: 12px; }
+.rcolor.bad { border-color: var(--error); }

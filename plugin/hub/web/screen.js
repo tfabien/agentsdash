@@ -2,6 +2,7 @@
 // layout.cpp, ui_state.cpp and ui_theme.h: same geometry, palette, pictures and wording, so the page looks like the screen.
 // Drawing goes through a small `screen` object (pic, erase, fill, rect, circle, line, text, measure): the page gives it a
 // canvas (canvas_screen.js), the tests give it a recorder. Nothing here touches the DOM.
+import { matchRule } from './rules.js';
 import { formatAge, formatTokens, fmtDuration, modelLabel } from './format.js';
 
 export const SCR_W = 480;
@@ -15,8 +16,16 @@ export const COLOR = {
 };
 export const rgb565 = (v) => [((v >> 11) & 31) * 255 / 31, ((v >> 5) & 63) * 255 / 63, (v & 31) * 255 / 31].map(Math.floor);
 
-/** Chip colors of a project (RGB565): the hue comes from a hash of the name, so tiles of one project share a color. */
-export function projectColors(name) {
+/** Chip colors of a project (RGB565): the hue comes from a hash of the name, so tiles of one project share a color.
+ *  `badgeColor` ('#rrggbb', from a per-project rule) replaces the background; the foreground is black or white, whichever contrasts more. */
+export function projectColors(name, badgeColor) {
+  const m = typeof badgeColor === 'string' ? /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(badgeColor) : null;
+  if (m) {
+    const [r, g, b] = [m[1], m[2], m[3]].map((x) => parseInt(x, 16));
+    const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    return { bg: ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3), fg: lum > 0.179 ? 0x0000 : 0xFFFF };
+  }
   let h = 0;
   for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const hue = h % 360;
@@ -200,6 +209,7 @@ export function renderScreen(screen, state, ui) {
   const m = (font) => (t) => screen.measure(t, font);
   const fit = (s, w, font) => fitText(s, w, m(font));
   const line = (x, y, w, font, fg, bg, s, align = 0) => screen.text(x, y, w, font, fg, bg, fit(s, w, font), align);
+  let rule = null;                                         // per-project rule of the session on screen: icon pack, badge color
   const ageOf = (a) => formatAge(a.age + ui.elapsedS);
 
   drawMain();
@@ -211,6 +221,7 @@ export function renderScreen(screen, state, ui) {
     if (!sessions.length) { drawEmpty(); return; }
     const sel = Math.max(0, sessions.findIndex((s) => s.id === state.view?.session));
     const s = sessions[sel];
+    rule = matchRule(state.settings?.rules, s.cwd);
     const subs = s.agents.slice(1);
     const asking = Boolean(s.ask);
     const panelSubs = asking || ui.menu || ui.part ? 0 : subs.length;
@@ -265,7 +276,7 @@ export function renderScreen(screen, state, ui) {
   // A working robot closes its eyes for one 300 ms tick in fifteen (robots staggered by `seed`).
   function sprite(x, y, base, state_, seed) {
     const closed = state_ === 'working' && (ui.tick + seed * 4) % 15 === 0;
-    screen.pic(base + (closed ? PIC.BLINK : 0), x, y);
+    screen.pic(base + (closed ? PIC.BLINK : 0), x, y, rule?.iconPack);
   }
 
   function drawLeadPanel(s, subs, panelSubs, detailSlot, all, sel) {
@@ -296,7 +307,7 @@ export function renderScreen(screen, state, ui) {
   }
 
   function drawProjectChip(project, x, y, maxW, right = false) {      // right: `x` is the right edge
-    const col = projectColors(project);
+    const col = projectColors(project, rule?.badgeColor);
     const w = Math.min(maxW, screen.measure(project, S16) + 14);
     if (right) x -= w;
     screen.fill(x, y, w, 20, col.bg);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  renderScreen, hitTest, teamOrder, wrapText, fitText, roleIndex, paceLevel, COLOR, rgb565,
+  renderScreen, hitTest, teamOrder, wrapText, fitText, roleIndex, paceLevel, projectColors, COLOR, rgb565,
 } from '../web/screen.js';
 
 /** A screen that records its drawing operations. Text is 5 px per character, so wrapping is deterministic. */
@@ -10,7 +10,7 @@ function recorder() {
   const screen = {
     ops,
     measure: (s) => String(s).length * 5,
-    pic: (id, x, y) => ops.push({ op: 'pic', id, x, y }),
+    pic: (id, x, y, pack) => ops.push({ op: 'pic', id, x, y, ...(pack !== undefined ? { pack } : {}) }),
     erase: (x, y, w, h) => ops.push({ op: 'erase', x, y, w, h }),
     fill: (x, y, w, h, c) => ops.push({ op: 'fill', x, y, w, h, c }),
     rect: (x, y, w, h, c) => ops.push({ op: 'rect', x, y, w, h, c }),
@@ -291,4 +291,38 @@ test('hitTest_on_an_open_subagent_tile_finds_only_the_back_button', () => {
   const ctx = { sessions: [lead], selected: 0, menu: false, part: 'team', frameW: 700, detailOpen: true };
   assert.deepEqual(hitTest(660, 50, ctx), { kind: 'back' });
   assert.deepEqual(hitTest(30, 60, ctx), { kind: 'none' }, 'the rows are gone while a sub-agent is open');
+});
+
+const RULES = [{ match: '**/artillery*', iconPack: 'cat', badgeColor: '#c0392b' }];
+const tile = (cwd, rules = RULES) => draw(state([session({ cwd, title: 'Fix login' })], { settings: { rules } }), ui({ bare: true, frameW: 472 }));
+
+test('badge_color_override_replaces_chip_background', () => {
+  assert.deepEqual(projectColors('x', '#ffffff'), { bg: 0xFFFF, fg: 0x0000 }, 'light chip, black text');
+  assert.deepEqual(projectColors('x', '#000000'), { bg: 0x0000, fg: 0xFFFF }, 'dark chip, white text');
+  assert.equal(projectColors('x', '#c0392b').bg, ((0xc0 >> 3) << 11) | ((0x39 >> 2) << 5) | (0x2b >> 3));
+  assert.deepEqual(projectColors('x', 'red'), projectColors('x'), 'invalid color ignored');
+  const r = tile('C:/dev/artillery-x3');
+  assert.ok(r.ops.some((o) => o.op === 'fill' && o.h === 20 && o.c === projectColors('artillery-x3', '#c0392b').bg), 'chip filled with the badge color');
+});
+
+test('badge_text_stays_project_name', () => {
+  const r = tile('C:/dev/artillery-x3');
+  const t = r.ops.find((o) => o.op === 'text' && o.s === 'artillery-x3');
+  assert.ok(t, 'project name on the chip');
+  assert.equal(t.fg, projectColors('artillery-x3', '#c0392b').fg);
+  assert.equal(t.bg, projectColors('artillery-x3', '#c0392b').bg);
+});
+
+test('session_with_rule_uses_rule_pack', () => {
+  const r = tile('C:/dev/artillery-x3');
+  const sprites = pics(r).filter((p) => p.id >= 27);
+  assert.ok(sprites.length > 0 && sprites.every((p) => p.pack === 'cat'));
+});
+
+test('session_without_match_uses_theme_pack', () => {
+  for (const r of [tile('C:/dev/other'), tile(undefined), tile('C:/dev/artillery-x3', [])]) {
+    const sprites = pics(r).filter((p) => p.id >= 27);
+    assert.ok(sprites.length > 0 && sprites.every((p) => p.pack === undefined));
+    assert.ok(r.ops.some((o) => o.op === 'fill' && o.h === 20 && o.c === projectColors('artillery-x3').bg), 'default chip color');
+  }
 });

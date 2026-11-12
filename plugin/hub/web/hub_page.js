@@ -150,7 +150,7 @@ function drawTile(s, t) {
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
   t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t));
-  renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [] }, {
+  renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
     bare: true, part: t.part, frameW: t.frameW, elapsedS: elapsed(), menu: false, detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
 }
@@ -254,7 +254,7 @@ function showState(next) {
   sound = next.settings?.sound ?? 'ask';
   if (next.catalog) setCatalog(next.catalog);
   applyTheme(next.settings?.theme);
-  footer.settings.update(next.settings ?? {});
+  footer.settings.update(next.settings ?? {}, next.catalog);
   const now = countStates(next.sessions);
   const times = beepsFor(counts, now, sound);
   if (times) beep(times);

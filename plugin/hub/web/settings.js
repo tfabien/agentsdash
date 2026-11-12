@@ -2,6 +2,7 @@
 // hub (POST /settings, state.settings), so all pages and all browsers follow. Adding an option = one entry in OPTIONS.
 import { relayLabel } from './format.js';
 import { icon } from './icons.js';
+import { validRules } from './rules.js';
 
 export const TILES_MIN = 0, TILES_MAX = 12;          // tiles per page; 0 is Auto (what fits the window)
 
@@ -99,7 +100,57 @@ function createDeviceSection() {
 }
 
 /**
- * @returns {{button: HTMLButtonElement, update: (settings: object) => void}}
+ * The "Project rules" section: one row per rule (folder pattern, icon pack, badge color). A row is posted once it is valid (pattern not empty,
+ * color blank or #rrggbb); the rows being typed stay local. Pushed state only replaces the rows when someone else changed the rules.
+ * @returns {{node: HTMLElement, update: (rules: object[]|undefined, packs: object[]|undefined) => void}}
+ */
+function createRulesSection() {
+  const node = el('div', 'srules');
+  const list = el('div', 'rlist');
+  const add = el('button', 'seg', 'Add rule');
+  node.append(el('div', 'slabel', 'Project rules'), el('div', 'shint', 'First match wins. Folder pattern: *, ** and ? (sub-folders match too). Blank pack = theme default'), list, add);
+  let draft = [], seen = '[]', packs = [];
+
+  const clean = (r) => ({ match: r.match.trim(), ...(r.iconPack ? { iconPack: r.iconPack } : {}), ...(r.badgeColor ? { badgeColor: r.badgeColor } : {}) });
+  const valid = () => draft.filter((r) => r.match.trim() && (!r.badgeColor || /^#[0-9a-f]{6}$/i.test(r.badgeColor))).map(clean);
+  const save = () => { const rules = valid(); if (validRules(rules)) postSettings({ rules }); };
+
+  function render() {
+    list.replaceChildren(...draft.map((r, i) => {
+      const row = el('div', 'rrow');
+      const match = el('input', 'dinput'); match.value = r.match; match.placeholder = '**/my-project*'; match.spellcheck = false;
+      match.oninput = () => { r.match = match.value; };
+      match.onchange = save;
+      const pack = el('select', 'dinput');
+      const names = ['', ...packs.map((p) => p.name)];
+      if (r.iconPack && !names.includes(r.iconPack)) names.push(r.iconPack);
+      pack.append(...names.map((n) => { const o = el('option', '', n || 'Theme default'); o.value = n; return o; }));
+      pack.value = r.iconPack ?? '';
+      pack.onchange = () => { r.iconPack = pack.value || undefined; save(); };
+      const color = el('input', 'dinput rcolor'); color.value = r.badgeColor ?? ''; color.placeholder = '#rrggbb'; color.spellcheck = false;
+      color.oninput = () => { r.badgeColor = color.value.trim() || undefined; color.classList.toggle('bad', !!r.badgeColor && !/^#[0-9a-f]{6}$/i.test(r.badgeColor)); };
+      color.onchange = save;
+      const del = el('button', 'seg', '×'); del.title = 'Delete rule'; del.setAttribute('aria-label', 'Delete rule');
+      del.onclick = () => { draft.splice(i, 1); render(); save(); };
+      row.append(match, pack, color, del);
+      return row;
+    }));
+  }
+  add.onclick = () => { draft.push({ match: '' }); render(); };
+
+  return {
+    node,
+    update(rules, catalogPacks) {
+      packs = catalogPacks ?? packs;
+      const srv = JSON.stringify(rules ?? []);
+      if (srv !== seen && srv !== JSON.stringify(valid())) { draft = (rules ?? []).map((r) => ({ ...r })); render(); }
+      seen = srv;
+    },
+  };
+}
+
+/**
+ * @returns {{button: HTMLButtonElement, update: (settings: object, catalog?: object) => void}}
  */
 export function createSettingsMenu() {
   const button = el('button', 'chip gear');
@@ -143,11 +194,14 @@ export function createSettingsMenu() {
     panel.append(row);
   }
 
+  const rulesSection = createRulesSection();
+  panel.append(rulesSection.node);
+
   function show() { for (const opt of OPTIONS) if (current[opt.key] !== undefined) rows.get(opt.key)(current[opt.key]); }
 
   attachPanel(button, panel);
 
-  return { button, update(settings) { current = { ...settings }; show(); } };
+  return { button, update(settings, catalog) { current = { ...settings }; show(); rulesSection.update(settings.rules, catalog?.packs); } };
 }
 
 /** A button that toggles `panel`; a click outside or Escape closes it. */
