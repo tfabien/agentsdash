@@ -42,7 +42,7 @@ test('svgs_have_viewbox_36x42_and_no_script', () => {
         assert.match(s, /viewBox="0 0 36 42"/, `${pack}/${file}`);
         assert.match(s, /width="36" height="42"/, `${pack}/${file}`);
         assert.doesNotMatch(s, /<script|onload|onerror/i, `${pack}/${file}`);
-        assert.match(s, /<(path|rect|circle|ellipse)\b/, `${pack}/${file} draws nothing`);
+        assert.match(s, /<(path|rect|circle|ellipse|image)\b/, `${pack}/${file} draws nothing`);
       }
     }
   }

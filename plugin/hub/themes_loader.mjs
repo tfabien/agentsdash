@@ -10,7 +10,8 @@ const MAX_RASTER_BYTES = 1024 * 1024;                          // a GIF with fra
 export const ICON_TYPES = { '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
 const EXT_ORDER = Object.keys(ICON_TYPES);
 const PACK_NAME = /^[a-z0-9-]{1,32}$/;
-const ICON_FILES = new Set(ROLE_FILES.flatMap((r) => [r, `${r}-blink`]));
+// <role>, <role>-blink, and variants <role>-2 .. <role>-99 (with their -blink): several characters for one role.
+const ICON_NAME = new RegExp(`^(${ROLE_FILES.join('|')})(-[2-9]|-[1-9][0-9])?(-blink)?$`);
 
 const list = (dir) => { try { return fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; } };
 
@@ -38,7 +39,7 @@ function scanPacks(dir, errors) {
       if (!e.isFile()) continue;
       const ext = path.extname(e.name).toLowerCase();
       const base = e.name.slice(0, -ext.length);
-      if (!(ext in ICON_TYPES) || !ICON_FILES.has(base)) continue;
+      if (!(ext in ICON_TYPES) || !ICON_NAME.test(base)) continue;
       const order = EXT_ORDER.indexOf(ext);
       if (rank[base] !== undefined && rank[base] < order) continue;
       const file = path.join(dir, 'icons', d.name, e.name);

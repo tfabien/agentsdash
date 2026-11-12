@@ -92,3 +92,10 @@ test('raster_icon_over_1_mb_is_skipped_with_an_error', () => {
   assert.deepEqual(Object.keys(c.packs[0].roles), ['plan']);
   assert.equal(c.errors.length, 1);
 });
+
+test('role_variants_and_their_blink_files_are_listed', () => {
+  const b = tmp();
+  for (const f of ['explore.svg', 'explore-2.png', 'explore-2-blink.png', 'explore-12.gif', 'explore-1.svg', 'explore-100.svg', 'explore-x.svg']) put(b, `icons/v/${f}`, 'x');
+  const c = loadCatalog({ builtinDir: b, userDir: null });
+  assert.deepEqual(Object.keys(c.packs[0].roles).sort(), ['explore', 'explore-12', 'explore-2', 'explore-2-blink']);
+});

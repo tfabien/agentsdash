@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COLOR, rgb565 } from '../web/screen.js';
 import { THEMES, applyTheme, validateTheme, activeTheme, activeIconPack, setCatalog } from '../web/themes.js';
-import { ICON_PACKS, iconPack, iconPackFor, svgPack } from '../web/icon_packs.js';
+import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey } from '../web/icon_packs.js';
 import { createVectorScreen } from '../web/vector_screen.js';
 
 function fakeCanvas() {
@@ -154,4 +154,28 @@ test('svg_pack_missing_role_draws_robot', () => {
   late.draw(r.ctx, 0, false);
   assert.ok(r.calls.every((c) => c.name !== 'drawImage'), 'an image not loaded yet draws the robot');
   delete globalThis.Image;
+});
+
+test('variantKey_is_stable_per_agent_and_uses_every_variant', () => {
+  const roles = { lead: '/a', 'lead-2': '/b', 'lead-3': '/c', 'lead-blink': '/d', 'general-2': '/e' };
+  assert.equal(variantKey(roles, 'lead', undefined), 'lead', 'no agent id: the first variant');
+  assert.equal(variantKey(roles, 'lead', 'ab12'), variantKey(roles, 'lead', 'ab12'));
+  const seen = new Set();
+  for (let i = 0; i < 60; i++) seen.add(variantKey(roles, 'lead', `a${i}`));
+  assert.deepEqual([...seen].sort(), ['lead', 'lead-2', 'lead-3']);
+  assert.equal(variantKey(roles, 'general', 'zz'), 'general-2', 'only a numbered file');
+  assert.equal(variantKey(roles, 'plan', 'zz'), 'plan', 'no file at all: the key, so the robot is drawn');
+});
+
+test('svg_pack_draws_the_variant_and_the_blink_of_that_variant', () => {
+  stubImage(true);
+  const pack = svgPack('p', { lead: '/l1.svg', 'lead-2': '/l2.svg', 'lead-2-blink': '/l2b.svg' });
+  const id = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].find((x) => variantKey({ lead: 1, 'lead-2': 1 }, 'lead', x) === 'lead-2');
+  let r = recordingCtx();
+  pack.draw(r.ctx, 0, false, id);
+  assert.equal(r.calls[0].args[0].src, '/l2.svg');
+  r = recordingCtx();
+  pack.draw(r.ctx, 0, true, id);
+  assert.equal(r.calls[0].args[0].src, '/l2b.svg');
+  stubImage(false);
 });
