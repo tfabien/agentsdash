@@ -1,7 +1,7 @@
 // Per-project rules: pick an icon pack and badge color from a session's cwd.
 // Plain ES module, no imports: runs in Node and in the browser.
 
-const norm = (p) => String(p).replace(/\/g, '/').replace(/\/+$/, '').toLowerCase();
+const norm = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
 function toRegExp(pattern) {
   let re = '';
@@ -13,7 +13,7 @@ function toRegExp(pattern) {
         i++;
       } else re += '[^/]*';
     } else if (c === '?') re += '[^/]';
-    else re += c.replace(/[.+^${}()|[\]\]/g, '\$&');
+    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   }
   // A pattern also matches its sub-folders.
   return new RegExp('^' + re + '(?:/.*)?$');

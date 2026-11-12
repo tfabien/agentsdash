@@ -29,8 +29,8 @@ test('first_rule_wins', () => {
 
 test('windows_path_matches_forward_slash_rule', () => {
   const r = { match: 'c:/work/prod-api' };
-  assert.equal(matchRule([r], 'C:\Work\Prod-api'), r);
-  assert.equal(matchRule([r], 'C:\Work\Prod-api\src'), r);
+  assert.equal(matchRule([r], 'C:\\Work\\Prod-api'), r);
+  assert.equal(matchRule([r], 'C:\\Work\\Prod-api\\src'), r);
 });
 
 test('no_cwd_matches_nothing', () => {
