@@ -1,0 +1,26 @@
+{
+  "name": "lemmings",
+  "label": "Lemmings",
+  "author": "standup-bot",
+  "version": "1",
+  "iconPack": "lemmings",
+  "colors": {
+    "SCREEN": "#0a1a0e",
+    "BAR": "#0e2a18",
+    "FRAME": "#2a6b3a",
+    "PANEL": "#0e2214",
+    "ROW": "#153322",
+    "TEXT": "#e8f5dc",
+    "LIGHT": "#b9dcb0",
+    "FAINT": "#6f9a73",
+    "WORKING": "#5bd65b",
+    "NEEDS": "#ffb23e",
+    "ERROR": "#ff5a5a",
+    "YOURTURN": "#6fa3ff",
+    "WAITING": "#6fd6e0",
+    "ACCENT": "#ffe866",
+    "CHIP": "#2f5a3a",
+    "ACCENT_DIM": "#4a4a1e",
+    "NEEDS_DIM": "#7a5316"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "pirates",
+  "label": "Pirates",
+  "author": "standup-bot",
+  "version": "1",
+  "iconPack": "pirates",
+  "colors": {
+    "SCREEN": "#0b1a24",
+    "BAR": "#10222e",
+    "FRAME": "#7a5230",
+    "PANEL": "#0f2230",
+    "ROW": "#173041",
+    "TEXT": "#f4e9d0",
+    "LIGHT": "#d5c3a0",
+    "FAINT": "#7f8f96",
+    "WORKING": "#6fcf97",
+    "NEEDS": "#f2a33a",
+    "ERROR": "#e5574f",
+    "YOURTURN": "#6fb4e8",
+    "WAITING": "#79d0c8",
+    "ACCENT": "#f2cc60",
+    "CHIP": "#2c4a5e",
+    "ACCENT_DIM": "#5a4a22",
+    "NEEDS_DIM": "#7a4e18"
+  }
+}

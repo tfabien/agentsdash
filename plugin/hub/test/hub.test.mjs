@@ -14,8 +14,10 @@ const post = (hub, p, body, raw) => fetch(`http://127.0.0.1:${hub.port}${p}`, {
 });
 const get = (hub, p) => fetch(`http://127.0.0.1:${hub.port}${p}`);
 
+const tmpUserDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'hubu-'));    // never read the real ~/.claude/standup-bot
+
 async function withHub(fn, opts = {}) {
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, ...opts });
+  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, userDir: tmpUserDir(), ...opts });
   try { await fn(hub); } finally { await hub.close(); }
 }
 
@@ -86,7 +88,7 @@ test('sse_sends_state_on_connect_and_on_change', () => withHub(async (hub) => {
 }));
 
 test('restart_then_next_event_repairs_state', async () => {
-  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, userDir: tmpUserDir() });
   await post(first, '/event', EV);
   await first.close();
   await withHub(async (hub) => {
@@ -113,16 +115,16 @@ test('unknown_route_returns_404', () => withHub(async (hub) => {
 }));
 
 test('second_hub_on_same_port_fails', async () => {
-  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, userDir: tmpUserDir() });
   try {
-    await assert.rejects(startHub({ port: first.port, config: { relay: { mode: 'none' }, quotas: false } }), (e) => e.code === 'EADDRINUSE');
+    await assert.rejects(startHub({ port: first.port, config: { relay: { mode: 'none' }, quotas: false }, userDir: tmpUserDir() }), (e) => e.code === 'EADDRINUSE');
   } finally { await first.close(); }
 });
 
 test('quota_poll_result_reaches_state_and_taps', async () => {
   const fetchImpl = async () => ({ ok: true, status: 200, headers: new Headers(), json: async () => ({ five_hour: { utilization: 33, resets_at: new Date(Date.now() + 3 * 3600 * 1000).toISOString() } }) });
   const hub = await startHub({
-    port: 0, config: { relay: { mode: 'none' }, quotas: true },
+    port: 0, config: { relay: { mode: 'none' }, quotas: true }, userDir: tmpUserDir(),
     quota: { fetchImpl, env: { CLAUDE_CODE_OAUTH_TOKEN: 'x' }, stateDir: fs.mkdtempSync(path.join(os.tmpdir(), 'hubq-')), autostart: false },
   });
   try {
@@ -209,10 +211,10 @@ test('cwd_is_not_sent_to_device_relays', () => {
 
 test('settings_are_kept_in_a_file_for_the_next_hub', async () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubset-')), 'settings.json');
-  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file });
+  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file, userDir: tmpUserDir() });
   await post(first, '/settings', { sound: 'all' });
   await first.close();
-  const second = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file });
+  const second = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file, userDir: tmpUserDir() });
   try { assert.equal((await (await get(second, '/state')).json()).settings.sound, 'all'); } finally { await second.close(); }
 });
 
