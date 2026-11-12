@@ -1,7 +1,6 @@
-// The sessions hub page: the agent screen of each session (same drawing as the single page, without its title bar and status bar)
-// in a grid, the quotas once in the bar at the bottom. One SSE stream feeds every tile. Logic (which sessions, grid shape) is in
-// hub_view.js, the beep rule in alerts.js.
-import { bestGrid, planTiles, isIdle as idleFor, hasTeam, cellsOf, MAX_TILES } from './hub_view.js';
+// The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
+// go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic (order, pages, grid shape) is in hub_view.js, the beep rule in alerts.js.
+import { bestLayout, orderSessions, paginate, autoCapacity, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
 import { TILES_MAX } from './settings.js';
@@ -15,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const maxParam = Number(params.get('max'));         // ?max=N overrides the setting for this tab
 const FRAME = { x: 6, y: 30, w: 472, h: 216 };      // the part of the 480x272 screen a tile shows: the frame, 6 units around the panels on every side
-const DETAIL_MS = 10000;                              // a tapped agent or plan step stays open 10 s, like on the single page
+const DETAIL_MS = 10000;                              // a tapped plan step stays open 10 s
 const FLASH_MS = 900;                                 // a tile's frame pulses once when something happens in its session
 const MAX_SCALE = 1.5;                                // a lone session on a big screen stops growing at 1.5x the gadget size (708 px wide)
 const STRETCH = 1.8;                                  // a tile frame may be up to 1.8 times wider than the gadget's: the panels grow, nothing is stretched
@@ -26,7 +25,8 @@ let state = { sessions: cache.restore(), settings: {} };
 let receivedAt = performance.now();
 let sound = 'ask';
 let counts = null;
-let showAll = false;
+let page = 0, pages = [], current = [];               // the page shown, all pages, and its sessions
+const SWIPE_PX = 50;                                   // a horizontal swipe of 50 px or more turns the page
 const seen = new Map();                               // session id -> rank of its first appearance, the order of the grid
 const tiles = new Map();                              // tile key -> {box, canvas, screen, part}: kept between frames, never rebuilt. A session has a lead tile (key: its id) and, with sub-agents, a team tile (key: id + '#team')
 const keyOf = (id, part) => (part === 'team' ? `${id}#team` : id);
@@ -48,7 +48,13 @@ function flashChanged(next) {
   for (const id of [...sigs.keys()]) if (!next.sessions.some((s) => s.id === id)) sigs.delete(id);
 }
 
-const maxTiles = () => Math.min(TILES_MAX, Math.max(2, maxParam || state.settings?.max_tiles || MAX_TILES));
+/** Cells per page: the setting (1 to 12; 1 shows one session at a time), or, when it is 0 (Auto), what fits the window. */
+function capacity() {
+  const n = maxParam || state.settings?.max_tiles || 0;
+  if (n) return Math.min(TILES_MAX, Math.max(1, n));
+  const grid = $('tiles');
+  return autoCapacity(grid.clientWidth, grid.clientHeight, FRAME.w, FRAME.h, { cap: TILES_MAX });
+}
 const isIdle = (s) => idleFor(s, elapsed());          // greyed out after 5 minutes waiting for you; the hub drops the session after 10
 
 // The frame is the one place that says how a session is doing: orange when it needs you, red on an error, a light blue pulse on an event.
@@ -83,6 +89,9 @@ function tileFor(s, part = 'lead') {
   return t;
 }
 
+/** Which side a tile is welded on: the lead of a session with sub-agents touches its team on the right, the team touches its lead on the left. */
+const weldOf = (t) => (t.session && hasTeam(t.session) ? (t.part === 'team' ? 'left' : 'right') : '');
+
 /** The canvas takes the largest size of the frame's aspect ratio that fits its cell, at the pixel ratio of the display. */
 function fit(t) {
   const dpr = window.devicePixelRatio || 1;
@@ -94,23 +103,27 @@ function fit(t) {
   if (t.canvas.width !== w || t.canvas.height !== h) { t.canvas.width = w; t.canvas.height = h; }
   t.canvas.style.width = `${w / dpr}px`;               // one canvas pixel per device pixel: no resampling, the frame stays even on every side
   t.canvas.style.height = `${h / dpr}px`;
-  t.canvas.style.borderRadius = `${7 * k}px`;          // the corner radius of the frame
+  const r = `${7 * k}px`;                                // the corner radius of the frame; a tile welded to its team or lead has square corners on that side
+  t.canvas.style.borderRadius = weldOf(t) === 'right' ? `${r} 0 0 ${r}` : weldOf(t) === 'left' ? `0 ${r} ${r} 0` : r;
   t.frameW = fw;
   return k;
 }
 
-/** A tap on a tile works like a tap on the single page: a team row opens that agent for 10 s, a plan step previews it, the lead panel closes them. */
+/** A tap on a tile: a team row opens that agent as a tile in place of the team list (BACK returns), a plan step previews it for 10 s, the lead panel closes it. */
 function tap(t, e) {
   const s = t.session;
   if (!s) return;
   const box = t.canvas.getBoundingClientRect();
   const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * FRAME.h) / box.height;
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW });
+  const lead0 = tiles.get(s.id) ?? t;
+  const detailOpen = Boolean(lead0.detail && s.agents.some((a) => a.id === lead0.detail.agent));
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, detailOpen });
   const until = Date.now() + DETAIL_MS;
   const lead = tiles.get(s.id) ?? t;                      // the agent opened from the team tile shows in the lead tile, which owns the detail
-  if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until };
+  if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
+  else if (hit.kind === 'back') lead.detail = null;
   else if (hit.kind === 'planStep') lead.planStep = lead.planStep && lead.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
-  else if (hit.kind === 'lead') { lead.detail = null; lead.planStep = null; }
+  else if (hit.kind === 'lead') lead.planStep = null;
   for (const part of partsOf(s)) { const u = tiles.get(keyOf(s.id, part)); if (u) drawTile(s, u); }
 }
 
@@ -125,15 +138,14 @@ function drawTile(s, t) {
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
-  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW);
+  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t));
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [] }, {
     bare: true, part: t.part, frameW: t.frameW, elapsedS: elapsed(), menu: false, detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
 }
 
 function draw() {
-  const { tiles: shown } = planTiles(state.sessions, { max: maxTiles(), showAll, cost: cellsOf });
-  for (const s of shown) {
+  for (const s of current) {
     const idle = isIdle(s) && state.settings?.dim_idle !== false;
     for (const part of partsOf(s)) {
       const t = tiles.get(keyOf(s.id, part));
@@ -142,33 +154,87 @@ function draw() {
   }
 }
 
-const footer = mountFooter($('bar'), { page: 'hub' });
+const footer = mountFooter($('bar'));
 
-const hiddenBtn = el('button', 'tile empty');         // one node for good: a node replaced between mouse down and up loses the click
-hiddenBtn.onclick = () => { showAll = true; render(); };
+// Pages: the sessions run in order (first seen first, idle ones last) and are cut into pages of `capacity()` cells. Arrows, dots, swipes and the
+// left and right keys turn the page; a dot is orange or red when a session on that page needs you or failed.
+const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager');
+function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
+prevBtn.onclick = () => goto(page - 1);
+nextBtn.onclick = () => goto(page + 1);
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.target.closest?.('input, textarea, select') || document.querySelector('.settings-panel:not([hidden])') || document.querySelector('dialog[open]')) return;
+  goto(page + (e.key === 'ArrowRight' ? 1 : -1));
+});
+let swipe = null;                                      // finger down: where it started
+$('stage').addEventListener('touchstart', (e) => { const t = e.changedTouches[0]; swipe = { x: t.clientX, y: t.clientY }; }, { passive: true });
+$('stage').addEventListener('touchend', (e) => {
+  if (!swipe) return;
+  const t = e.changedTouches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+  swipe = null;
+  if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > 2 * Math.abs(dy)) goto(page + (dx < 0 ? 1 : -1));
+}, { passive: true });
+
+let pagerSig = '';
+function renderPager() {
+  const many = pages.length > 1;
+  prevBtn.hidden = nextBtn.hidden = pager.hidden = !many;
+  prevBtn.disabled = page <= 0;
+  nextBtn.disabled = page >= pages.length - 1;
+  const sig = many ? `${page}|${pages.map(pageAlert).join(',')}` : '';
+  if (sig === pagerSig) return;
+  pagerSig = sig;
+  pager.replaceChildren(...(many ? pages.map((p, i) => {
+    const d = el('button', `dot${i === page ? ' on' : ''} ${pageAlert(p)}`);
+    d.title = `Page ${i + 1} of ${pages.length}`;
+    d.setAttribute('aria-label', d.title);
+    d.onclick = () => goto(i);
+    return d;
+  }) : []));
+}
+
+/** A session with sub-agents: its lead tile and its team tile welded side by side in a cell two columns wide, a chip with the sub-agent count on the seam. Kept between renders like the tiles. */
+const groups = new Map();                               // session id -> the group element
+function groupFor(s, lead, team) {
+  let g = groups.get(s.id);
+  if (!g) {
+    g = el('div', 'group');
+    g.link = el('span', 'link');                        // a chip on the seam: the team works for the lead
+    groups.set(s.id, g);
+  }
+  const n = s.agents.length - 1;
+  g.link.textContent = `➜ ${n}`;
+  g.link.title = `${n} sub-agent${n === 1 ? '' : 's'} of this session`;
+  if (g.children[0] !== lead || g.children[1] !== team || g.children[2] !== g.link) g.replaceChildren(lead, team, g.link);
+  return g;
+}
 
 function render() {
   const sessions = state.sessions;
-  const { tiles: shown, hidden } = planTiles(sessions, { max: maxTiles(), showAll, cost: cellsOf });
-  const cells = shown.reduce((n, s) => n + cellsOf(s), 0) + (hidden ? 1 : 0);
+  for (const s of sessions) if (!seen.has(s.id)) seen.set(s.id, seen.size);
+  const cap = capacity();
+  pages = paginate(orderSessions(sessions, seen, isIdle), { max: cap, cost: cellsOf });
+  page = Math.max(0, Math.min(page, pages.length - 1));
+  current = pages[page] ?? [];
   const grid = $('tiles');
-  const { cols, rows } = bestGrid(cells, grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * MAX_SCALE, STRETCH);
+  const { cols, rows } = bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * MAX_SCALE, STRETCH);   // a team is 2 columns wide
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);
-  for (const s of sessions) if (!seen.has(s.id)) seen.set(s.id, seen.size);
-  const nodes = [...shown].sort((x, y) => seen.get(x.id) - seen.get(y.id)).flatMap((s) => partsOf(s).map((part) => tileFor(s, part).box));   // first seen, first placed: tiles do not jump under the pointer when the hub reorders
+  const nodes = current.map((s) => {
+    const lead = tileFor(s, 'lead').box;
+    return hasTeam(s) ? groupFor(s, lead, tileFor(s, 'team').box) : lead;
+  });
   for (const key of [...tiles.keys()]) {
     const team = key.endsWith('#team');
     const s = sessions.find((x) => x.id === (team ? key.slice(0, -5) : key));
     if (!s || (team && !hasTeam(s))) tiles.delete(key);
   }
+  for (const id of [...groups.keys()]) { const s = sessions.find((x) => x.id === id); if (!s || !hasTeam(s)) groups.delete(id); }
   for (const id of [...seen.keys()]) if (!sessions.some((s) => s.id === id)) seen.delete(id);
-  if (hidden) {
-    hiddenBtn.textContent = `${hidden} more session${hidden === 1 ? '' : 's'} hidden (click to show)`;
-    nodes.push(hiddenBtn);
-  }
   if (!sessions.length) nodes.push(el('div', 'tile empty', `No sessions yet. Events go to ${location.host}`));
   if (nodes.length !== grid.children.length || nodes.some((n, i) => grid.children[i] !== n)) grid.replaceChildren(...nodes);
+  renderPager();
   draw();
   footer.update(state, elapsed());
 }

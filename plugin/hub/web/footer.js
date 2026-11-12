@@ -1,4 +1,4 @@
-// The bottom bar shared by the single page and the hub page: plan quotas, the beeps button, the theme button, the settings gear, the clock.
+// The bottom bar of the page: plan quotas, the beeps button, the theme button, the settings gear, the clock.
 import { quotaBars } from './hub_view.js';
 import { createSettingsMenu, postSettings } from './settings.js';
 import { relayLabel } from './format.js';
@@ -13,10 +13,9 @@ const NEXT_SOUND = { all: 'ask', ask: 'off', off: 'all' };
 
 /**
  * Fills `root` (a <footer>) with the bar.
- * @param {{page: 'hub'|'single'}} opts
  * @returns {{update: (state: object, elapsedS: number) => void, settings: ReturnType<typeof createSettingsMenu>}}
  */
-export function mountFooter(root, { page }) {
+export function mountFooter(root) {
   const quotas = el('span', 'quotas');
   const relay = el('span', 'relay');
   relay.append(icon('plug'));
@@ -24,7 +23,7 @@ export function mountFooter(root, { page }) {
   const sound = el('button', 'chip sound');
   const gear = el('span', 'gearslot');
   const clock = el('span', 'clock');
-  const settings = createSettingsMenu({ page });
+  const settings = createSettingsMenu();
   const themes = createThemeDialog();
   gear.append(settings.button);
   const tools = el('span', 'tools');

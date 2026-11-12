@@ -269,3 +269,26 @@ test('hitTest_on_the_team_part_of_a_hub_tile_finds_rows_across_the_full_width', 
   assert.deepEqual(hitTest(30, 230, ctx), { kind: 'none' });
   assert.deepEqual(hitTest(30, 120, { ...ctx, part: 'lead' }), { kind: 'lead' }, 'the lead part is one wide panel whatever the sub-agents');
 });
+
+test('on_a_team_tile_a_tapped_subagent_opens_as_a_tile_with_a_back_button', () => {
+  const subs = four();
+  subs[2].prev = 'Read layout.cpp';
+  subs[2].prev_age = 40;
+  subs[2].detail = 'pio run -e esp32dev_test';
+  const open = draw(state([withSubs(subs)]), ui({ bare: true, part: 'team', frameW: 700, detail: { session: 'aaaa', agent: 'ef56' } }));
+  assert.ok(texts(open).includes('COMMAND') && texts(open).includes('BEFORE') && texts(open).includes('BACK'));
+  assert.ok(!texts(open).includes('tap here to go back') && !texts(open).some((t) => t.startsWith('TEAM')), 'the list is replaced');
+  const list = draw(state([withSubs(subs)]), ui({ bare: true, part: 'team', frameW: 700 }));
+  assert.ok(texts(list).some((t) => t.startsWith('TEAM')) && !texts(list).includes('BACK'));
+  const gone = draw(state([withSubs(subs)]), ui({ bare: true, part: 'team', frameW: 700, detail: { session: 'aaaa', agent: 'zzzz' } }));
+  assert.ok(texts(gone).some((t) => t.startsWith('TEAM')), 'an agent that is gone returns the list');
+  const lead = draw(state([withSubs(subs)]), ui({ bare: true, part: 'lead', frameW: 700, detail: { session: 'aaaa', agent: 'ef56' } }));
+  assert.ok(!texts(lead).includes('COMMAND'), 'the lead tile ignores the open sub-agent');
+});
+
+test('hitTest_on_an_open_subagent_tile_finds_only_the_back_button', () => {
+  const lead = { id: 'a', dot: 'working', ask: null, plan: null, agents: [{ state: 'working', age: 1 }, { state: 'working', age: 1 }] };
+  const ctx = { sessions: [lead], selected: 0, menu: false, part: 'team', frameW: 700, detailOpen: true };
+  assert.deepEqual(hitTest(660, 50, ctx), { kind: 'back' });
+  assert.deepEqual(hitTest(30, 60, ctx), { kind: 'none' }, 'the rows are gone while a sub-agent is open');
+});

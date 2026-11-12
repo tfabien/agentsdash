@@ -180,14 +180,15 @@ test('settings_default_to_beeps_for_questions_only_and_are_shared_by_every_page'
   assert.equal((await post(hub, '/settings', { sound: 'loud' })).status, 400);
   assert.equal((await (await get(hub, '/state')).json()).settings.sound, 'off', 'a bad value changes nothing');
   const s0 = (await (await get(hub, '/state')).json()).settings;
-  assert.deepEqual([s0.view, s0.max_tiles, s0.pulse, s0.dim_idle], ['single', 12, true, true]);
+  assert.deepEqual([s0.max_tiles, s0.pulse, s0.dim_idle, 'view' in s0], [0, true, true, false], 'Auto tiles per page by default, no view setting');
   assert.equal((await post(hub, '/settings', { view: 'hub', max_tiles: 8, pulse: false })).status, 200);
   const s1 = (await (await get(hub, '/state')).json()).settings;
-  assert.deepEqual([s1.sound, s1.view, s1.max_tiles, s1.pulse, s1.dim_idle], ['off', 'hub', 8, false, true], 'a partial update keeps the rest');
-  assert.equal((await post(hub, '/settings', { view: 'grid', max_tiles: 1 })).status, 400, 'nothing valid in it');
-  assert.equal((await post(hub, '/settings', { view: 'single', max_tiles: 99 })).status, 200, 'the valid part is kept');
+  assert.deepEqual([s1.sound, s1.max_tiles, s1.pulse, s1.dim_idle, 'view' in s1], ['off', 8, false, true, false], 'a partial update keeps the rest; the old view setting is ignored');
+  assert.equal((await post(hub, '/settings', { max_tiles: 99 })).status, 400, 'nothing valid in it');
+  assert.equal((await post(hub, '/settings', { max_tiles: 1 })).status, 200, 'one tile per page is allowed');
+  assert.equal((await post(hub, '/settings', { max_tiles: 0, pulse: 'no' })).status, 200, 'the valid part is kept');
   const s2 = (await (await get(hub, '/state')).json()).settings;
-  assert.deepEqual([s2.view, s2.max_tiles], ['single', 8]);
+  assert.deepEqual([s2.max_tiles, s2.pulse], [0, false]);
 }));
 
 test('settings_are_kept_in_a_file_for_the_next_hub', async () => {

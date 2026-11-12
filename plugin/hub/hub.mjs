@@ -16,17 +16,15 @@ import { stateDir } from '../scripts/common.mjs';
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
 const SOUNDS = ['all', 'ask', 'off'];
-const VIEWS = ['single', 'hub'];
 // Settings shared by every page, with what each accepts. Anything else in a POST is ignored.
 const SETTING_RULES = {
   sound: (v) => SOUNDS.includes(v),
-  view: (v) => VIEWS.includes(v),
-  max_tiles: (v) => Number.isInteger(v) && v >= 2 && v <= 32,
+  max_tiles: (v) => Number.isInteger(v) && v >= 0 && v <= 32,        // tiles per page, 0 = Auto (what fits the window)
   theme: (v) => typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v),
   pulse: (v) => typeof v === 'boolean',
   dim_idle: (v) => typeof v === 'boolean',
 };
-const SETTING_DEFAULTS = { sound: 'ask', view: 'single', max_tiles: 12, theme: 'default', pulse: true, dim_idle: true };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -86,7 +84,7 @@ export function startHub(opts = {}) {
   const json = (res, obj) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
 
   function serveStatic(res, urlPath) {
-    const rel = urlPath === '/' ? 'index.html' : urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : decodeURIComponent(urlPath.slice(1));
+    const rel = urlPath === '/' || urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : decodeURIComponent(urlPath.slice(1));
     const file = path.join(WEB_DIR, rel);
     if (!file.startsWith(WEB_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return text(res, 404, 'not found');
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' });
@@ -158,7 +156,7 @@ export function startHub(opts = {}) {
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
-          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), view (single, hub), max_tiles (2 to 32), theme (a theme name), pulse, dim_idle');
+          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle');
           settings = { ...settings, ...next };
           for (const fn of settingsTaps) { try { fn({ sound: settings.sound }); } catch { /* tap errors stay local */ } }
           if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }

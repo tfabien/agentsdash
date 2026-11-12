@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gridShape, bestGrid, isIdle, planTiles, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { gridShape, bestGrid, packRows, bestLayout, isIdle, paginate, orderSessions, autoCapacity, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
 const agent = (over = {}) => ({ id: 'lead', role: 'lead', state: 'working', cmd: 'Edit app.js', age: 100, tok: 0, prev: '', prev_age: 0, ...over });
@@ -12,26 +12,36 @@ test('grid_fits_the_session_count', () => {
     { cols: 3, rows: 2 }, { cols: 3, rows: 3 }, { cols: 4, rows: 3 }, { cols: 4, rows: 4 }]);
 });
 
-test('few_sessions_are_all_shown_in_the_order_of_the_hub', () => {
+test('sessions_fit_one_page_when_they_fit_the_capacity', () => {
   const all = ['a', 'b', 'c'].map((id) => sess(id));
-  assert.deepEqual(planTiles(all, { max: 6 }), { tiles: all, hidden: 0 });
+  assert.deepEqual(paginate(all, { max: 6 }), [all]);
+  assert.deepEqual(paginate([], { max: 6 }), []);
 });
 
-test('past_the_limit_the_least_urgent_fold_into_one_placeholder', () => {
-  const all = [sess('a', 'done'), sess('b', 'needs_you'), sess('c', 'your_turn'), sess('d', 'working'), sess('e', 'done'), sess('f', 'error'), sess('g', 'working')];
-  const { tiles, hidden } = planTiles(all, { max: 6 });
-  assert.equal(hidden, 2);                                      // 5 tiles + the placeholder = 6 cells
-  assert.deepEqual(tiles.map((s) => s.id), ['b', 'c', 'd', 'f', 'g']);   // hub order kept, both "done" sessions folded... and the oldest idle one
+test('past_the_capacity_sessions_run_on_to_more_pages_in_order', () => {
+  const all = Array.from({ length: 7 }, (_, i) => sess(`s${i}`));
+  assert.deepEqual(paginate(all, { max: 3 }).map((p) => p.map((s) => s.id)), [['s0', 's1', 's2'], ['s3', 's4', 's5'], ['s6']]);
 });
 
-test('show_all_lifts_the_limit', () => {
-  const all = Array.from({ length: 9 }, (_, i) => sess(`s${i}`));
-  assert.equal(planTiles(all, { max: 6, showAll: true }).tiles.length, 9);
+test('idle_sessions_go_last_and_each_group_keeps_its_first_seen_order', () => {
+  const all = [sess('a', 'done'), sess('b'), sess('c', 'your_turn'), sess('d')];
+  const rank = new Map([['a', 0], ['b', 1], ['c', 2], ['d', 3]]);
+  const idle = (s) => s.dot === 'done' || s.dot === 'your_turn';
+  assert.deepEqual(orderSessions(all, rank, idle).map((s) => s.id), ['b', 'd', 'a', 'c']);
 });
 
-test('needs_you_and_error_are_never_folded_before_idle_sessions', () => {
-  const all = [...Array.from({ length: 6 }, (_, i) => sess(`i${i}`, 'done')), sess('n', 'needs_you')];
-  assert.ok(planTiles(all, { max: 6 }).tiles.some((s) => s.id === 'n'));
+test('auto_capacity_counts_the_tiles_that_fit_the_window', () => {
+  assert.equal(autoCapacity(0, 0, 472, 216), 12, 'unknown size: the cap');
+  assert.equal(autoCapacity(500, 300, 472, 216), 1);
+  assert.equal(autoCapacity(1200, 400, 472, 216), 6, '3 columns x 2 rows at 0.8 scale (378 x 173)');
+  assert.equal(autoCapacity(3000, 2000, 472, 216), 12, 'never above the cap');
+});
+
+test('a_page_is_flagged_when_a_session_needs_you_or_failed', () => {
+  assert.equal(pageAlert([sess('a'), sess('b', 'needs_you')]), 'needs_you');
+  assert.equal(pageAlert([sess('a', 'error'), sess('b', 'needs_you')]), 'needs_you');
+  assert.equal(pageAlert([sess('a', 'error')]), 'error');
+  assert.equal(pageAlert([sess('a'), sess('b', 'done')]), '');
 });
 
 test('tile_says_what_the_session_does', () => {
@@ -129,13 +139,23 @@ test('isIdle_after_five_minutes_waiting_for_the_user_only', () => {
   assert.equal(isIdle(s('needs_you', 900)), false);
 });
 
-test('a_session_with_sub_agents_takes_two_cells_and_planTiles_counts_them', () => {
+test('a_session_with_sub_agents_takes_two_cells_and_is_never_split_across_pages', () => {
   const team = (id, dot) => sess(id, dot, { agents: [agent({ state: dot }), agent({ id: 'x1', parent: 'lead', state: 'working' })] });
   assert.equal(cellsOf(sess('a')), 1);
   assert.equal(cellsOf(team('b', 'working')), 2);
   const all = [team('t1', 'working'), team('t2', 'your_turn'), sess('s1', 'needs_you')];
-  assert.equal(planTiles(all, { max: 5, cost: cellsOf }).hidden, 0, '2 + 2 + 1 cells fit in 5');
-  const { tiles, hidden } = planTiles(all, { max: 4, cost: cellsOf });
-  assert.deepEqual(tiles.map((s) => s.id), ['t1', 's1'], 'the least urgent team folds first; one cell stays for the placeholder');
-  assert.equal(hidden, 1);
+  assert.equal(paginate(all, { max: 5, cost: cellsOf }).length, 1, '2 + 2 + 1 cells fit in 5');
+  assert.deepEqual(paginate(all, { max: 4, cost: cellsOf }).map((p) => p.map((s) => s.id)), [['t1', 't2'], ['s1']]);
+  assert.deepEqual(paginate(all, { max: 3, cost: cellsOf }).map((p) => p.map((s) => s.id)), [['t1'], ['t2', 's1']]);
+  assert.deepEqual(paginate(all, { max: 1, cost: cellsOf }).map((p) => p.map((s) => s.id)), [['t1'], ['t2'], ['s1']], 'a team alone on a page when the capacity is 1');
+});
+
+test('a_team_takes_two_columns_and_wraps_to_the_next_row_with_its_lead', () => {
+  assert.equal(packRows([1, 1, 1], 3), 1);
+  assert.equal(packRows([1, 2, 1], 3), 2, '1 + 2 fills the row, the last one wraps');
+  assert.equal(packRows([1, 1, 2], 3), 2, 'the pair would straddle two rows, so it starts the next one');
+  assert.equal(packRows([2, 2, 1], 2), 3);
+  assert.deepEqual(bestLayout([2], 800, 300, 472 / 216, 12, 700, 1.8), { cols: 2, rows: 1 }, 'a lone team: lead and team side by side');
+  assert.ok(bestLayout([1, 2, 1, 2], 1200, 500, 472 / 216, 12, 700, 1.8).cols >= 2, 'never narrower than a team');
+  assert.deepEqual(bestLayout([], 800, 600, 2), { cols: 1, rows: 1 });
 });
