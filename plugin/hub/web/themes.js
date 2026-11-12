@@ -2,7 +2,8 @@
 // A theme is a plain object { name, label?, author?, version?, iconPack?, colors: { KEY: '#rrggbb' } }. Missing or invalid colors keep the
 // built-in value, a missing or unknown icon pack gives the robots. The active theme is global (setting `theme`, kept by the hub).
 import { COLOR } from './screen.js';
-import { ICON_PACKS, DEFAULT_PACK, iconPack } from './icon_packs.js';
+import { iconPack } from './icon_packs.js';
+import { validateTheme } from './theme_schema.js';
 
 const BASE = { ...COLOR };                                   // the palette of ui_theme.h, as RGB565
 const to565 = (hex) => { const n = parseInt(hex.slice(1), 16); return (((n >> 19) & 31) << 11) | (((n >> 10) & 63) << 5) | ((n >> 3) & 31); };
@@ -46,24 +47,7 @@ export const THEMES = {
   },
 };
 
-/**
- * Checks a theme loaded from outside (a file, a POST).
- * @returns {{ok: true, theme: object, ignored: string[]} | {ok: false, error: string}} `theme` is complete: every COLOR key, a known pack.
- */
-export function validateTheme(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'a theme is an object' };
-  if (typeof raw.name !== 'string' || !/^[a-z0-9-]{1,32}$/.test(raw.name)) return { ok: false, error: 'name: 1 to 32 characters among a-z, 0-9 and -' };
-  if (!raw.colors || typeof raw.colors !== 'object' || Array.isArray(raw.colors)) return { ok: false, error: 'colors: an object of KEY: "#rrggbb"' };
-  const ignored = [];
-  const colors = {};
-  for (const key of Object.keys(BASE)) {
-    const v = raw.colors[key];
-    if (v === undefined) continue;
-    if (typeof v === 'string' && HEX.test(v)) colors[key] = v.toLowerCase(); else ignored.push(key);
-  }
-  const pack = typeof raw.iconPack === 'string' && ICON_PACKS[raw.iconPack] ? raw.iconPack : DEFAULT_PACK;
-  return { ok: true, ignored, theme: { name: raw.name, label: typeof raw.label === 'string' ? raw.label : raw.name, author: String(raw.author ?? ''), version: String(raw.version ?? ''), iconPack: pack, colors } };
-}
+export { validateTheme };
 
 /** A color of `theme` as a CSS string (the built-in value when the theme leaves it out). */
 export function themeColor(theme, key) {

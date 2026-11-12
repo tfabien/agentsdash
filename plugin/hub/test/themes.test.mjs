@@ -66,7 +66,8 @@ test('a_missing_color_keeps_the_builtin_value_and_a_bad_one_is_dropped', () => {
 });
 
 test('an_unknown_icon_pack_gives_the_robots', () => {
-  assert.equal(validateTheme({ name: 'x', iconPack: 'ghost', colors: {} }).theme.iconPack, 'robot');
+  assert.equal(validateTheme({ name: 'x', iconPack: 'ghost', colors: {} }).theme.iconPack, 'ghost', 'a well-formed name is kept, the catalog resolves it');
+  assert.equal(validateTheme({ name: 'x', iconPack: 'Bad Pack', colors: {} }).theme.iconPack, 'robot');
   assert.equal(iconPack('ghost'), ICON_PACKS.robot);
 });
 
