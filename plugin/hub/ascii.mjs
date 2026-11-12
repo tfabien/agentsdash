@@ -38,6 +38,7 @@ const DEVICE_LIMITS = { session: 4, agent: 4, project: 14, role: 23, evt: 23, cm
 export function forDevice(route, body) {
   const out = asciiDeep(body);
   if (route === '/event' && out && typeof out === 'object') {
+    delete out.cwd;                                  // the path stays on the hub (rules); a gadget has no use for it
     for (const [key, n] of Object.entries(DEVICE_LIMITS)) if (typeof out[key] === 'string') out[key] = out[key].slice(0, n);
   }
   return out;

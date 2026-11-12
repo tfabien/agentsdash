@@ -51,4 +51,7 @@ test('validRules_rejects_bad_color_and_non_array', () => {
   assert.equal(validRules([{ match: '' }]), false);
   assert.equal(validRules([{ match: '/a', iconPack: 5 }]), false);
   assert.equal(validRules([null]), false);
+  assert.equal(validRules([{ match: '/a', iconPack: 'Bad Pack!' }]), false);
+  assert.equal(validRules([{ match: '/a', iconPack: 'a'.repeat(33) }]), false);
+  assert.equal(validRules([{ match: '/a', iconPack: 'my-pack2' }]), true);
 });

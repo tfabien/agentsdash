@@ -34,6 +34,6 @@ export function validRules(v) {
   return v.every((r) =>
     r && typeof r === 'object' && !Array.isArray(r) &&
     typeof r.match === 'string' && r.match.length > 0 &&
-    (r.iconPack === undefined || typeof r.iconPack === 'string') &&
+    (r.iconPack === undefined || (typeof r.iconPack === 'string' && /^[a-z0-9-]{1,32}$/.test(r.iconPack))) &&
     (r.badgeColor === undefined || (typeof r.badgeColor === 'string' && /^#[0-9a-f]{6}$/i.test(r.badgeColor))));
 }

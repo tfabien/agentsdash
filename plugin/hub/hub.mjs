@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModel } from './model.mjs';
+import { validRules } from './rules.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
 import { createQuotaPoller, quotasEnabled } from './quotas.mjs';
 import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
@@ -23,8 +24,9 @@ const SETTING_RULES = {
   theme: (v) => typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v),
   pulse: (v) => typeof v === 'boolean',
   dim_idle: (v) => typeof v === 'boolean',
+  rules: validRules,                                                  // per-project icon pack and badge color
 };
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, rules: [] };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -156,7 +158,7 @@ export function startHub(opts = {}) {
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
-          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle');
+          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle, rules (a list of {match, iconPack?, badgeColor?})');
           settings = { ...settings, ...next };
           for (const fn of settingsTaps) { try { fn({ sound: settings.sound }); } catch { /* tap errors stay local */ } }
           if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }

@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { startHub } from '../hub.mjs';
 import { loadConfig } from '../config.mjs';
+import { forDevice } from '../ascii.mjs';
 
 const EV = { v: 2, session: 'abcd', project: 'proj', agent: 'lead', role: 'lead', evt: 'PreToolUse', state: 'working', cmd: 'Edit a.js', detail: '' };
 const post = (hub, p, body, raw) => fetch(`http://127.0.0.1:${hub.port}${p}`, {
@@ -190,6 +191,21 @@ test('settings_default_to_beeps_for_questions_only_and_are_shared_by_every_page'
   const s2 = (await (await get(hub, '/state')).json()).settings;
   assert.deepEqual([s2.max_tiles, s2.pulse], [0, false]);
 }));
+
+test('settings_accept_valid_rules_and_reject_invalid', () => withHub(async (hub) => {
+  assert.deepEqual((await (await get(hub, '/state')).json()).settings.rules, []);
+  const rules = [{ match: '/w/prod-*', badgeColor: '#ff0000' }];
+  assert.equal((await post(hub, '/settings', { rules })).status, 200);
+  assert.deepEqual((await (await get(hub, '/state')).json()).settings.rules, rules);
+  assert.equal((await post(hub, '/settings', { rules: [{ match: '/w', badgeColor: 'red' }] })).status, 400);
+  assert.equal((await post(hub, '/settings', { rules: [{ match: '/w', iconPack: 'Bad Pack' }] })).status, 400);
+  assert.deepEqual((await (await get(hub, '/state')).json()).settings.rules, rules, 'a bad value changes nothing');
+}));
+
+test('cwd_is_not_sent_to_device_relays', () => {
+  const body = forDevice('/event', { session: 'abcd', project: 'demo', cwd: 'C:/work/demo', cmd: 'x' });
+  assert.equal('cwd' in body, false);
+});
 
 test('settings_are_kept_in_a_file_for_the_next_hub', async () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubset-')), 'settings.json');

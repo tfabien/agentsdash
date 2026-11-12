@@ -114,6 +114,7 @@ function fit(t) {
   t.canvas.style.borderRadius = weldOf(t) === 'right' ? `${r} 0 0 ${r}` : weldOf(t) === 'left' ? `0 ${r} ${r} 0` : r;
   t.box.style.setProperty('--trash-x', `${(bw - w / dpr) / 2 + 10}px`);        // the trash button sits at the bottom right of the frame, under the context
   t.box.style.setProperty('--trash-y', `${(bh - h / dpr) / 2 + 10}px`);
+  if (t.box.parentElement?.classList.contains('group')) t.box.parentElement.style.setProperty('--link-y', `${(bh - h / dpr) / 2 + 16}px`);   // the chip on the seam stays inside the frames, not at the bottom of the cell
   t.frameW = fw;
   return k;
 }
