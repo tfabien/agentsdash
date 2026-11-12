@@ -9,8 +9,8 @@ export const STALE_TTL_MS = 600000;
 export const CTX_STATUSLINE_MS = 120000;
 export const CTX_UNKNOWN = 255;
 
-// Field limits of the firmware (buffer length minus the NUL).
-const LIM = { id: 4, project: 14, role: 23, evt: 23, cmd: 63, detail: 60, title: 30, model: 40, plan: 47, planState: 16, ask: 120, askOpts: 100 };
+// Only identifiers are cut (they are keys). Display text keeps its full length and Unicode: each screen adapts it (devices: ascii.mjs forDevice).
+const ID_LEN = 4;
 
 // Order IS the urgency order (smaller = more urgent).
 const NAMES = ['needs_you', 'error', 'your_turn', 'working', 'waiting_subs', 'done'];
@@ -18,12 +18,13 @@ const ST = { NEEDS_YOU: 0, ERROR: 1, YOUR_TURN: 2, WORKING: 3, WAITING_SUBS: 4, 
 const PARSE = { needs_you: 0, error: 1, your_turn: 2, working: 3, done: 5 };
 const FLAT = ['waiting', 'error', 'done', 'working', 'working', 'done'];     // state names of the old v0.1 list
 
-/** ASCII only (control characters become spaces or '?'), cut to `n` characters. */
-function clean(value, n) {
+/** Text with control characters turned into spaces (tabs, new lines) or dropped; cut to `n` characters when given. */
+function clean(value, n = Infinity) {
   let out = '';
   for (const ch of String(value ?? '')) {
     const c = ch.codePointAt(0);
-    out += c === 10 || c === 9 ? ' ' : c < 32 || c > 126 ? '?' : ch;
+    if (c === 10 || c === 9) out += ' ';
+    else if (c >= 32 && c !== 127 && !(c >= 0x80 && c < 0xa0)) out += ch;
   }
   return out.slice(0, n);
 }
@@ -204,7 +205,7 @@ export function createModel(opts = {}) {
       if (!same(h5, quotas.h5) || !same(d7, quotas.d7)) quotas.rev = ++rev;
       applied = true;
     }
-    const s = u.session ? findSession(clean(u.session, LIM.id)) : null;    // unknown session: no new tab for a status line
+    const s = u.session ? findSession(clean(u.session, ID_LEN)) : null;    // unknown session: no new tab for a status line
     if (s && f('ctx_pct') !== null) {
       s.ctxPct = clamp(f('ctx_pct'), 0, 254);
       if (f('ctx_k') !== null && f('ctx_k') >= 0) s.ctxK = Math.min(f('ctx_k'), 65535);
@@ -221,29 +222,29 @@ export function createModel(opts = {}) {
   function parseEvent(ev) {
     if (!ev || typeof ev !== 'object') return null;
     if (ev.v === 2) {
-      const session = clean(ev.session, LIM.id), agent = clean(ev.agent, LIM.id);
+      const session = clean(ev.session, ID_LEN), agent = clean(ev.agent, ID_LEN);
       const state = PARSE[ev.state];
       if (!session || !agent || state === undefined) return null;
       return {
-        session, agent, state, project: clean(ev.project, LIM.project), role: clean(ev.role, LIM.role), evt: clean(ev.evt, LIM.evt),
-        cmd: clean(ev.cmd, LIM.cmd), detail: clean(ev.detail, LIM.detail), title: clean(ev.title, LIM.title),
-        model: clean(ev.model, LIM.model), tok: opt(ev.tok), stok: opt(ev.stok), ctxPct: opt(ev.ctx_pct), ctxK: opt(ev.ctx_k),
+        session, agent, state, project: clean(ev.project), role: clean(ev.role), evt: clean(ev.evt),
+        cmd: clean(ev.cmd), detail: clean(ev.detail), title: clean(ev.title),
+        model: clean(ev.model), tok: opt(ev.tok), stok: opt(ev.stok), ctxPct: opt(ev.ctx_pct), ctxK: opt(ev.ctx_k),
         planDone: opt(ev.plan_done), planTotal: opt(ev.plan_total),
-        planItems: Array.isArray(ev.plan_items) ? ev.plan_items.slice(0, 30).map((x) => clean(x, 50)) : null,
-        hasPlanCur: typeof ev.plan_cur === 'string', planCur: clean(ev.plan_cur, LIM.plan),
-        hasPlanNext: typeof ev.plan_next === 'string', planNext: clean(ev.plan_next, LIM.plan),
-        planState: clean(ev.plan_state, LIM.planState), ask: clean(ev.question, LIM.ask), askOpts: clean(ev.options, LIM.askOpts),
+        planItems: Array.isArray(ev.plan_items) ? ev.plan_items.slice(0, 30).map((x) => clean(x)) : null,
+        hasPlanCur: typeof ev.plan_cur === 'string', planCur: clean(ev.plan_cur),
+        hasPlanNext: typeof ev.plan_next === 'string', planNext: clean(ev.plan_next),
+        planState: clean(ev.plan_state), ask: clean(ev.question), askOpts: clean(ev.options),
       };
     }
-    const name = clean(ev.agent, 23);
+    const name = clean(ev.agent);
     const map = { working: ST.WORKING, waiting: ST.NEEDS_YOU, done: ST.DONE, error: ST.ERROR };
     const state = map[ev.state];
     if (!name || state === undefined) return null;
     let h = 2166136261;                                         // FNV-1a of the name -> stable 4-hex-digit session id
     for (const ch of name) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {
-      session: (h & 0xffff).toString(16).padStart(4, '0'), agent: 'lead', state, project: name.slice(0, LIM.project), role: 'lead',
-      evt: 'V1', cmd: clean(ev.task, LIM.cmd), detail: '', title: '', tok: -1, stok: -1, model: '', ctxPct: -1, ctxK: -1, planDone: -1, planItems: null,
+      session: (h & 0xffff).toString(16).padStart(4, '0'), agent: 'lead', state, project: name, role: 'lead',
+      evt: 'V1', cmd: clean(ev.task), detail: '', title: '', tok: -1, stok: -1, model: '', ctxPct: -1, ctxK: -1, planDone: -1, planItems: null,
       planTotal: -1, hasPlanCur: false, planCur: '', hasPlanNext: false, planNext: '', planState: '', ask: '', askOpts: '',
     };
   }

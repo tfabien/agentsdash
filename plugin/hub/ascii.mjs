@@ -30,3 +30,15 @@ export function asciiDeep(value) {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [toAscii(k), asciiDeep(v)]));
   return value;
 }
+
+// Field lengths of the gadget firmware (buffer length minus the NUL). The hub keeps full text; the relays cut it here, per wire key.
+const DEVICE_LIMITS = { session: 4, agent: 4, project: 14, role: 23, evt: 23, cmd: 63, detail: 60, title: 30, model: 40, plan_cur: 47, plan_next: 47, plan_state: 16, question: 120, options: 100 };
+
+/** What a gadget receives for `route`: ASCII only, and for /event every text field cut to the firmware's buffer. */
+export function forDevice(route, body) {
+  const out = asciiDeep(body);
+  if (route === '/event' && out && typeof out === 'object') {
+    for (const [key, n] of Object.entries(DEVICE_LIMITS)) if (typeof out[key] === 'string') out[key] = out[key].slice(0, n);
+  }
+  return out;
+}

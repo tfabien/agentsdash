@@ -196,14 +196,14 @@ test('unknown_state_returns_false', () => {
   assert.equal(m.toState(0).sessions.length, 0);
 });
 
-test('non_ascii_is_replaced_and_fields_truncated', () => {
+test('text_keeps_unicode_and_length_only_ids_are_cut', () => {
   const m = createModel();
   m.applyEvent(ev({ cmd: 'café ' + 'x'.repeat(100), project: 'p'.repeat(30), session: 'abcdef' }), 0);
   const s = m.toState(0).sessions[0];
   assert.equal(s.id, 'abcd');
-  assert.equal(s.project.length, 14);
-  assert.match(s.agents[0].cmd, /^caf\? x+$/);
-  assert.equal(s.agents[0].cmd.length, 63);
+  assert.equal(s.project.length, 30);
+  assert.match(s.agents[0].cmd, /^café x+$/);
+  assert.equal(s.agents[0].cmd.length, 105);
 });
 
 test('usage_quotas_appear_and_count_down', () => {

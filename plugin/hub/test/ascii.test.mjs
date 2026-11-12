@@ -28,3 +28,15 @@ test('asciiDeep reduces nested strings and keeps other types', () => {
   const out = asciiDeep({ session: 'é', n: 3, ok: true, none: null, list: [{ t: '日本' }, 'ç'] });
   assert.deepEqual(out, { session: 'e', n: 3, ok: true, none: null, list: [{ t: '??' }, 'c'] });
 });
+
+test('forDevice cuts event fields to the firmware buffers and reduces to ASCII', async () => {
+  const { forDevice } = await import('../ascii.mjs');
+  const out = forDevice('/event', { session: 'abcdef', project: 'artillery-x3-screen', title: 'café '.repeat(20), cmd: 'x'.repeat(100), tok: 5 });
+  assert.equal(out.session, 'abcd');
+  assert.equal(out.project, 'artillery-x3-s');
+  assert.equal(out.title.length, 30);
+  assert.ok(out.title.startsWith('cafe cafe'));
+  assert.equal(out.cmd.length, 63);
+  assert.equal(out.tok, 5);
+  assert.equal(forDevice('/usage', { note: 'x'.repeat(100) }).note.length, 100);
+});
