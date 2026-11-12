@@ -6,10 +6,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModel } from './model.mjs';
-import { loadConfig } from './config.mjs';
+import { loadConfig, defaultConfigPath } from './config.mjs';
 import { createQuotaPoller, quotasEnabled } from './quotas.mjs';
-import { createHttpRelay } from './relay_http.mjs';
-import { createSerialRelay } from './relay_serial.mjs';
+import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
+import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
+import { parseRelay, sameRelay } from './relay_config.mjs';
 import { stateDir } from '../scripts/common.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
@@ -69,7 +70,11 @@ export function startHub(opts = {}) {
   const settingsTaps = [];
   const changeTaps = [];
 
-  const relayInfo = () => (relay ? { mode, ...(serial ? { port: config.relay.port } : { host: config.relay.host }), ...relay.status() } : null);
+  // The relay to the device: chosen in agent-gadget.json, or from the page (POST /relay), which swaps it while the hub runs.
+  let relayConf = config.relay ?? { mode: 'none' };
+  let serial = null;
+  let relay = null;
+  const relayInfo = () => (relay ? { mode: relayConf.mode, ...(serial ? { port: relayConf.port } : { host: relayConf.host }), ...relay.status() } : null);
   const stateJson = () => ({ ...model.toState(now()), settings, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
@@ -103,6 +108,17 @@ export function startHub(opts = {}) {
         return undefined;
       case 'GET /state': return json(res, stateJson());
       case 'GET /relay': return json(res, relayInfo() ?? { mode: 'none' });
+      case 'GET /relay/ports': return json(res, await (opts.listPorts ?? listSerialPorts)());
+      case 'POST /relay/test': return json(res, await testRelay());
+      case 'POST /relay': {
+        let body;
+        try { body = JSON.parse(await readBody(req)); } catch (e) { return e.status === 413 ? text(res, 413, 'body too large') : text(res, 400, 'invalid JSON'); }
+        const parsed = await parseRelay(body, opts.lookup);
+        if (parsed.error) return text(res, 400, parsed.error);
+        const saved = swapRelay(parsed.relay);
+        publish();
+        return json(res, { ok: true, saved });
+      }
       case 'POST /serial/release':
       case 'POST /serial/open':
         if (!serial) return text(res, 404, 'not in serial mode');
@@ -165,16 +181,52 @@ export function startHub(opts = {}) {
   const timer = setInterval(() => { model.prune(now()); if (clients.size) publish(); }, TICK_MS);
   timer.unref();
 
-  // Relay to a gadget (Wi-Fi or USB): every accepted event and usage report is forwarded as received.
-  const mode = config.relay?.mode;
-  const serial = mode === 'serial' && config.relay.port ? createSerialRelay({ path: config.relay.port, ...(opts.serial ?? {}) }) : null;
-  const relay = serial ?? (mode === 'http' && config.relay.host ? createHttpRelay({ host: config.relay.host }) : null);
-  if (relay) {
-    eventTaps.push((body) => { const { plan_items: _items, ...forDevice } = body; relay.send('/event', forDevice); });     // the gadget has no use for the plan list
-    usageTaps.push((body) => relay.send('/usage', body));
-    dismissTaps.push((body) => relay.send('/dismiss', body));
-    settingsTaps.push((body) => relay.send('/settings', body));
-    relay.send('/settings', { sound: settings.sound });   // the gadget buzzer follows the hub setting from the start
+  // Relay to a gadget (Wi-Fi or USB): every accepted event and usage report is forwarded as received. The taps read the current relay.
+  function buildRelay() {
+    serial = relayConf.mode === 'serial' && relayConf.port ? createSerialRelay({ path: relayConf.port, ...(opts.serial ?? {}) }) : null;
+    relay = serial ?? (relayConf.mode === 'http' && relayConf.host ? createHttpRelay({ host: relayConf.host, ...(opts.http ?? {}) }) : null);
+    relay?.send('/settings', { sound: settings.sound });   // the gadget buzzer follows the hub setting from the start
+  }
+  eventTaps.push((body) => { const { plan_items: _items, ...forDevice } = body; relay?.send('/event', forDevice); });     // the gadget has no use for the plan list
+  usageTaps.push((body) => relay?.send('/usage', body));
+  dismissTaps.push((body) => relay?.send('/dismiss', body));
+  settingsTaps.push((body) => relay?.send('/settings', body));
+  buildRelay();
+
+  /** Swaps the relay while the hub runs and writes the choice into the `relay` key of agent-gadget.json (the other keys stay). */
+  function swapRelay(next) {
+    if (!sameRelay(next, relayConf)) {
+      serial?.release();                     // frees the COM port before another relay may open it
+      relay?.stop?.();
+      relayConf = next;
+      buildRelay();
+      serial?.start();
+    }
+    if (!opts.configFile) return false;
+    try {
+      let data = {};
+      try { const parsed = JSON.parse(fs.readFileSync(opts.configFile, 'utf8')); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed; } catch { /* a new file */ }
+      fs.mkdirSync(path.dirname(opts.configFile), { recursive: true });
+      fs.writeFileSync(opts.configFile, `${JSON.stringify({ ...data, relay: next }, null, 2)}
+`, 'utf8');
+      return true;
+    } catch { return false; }                // the choice still holds until the hub stops
+  }
+
+  /** The Test button: one real request to the device (GET /state over Wi-Fi), or the state of the open port over USB. */
+  async function testRelay() {
+    if (!relay) return { ok: false, error: 'no device configured' };
+    if (serial) {
+      const st = serial.status();
+      return st.connected ? { ok: true, detail: `port ${relayConf.port} is open` } : { ok: false, error: st.released ? 'port released for another tool' : st.lastError || 'port not open' };
+    }
+    if (fs.existsSync(opts.http?.lockFile ?? defaultLockFile())) return { ok: false, error: 'a screen upload is running, try again when it is done' };
+    const started = Date.now();
+    try {
+      const r = await (opts.http?.fetchImpl ?? globalThis.fetch)(`http://${relayConf.host}/state`, { signal: AbortSignal.timeout(2000) });
+      await r.arrayBuffer();
+      return r.ok ? { ok: true, detail: `answered in ${Date.now() - started} ms` } : { ok: false, error: `HTTP ${r.status}` };
+    } catch (e) { return { ok: false, error: String(e?.cause?.code ?? e?.message ?? e) }; }
   }
 
   // Plan quotas for the desktop app (no status line): polled while a session exists, applied like a POST /usage.
@@ -202,6 +254,7 @@ export function startHub(opts = {}) {
           clearInterval(timer);
           quotas.stop();
           serial?.release();
+          relay?.stop?.();
           for (const res of clients) res.end();
           clients.clear();
           server.close(() => done());
@@ -218,7 +271,7 @@ const isMain = (() => {
   try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
 })();
 if (isMain) {
-  startHub({ settingsFile: path.join(stateDir(), 'hub-settings.json'), onShutdown: () => process.exit(0) }).then((hub) => {
+  startHub({ settingsFile: path.join(stateDir(), 'hub-settings.json'), configFile: defaultConfigPath(), onShutdown: () => process.exit(0) }).then((hub) => {
     process.stderr.write(`standup-bot hub listening on http://${hub.host}:${hub.port}/\n`);
   }).catch((e) => {
     process.stderr.write(`standup-bot hub: cannot start (${e.code ?? e.message})\n`);

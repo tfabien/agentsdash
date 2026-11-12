@@ -19,6 +19,12 @@
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #c9d4e0; transition: transform .15s; }
 .switch.on { background: #3b6fd4; } .switch.on::after { transform: translateX(18px); background: #fff; }
 
+.sdevice { padding: 10px 0 4px; border-top: 1px solid #1f2a3a; display: grid; gap: 8px; }
+.dstatus { font-size: 12px; color: var(--muted); } .dstatus.ok { color: var(--ok); } .dstatus.down { color: var(--needs); }
+.dinput { background: #0b111b; color: #e6edf3; border: 1px solid #2a3850; border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; }
+.dinput[hidden], .shint[hidden] { display: none; }
+.dresult { font-size: 12px; min-height: 1em; } .dresult.ok { color: var(--ok); } .dresult.down { color: var(--error); }
+
 #bar { display: flex; align-items: center; gap: 24px; background: #0f1520; border-radius: 10px; padding: 10px 16px; color: #e6edf3; font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
 #bar .quotas { display: flex; gap: 28px; }
 .quota { display: flex; align-items: center; gap: 8px; font-size: 13px; }

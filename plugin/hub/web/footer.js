@@ -33,6 +33,7 @@ export function mountFooter(root, { page }) {
     settings,
     update(state, elapsedS) {
       mode = state.settings?.sound ?? 'ask';
+      settings.updateRelay(state.relay);
       const label = relayLabel(state.relay);              // a small plug: lit when the device answers, grey and crossed when it does not
       relay.hidden = !label;
       if (label) { relay.className = `relay ${label.ok ? 'ok' : 'down'}`; relay.title = `${label.text}. ${label.why}`; }
