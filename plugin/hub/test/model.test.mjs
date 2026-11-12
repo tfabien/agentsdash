@@ -13,6 +13,17 @@ function ev(over = {}) {
 }
 const sub = (id, over = {}) => ev({ agent: id, role: 'code', ...over });
 
+test('state_session_has_cwd', () => {
+  const m = createModel();
+  m.applyEvent(ev({ session: 'a001', cwd: 'C:\\Work\\Prod-api' }), 1000);
+  m.applyEvent(ev({ session: 'b001' }), 1000);
+  const byId = Object.fromEntries(m.toState(1500).sessions.map((s) => [s.id, s]));
+  assert.equal(byId.a001.cwd, 'C:\\Work\\Prod-api');
+  assert.equal(byId.b001.cwd, '', 'no cwd in the event gives an empty string');
+  m.applyEvent(ev({ session: 'a001' }), 1100);
+  assert.equal(m.toState(1500).sessions.find((s) => s.id === 'a001').cwd, 'C:\\Work\\Prod-api', 'a later event without cwd keeps it');
+});
+
 test('needs_you_sorts_first', () => {
   const m = createModel();
   m.applyEvent(ev({ session: 'a001', state: 'working' }), 1000);

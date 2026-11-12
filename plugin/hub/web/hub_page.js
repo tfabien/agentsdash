@@ -7,7 +7,8 @@ import { TILES_MAX } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
-import { applyTheme } from './themes.js';
+import { applyTheme, setCatalog } from './themes.js';
+import { onIconsLoaded } from './icon_packs.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const $ = (id) => document.getElementById(id);
@@ -149,7 +150,7 @@ function drawTile(s, t) {
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
   t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t));
-  renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [] }, {
+  renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
     bare: true, part: t.part, frameW: t.frameW, elapsedS: elapsed(), menu: false, detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
 }
@@ -251,8 +252,9 @@ function render() {
 
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
+  if (next.catalog) setCatalog(next.catalog);
   applyTheme(next.settings?.theme);
-  footer.settings.update(next.settings ?? {});
+  footer.settings.update(next.settings ?? {}, next.catalog);
   const now = countStates(next.sessions);
   const times = beepsFor(counts, now, sound);
   if (times) beep(times);
@@ -267,5 +269,6 @@ es.onerror = () => document.body.classList.add('offline');
 es.onopen = () => document.body.classList.remove('offline');
 setInterval(render, 1000);                            // ages and the clock run on between events
 setInterval(draw, FRAME_MS);
+onIconsLoaded(draw);                                  // an SVG icon that just loaded replaces the robot at once
 new ResizeObserver(draw).observe($('tiles'));
 render();

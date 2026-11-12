@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { startHub } from '../hub.mjs';
 import { loadConfig } from '../config.mjs';
+import { forDevice } from '../ascii.mjs';
 
 const EV = { v: 2, session: 'abcd', project: 'proj', agent: 'lead', role: 'lead', evt: 'PreToolUse', state: 'working', cmd: 'Edit a.js', detail: '' };
 const post = (hub, p, body, raw) => fetch(`http://127.0.0.1:${hub.port}${p}`, {
@@ -13,8 +14,10 @@ const post = (hub, p, body, raw) => fetch(`http://127.0.0.1:${hub.port}${p}`, {
 });
 const get = (hub, p) => fetch(`http://127.0.0.1:${hub.port}${p}`);
 
+const tmpUserDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'hubu-'));    // never read the real ~/.claude/standup-bot
+
 async function withHub(fn, opts = {}) {
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, ...opts });
+  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, userDir: tmpUserDir(), ...opts });
   try { await fn(hub); } finally { await hub.close(); }
 }
 
@@ -85,7 +88,7 @@ test('sse_sends_state_on_connect_and_on_change', () => withHub(async (hub) => {
 }));
 
 test('restart_then_next_event_repairs_state', async () => {
-  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, userDir: tmpUserDir() });
   await post(first, '/event', EV);
   await first.close();
   await withHub(async (hub) => {
@@ -112,16 +115,16 @@ test('unknown_route_returns_404', () => withHub(async (hub) => {
 }));
 
 test('second_hub_on_same_port_fails', async () => {
-  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, userDir: tmpUserDir() });
   try {
-    await assert.rejects(startHub({ port: first.port, config: { relay: { mode: 'none' }, quotas: false } }), (e) => e.code === 'EADDRINUSE');
+    await assert.rejects(startHub({ port: first.port, config: { relay: { mode: 'none' }, quotas: false }, userDir: tmpUserDir() }), (e) => e.code === 'EADDRINUSE');
   } finally { await first.close(); }
 });
 
 test('quota_poll_result_reaches_state_and_taps', async () => {
   const fetchImpl = async () => ({ ok: true, status: 200, headers: new Headers(), json: async () => ({ five_hour: { utilization: 33, resets_at: new Date(Date.now() + 3 * 3600 * 1000).toISOString() } }) });
   const hub = await startHub({
-    port: 0, config: { relay: { mode: 'none' }, quotas: true },
+    port: 0, config: { relay: { mode: 'none' }, quotas: true }, userDir: tmpUserDir(),
     quota: { fetchImpl, env: { CLAUDE_CODE_OAUTH_TOKEN: 'x' }, stateDir: fs.mkdtempSync(path.join(os.tmpdir(), 'hubq-')), autostart: false },
   });
   try {
@@ -191,12 +194,27 @@ test('settings_default_to_beeps_for_questions_only_and_are_shared_by_every_page'
   assert.deepEqual([s2.max_tiles, s2.pulse], [0, false]);
 }));
 
+test('settings_accept_valid_rules_and_reject_invalid', () => withHub(async (hub) => {
+  assert.deepEqual((await (await get(hub, '/state')).json()).settings.rules, []);
+  const rules = [{ match: '/w/prod-*', badgeColor: '#ff0000' }];
+  assert.equal((await post(hub, '/settings', { rules })).status, 200);
+  assert.deepEqual((await (await get(hub, '/state')).json()).settings.rules, rules);
+  assert.equal((await post(hub, '/settings', { rules: [{ match: '/w', badgeColor: 'red' }] })).status, 400);
+  assert.equal((await post(hub, '/settings', { rules: [{ match: '/w', iconPack: 'Bad Pack' }] })).status, 400);
+  assert.deepEqual((await (await get(hub, '/state')).json()).settings.rules, rules, 'a bad value changes nothing');
+}));
+
+test('cwd_is_not_sent_to_device_relays', () => {
+  const body = forDevice('/event', { session: 'abcd', project: 'demo', cwd: 'C:/work/demo', cmd: 'x' });
+  assert.equal('cwd' in body, false);
+});
+
 test('settings_are_kept_in_a_file_for_the_next_hub', async () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubset-')), 'settings.json');
-  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file });
+  const first = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file, userDir: tmpUserDir() });
   await post(first, '/settings', { sound: 'all' });
   await first.close();
-  const second = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file });
+  const second = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, settingsFile: file, userDir: tmpUserDir() });
   try { assert.equal((await (await get(second, '/state')).json()).settings.sound, 'all'); } finally { await second.close(); }
 });
 
@@ -220,3 +238,76 @@ test('loadConfig_defaults_and_file_and_env', () => {
   fs.writeFileSync(file, '{broken');
   assert.equal(loadConfig(file, {}).host, '127.0.0.1:8765');
 });
+
+// Catalog: temp built-in and user folders, so the tests never read the real ~/.claude/standup-bot.
+function catalogDirs() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'standup-cat-'));
+  const builtinDir = path.join(root, 'b');
+  const userDir = path.join(root, 'u');
+  fs.mkdirSync(path.join(userDir, 'themes'), { recursive: true });
+  fs.mkdirSync(path.join(userDir, 'icons', 'cats'), { recursive: true });
+  fs.mkdirSync(builtinDir, { recursive: true });
+  return { root, builtinDir, userDir };
+}
+
+test('state_has_catalog', async () => {
+  const d = catalogDirs();
+  fs.writeFileSync(path.join(d.userDir, 'themes', 'mine.json'), JSON.stringify({ name: 'mine', colors: { FRAME: '#112233' } }));
+  fs.writeFileSync(path.join(d.userDir, 'icons', 'cats', 'lead.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+  await withHub(async (hub) => {
+    const st = await (await get(hub, '/state')).json();
+    assert.deepEqual(st.catalog.themes.map((t) => t.name), ['mine']);
+    assert.equal(st.catalog.packs[0].name, 'cats');
+    assert.equal(st.catalog.packs[0].roles.lead, '/icons/cats/lead.svg');
+    assert.deepEqual(st.catalog.errors, []);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir });
+});
+
+test('reload_picks_up_a_new_theme_file', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    assert.equal((await (await get(hub, '/state')).json()).catalog.themes.length, 0);
+    fs.writeFileSync(path.join(d.userDir, 'themes', 'late.json'), JSON.stringify({ name: 'late', colors: { FRAME: '#112233' } }));
+    const r = await fetch(`http://127.0.0.1:${hub.port}/reload`, { method: 'POST' });
+    assert.equal(r.status, 200);
+    assert.deepEqual((await (await get(hub, '/state')).json()).catalog.themes.map((t) => t.name), ['late']);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir });
+});
+
+test('svg_served_with_sandbox_csp_and_svg_mime', async () => {
+  const d = catalogDirs();
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(1)</script></svg>';
+  fs.writeFileSync(path.join(d.userDir, 'icons', 'cats', 'lead.svg'), svg);
+  await withHub(async (hub) => {
+    const r = await get(hub, '/icons/cats/lead.svg');
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('content-type'), 'image/svg+xml');
+    assert.equal(r.headers.get('content-security-policy'), 'sandbox');
+    assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(r.headers.get('cache-control'), 'no-cache');
+    assert.equal(await r.text(), svg);
+    assert.equal((await get(hub, '/icons/cats/code.svg')).status, 404, 'unlisted file');
+  }, { builtinDir: d.builtinDir, userDir: d.userDir });
+});
+
+test('icon_path_traversal_is_404', async () => {
+  const d = catalogDirs();
+  fs.writeFileSync(path.join(d.userDir, 'icons', 'cats', 'lead.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+  fs.writeFileSync(path.join(d.userDir, 'secret.svg'), '<svg/>');
+  await withHub(async (hub) => {
+    for (const p of ['/icons/cats/../../secret.svg', '/icons/..%2Fsecret.svg', '/icons/cats/%2e%2e/%2e%2e/secret.svg', '/icons/cats/lead.svg/..']) {
+      const r = await fetch(`http://127.0.0.1:${hub.port}${p}`);
+      assert.equal(r.status, 404, p);
+    }
+  }, { builtinDir: d.builtinDir, userDir: d.userDir });
+});
+
+test('reload_rejects_foreign_host_and_origin', () => withHub(async (hub) => {
+  const status = await new Promise((resolve) => {
+    const req = http.request({ host: '127.0.0.1', port: hub.port, path: '/reload', method: 'POST', headers: { Host: 'evil.example' } }, (res) => { res.resume(); resolve(res.statusCode); });
+    req.end();
+  });
+  assert.equal(status, 403);
+  const r = await fetch(`http://127.0.0.1:${hub.port}/reload`, { method: 'POST', headers: { Origin: 'http://evil.example' } });
+  assert.equal(r.status, 403);
+}));

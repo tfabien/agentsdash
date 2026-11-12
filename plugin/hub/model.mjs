@@ -46,7 +46,7 @@ function newAgent(id, role, now, rev) {
 
 function newSession(id, now) {
   return {
-    id, project: '', title: '', ctxPct: CTX_UNKNOWN, ctxK: 0, ctxFromStatusLine: false, ctxAt: 0, stok: 0, usageRev: 0,
+    id, project: '', cwd: '', title: '', ctxPct: CTX_UNKNOWN, ctxK: 0, ctxFromStatusLine: false, ctxAt: 0, stok: 0, usageRev: 0,
     planDone: 0, planTotal: 0, planItems: [], planCur: '', planNext: '', planState: '', ask: '', askOpts: '',
     lead: null, subs: new Array(MAX_SUBS).fill(null), more: 0, hidden: [], waitingKids: false,
     lastActive: now, lastYourTurn: 0, lastPrompt: 0,
@@ -226,7 +226,7 @@ export function createModel(opts = {}) {
       const state = PARSE[ev.state];
       if (!session || !agent || state === undefined) return null;
       return {
-        session, agent, state, project: clean(ev.project), role: clean(ev.role), evt: clean(ev.evt),
+        session, agent, state, project: clean(ev.project), cwd: clean(ev.cwd), role: clean(ev.role), evt: clean(ev.evt),
         cmd: clean(ev.cmd), detail: clean(ev.detail), title: clean(ev.title),
         model: clean(ev.model), tok: opt(ev.tok), stok: opt(ev.stok), ctxPct: opt(ev.ctx_pct), ctxK: opt(ev.ctx_k),
         planDone: opt(ev.plan_done), planTotal: opt(ev.plan_total),
@@ -275,6 +275,7 @@ export function createModel(opts = {}) {
     }
     if (!s.lead) s.lead = null;
     if (e.project) s.project = e.project;
+    if (e.cwd) s.cwd = e.cwd;
     s.lastActive = now;
 
     let a, fresh = false;
@@ -431,7 +432,7 @@ export function createModel(opts = {}) {
     const o = ordered().filter((s) => s.lead);
     const out = {
       sessions: o.map((s) => ({
-        id: s.id, project: s.project, dot: NAMES[sessionDot(s)], count: 1 + used(s).length, more: s.more, title: s.title,
+        id: s.id, project: s.project, cwd: s.cwd, dot: NAMES[sessionDot(s)], count: 1 + used(s).length, more: s.more, title: s.title,
         ctx_pct: s.ctxPct === CTX_UNKNOWN ? null : s.ctxPct, ctx_k: s.ctxK,
         ctx_src: s.ctxPct === CTX_UNKNOWN ? '' : s.ctxFromStatusLine ? 'statusline' : 'transcript',
         tok: s.stok,

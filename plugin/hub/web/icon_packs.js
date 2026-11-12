@@ -193,5 +193,61 @@ export const ICON_PACKS = {
   office: { label: 'Office', draw: drawOffice },
   pirates: { label: 'Pirates', draw: drawPirate },
 };
-/** The pack of that name; a missing or unknown name gives the built-in robots. */
+/** The pack of that name among the built-in canvas packs; a missing or unknown name gives the built-in robots. */
 export const iconPack = (name) => ICON_PACKS[name] ?? ICON_PACKS[DEFAULT_PACK];
+
+// ---- packs from the hub catalog (SVG files) ----
+const ROLE_KEYS = ['lead', 'general', 'explore', 'plan', 'review', 'test', 'code', 'generic'];
+const ICON_W = 36, ICON_H = 42;
+const images = new Map();                                    // url -> Image, shared by every pack
+const loadedListeners = new Set();
+
+/** Calls `cb` each time an icon image finishes loading (the page redraws then). Returns a function that removes `cb`. */
+export function onIconsLoaded(cb) { loadedListeners.add(cb); return () => loadedListeners.delete(cb); }
+
+// Plain `new Image()`: the browser renders an SVG there with scripts off, so a third-party file cannot run code.
+function imageFor(url) {
+  let img = images.get(url);
+  if (!img) {
+    img = new Image();
+    img.onload = () => { for (const cb of [...loadedListeners]) cb(); };
+    img.src = url;
+    images.set(url, img);
+  }
+  return img;
+}
+const ready = (img) => !!img && img.complete !== false && (img.naturalWidth === undefined || img.naturalWidth > 0);
+
+/** A pack drawn from SVG files: `roles` maps 'lead'..'generic' (and '<role>-blink') to URLs. A role without a file, or whose image is not loaded yet, draws the robot. */
+export function svgPack(name, roles) {
+  return {
+    label: name.charAt(0).toUpperCase() + name.slice(1),
+    draw(ctx, role, blink) {
+      const key = ROLE_KEYS[role];
+      const url = (blink && roles[`${key}-blink`]) || roles[key];
+      const img = url ? imageFor(url) : null;
+      if (ready(img)) ctx.drawImage(img, 0, 0, ICON_W, ICON_H);
+      else drawRobot(ctx, role, blink);
+    },
+  };
+}
+
+let catalogPacks = null;                                     // null until a catalog arrived: the built-in canvas packs stand in
+const svgPacks = new Map();
+
+/** Stores the packs of the hub catalog ([{ name, roles }]). */
+export function setCatalogPacks(packs) {
+  catalogPacks = new Map();
+  for (const p of packs ?? []) if (p && typeof p.name === 'string' && p.roles && typeof p.roles === 'object') catalogPacks.set(p.name, p);
+  svgPacks.clear();
+}
+
+/** The pack of that name: the catalog pack when listed, else the robots. Without any catalog (hub unreachable), the built-in canvas packs. */
+export function iconPackFor(name) {
+  if (!catalogPacks) return iconPack(name);
+  const p = catalogPacks.get(name);
+  if (!p) return ICON_PACKS[DEFAULT_PACK];
+  let pack = svgPacks.get(name);
+  if (!pack) { pack = svgPack(name, p.roles); svgPacks.set(name, pack); }
+  return pack;
+}

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COLOR, rgb565 } from '../web/screen.js';
-import { THEMES, applyTheme, validateTheme, activeTheme, activeIconPack } from '../web/themes.js';
-import { ICON_PACKS, iconPack } from '../web/icon_packs.js';
+import { THEMES, applyTheme, validateTheme, activeTheme, activeIconPack, setCatalog } from '../web/themes.js';
+import { ICON_PACKS, iconPack, iconPackFor, svgPack } from '../web/icon_packs.js';
 import { createVectorScreen } from '../web/vector_screen.js';
 
 function fakeCanvas() {
@@ -66,7 +66,8 @@ test('a_missing_color_keeps_the_builtin_value_and_a_bad_one_is_dropped', () => {
 });
 
 test('an_unknown_icon_pack_gives_the_robots', () => {
-  assert.equal(validateTheme({ name: 'x', iconPack: 'ghost', colors: {} }).theme.iconPack, 'robot');
+  assert.equal(validateTheme({ name: 'x', iconPack: 'ghost', colors: {} }).theme.iconPack, 'ghost', 'a well-formed name is kept, the catalog resolves it');
+  assert.equal(validateTheme({ name: 'x', iconPack: 'Bad Pack', colors: {} }).theme.iconPack, 'robot');
   assert.equal(iconPack('ghost'), ICON_PACKS.robot);
 });
 
@@ -92,4 +93,65 @@ test('the_vector_screen_draws_with_the_pack_of_the_active_theme', () => {
   applyTheme('lemmings');
   assert.notEqual(eyes(false).length, robot, 'another pack draws other shapes');
   assert.ok(eyes(true).some((c) => c.name === 'lineTo'), 'blink draws lines');
+});
+
+// ---- catalog from the hub ----
+function stubImage(loaded) {
+  const made = [];
+  globalThis.Image = class { constructor() { this.complete = loaded; this.naturalWidth = loaded ? 36 : 0; made.push(this); } };
+  return made;
+}
+function recordingCtx() {
+  const calls = [];
+  const props = {};
+  const ctx = new Proxy({}, {
+    get(_, name) { return name in props ? props[name] : (...args) => { calls.push({ name, args }); }; },
+    set(_, name, value) { props[name] = value; return true; },
+  });
+  return { ctx, calls };
+}
+const catalogTheme = (name, pack) => ({ name, label: name, author: 't', version: '1', iconPack: pack, colors: { FRAME: '#123456' } });
+
+test('setCatalog_adds_a_theme_and_applyTheme_uses_it', () => {
+  const before = { ...COLOR };
+  setCatalog({ themes: [catalogTheme('mine', 'robot')], packs: [], errors: [] });
+  assert.equal(applyTheme('mine').name, 'mine');
+  assert.notEqual(COLOR.FRAME, before.FRAME);
+  const mine = COLOR.FRAME;
+  setCatalog({ themes: [catalogTheme('cat', 'robot')], packs: [] });
+  applyTheme('cat');
+  assert.equal(COLOR.FRAME, mine, 'the catalog wins over the built-in table');
+  assert.equal(activeTheme().iconPack, 'robot');
+  setCatalog({ themes: [], packs: [] });
+  applyTheme('default');
+});
+
+test('unknown_pack_gives_robot', () => {
+  setCatalog({ themes: [catalogTheme('mine', 'ghost')], packs: [{ name: 'cat', roles: {} }] });
+  assert.equal(iconPackFor('ghost'), ICON_PACKS.robot);
+  applyTheme('mine');
+  assert.equal(activeIconPack(), ICON_PACKS.robot);
+  assert.notEqual(iconPackFor('cat'), ICON_PACKS.robot, 'a listed pack is an SVG pack');
+});
+
+test('svg_pack_missing_role_draws_robot', () => {
+  const made = stubImage(true);
+  const pack = svgPack('p', { lead: '/icons/p/lead.svg', 'lead-blink': '/icons/p/lead-blink.svg' });
+  let r = recordingCtx();
+  pack.draw(r.ctx, 0, false);
+  assert.deepEqual(r.calls.map((c) => c.name), ['drawImage']);
+  assert.deepEqual(r.calls[0].args.slice(1), [0, 0, 36, 42]);
+  r = recordingCtx();
+  pack.draw(r.ctx, 0, true);
+  assert.equal(r.calls[0].args[0].src, '/icons/p/lead-blink.svg');
+  r = recordingCtx();
+  pack.draw(r.ctx, 1, false);                              // 'general' has no file
+  assert.ok(r.calls.length > 1 && r.calls.every((c) => c.name !== 'drawImage'), 'the robot is drawn on the canvas');
+  assert.equal(made.length, 2);
+  stubImage(false);
+  const late = svgPack('q', { lead: '/icons/q/lead.svg' });
+  r = recordingCtx();
+  late.draw(r.ctx, 0, false);
+  assert.ok(r.calls.every((c) => c.name !== 'drawImage'), 'an image not loaded yet draws the robot');
+  delete globalThis.Image;
 });

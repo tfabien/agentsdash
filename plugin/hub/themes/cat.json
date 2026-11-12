@@ -1,0 +1,26 @@
+{
+  "name": "cat",
+  "label": "Cat",
+  "author": "standup-bot",
+  "version": "1",
+  "iconPack": "cat",
+  "colors": {
+    "SCREEN": "#1c1410",
+    "BAR": "#2a1d16",
+    "FRAME": "#6b4630",
+    "PANEL": "#2a1d16",
+    "ROW": "#3a2820",
+    "TEXT": "#fbeedd",
+    "LIGHT": "#e0c9ae",
+    "FAINT": "#9a8068",
+    "WORKING": "#8fd18a",
+    "NEEDS": "#ffa94d",
+    "ERROR": "#ff6b6b",
+    "YOURTURN": "#8fc4e8",
+    "WAITING": "#c4a6f0",
+    "ACCENT": "#ffcb7a",
+    "CHIP": "#5b4032",
+    "ACCENT_DIM": "#5a4326",
+    "NEEDS_DIM": "#7a4a1a"
+  }
+}

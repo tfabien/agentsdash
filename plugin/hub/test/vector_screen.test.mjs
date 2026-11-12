@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createVectorScreen } from '../web/vector_screen.js';
 import { renderScreen, COLOR, rgb565 } from '../web/screen.js';
+import { ICON_PACKS } from '../web/icon_packs.js';
 
 /** A 2D context that records every call and property set. measureText: 7 units per character. */
 function fakeCanvas() {
@@ -121,4 +122,18 @@ test('the_whole_scene_renders_through_the_vector_screen_without_errors', () => {
   renderScreen(screen, state, { elapsedS: 0, menu: false, detail: null, sound: 'all', tick: 3, pulse: 5, eventsTo: 'x' });
   assert.ok(named(calls, 'fillText').length > 15);
   assert.ok(named(calls, 'fillText').some((c) => c.args[0] === 'demo'));
+});
+
+test('pic_with_a_pack_name_draws_that_pack_else_the_theme_pack', () => {
+  const seen = [];
+  const orig = ICON_PACKS.cat.draw, robot = ICON_PACKS.robot.draw;
+  ICON_PACKS.cat.draw = () => seen.push('cat');
+  ICON_PACKS.robot.draw = () => seen.push('robot');
+  try {
+    const { canvas } = fakeCanvas();
+    const screen = createVectorScreen(canvas);
+    screen.pic(27, 0, 0, 'cat');
+    screen.pic(27, 0, 0);
+  } finally { ICON_PACKS.cat.draw = orig; ICON_PACKS.robot.draw = robot; }
+  assert.deepEqual(seen, ['cat', 'robot']);
 });

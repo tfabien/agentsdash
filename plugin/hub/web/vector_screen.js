@@ -3,18 +3,19 @@
 // The pictures of the .tft are redrawn here: background panels, rows, and the agent icons (drawn by the icon pack of the active theme, see themes.js).
 import { COLOR, rgb565 } from './screen.js';
 import { activeIconPack } from './themes.js';
+import { iconPackFor } from './icon_packs.js';
 
 const css = (c) => { const [r, g, b] = rgb565(c); return `rgb(${r},${g},${b})`; };
 const FAMILY = '"Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif';
 const FONT = { 12: `600 11px ${FAMILY}`, 16: `600 14px ${FAMILY}`, 20: `700 18px ${FAMILY}` };
 const LINE_H = { 12: 14, 16: 18, 20: 22 };
 
-/** One agent icon of the active icon pack in its 36x42 box at (x, y), `k` times bigger (1 big, 2/3 small, 4/9 tiny). Blinking closes the eyes. */
-function drawRobot(ctx, role, x, y, k, blink) {
+/** One agent icon of the icon pack `packName` (a session's rule) or else of the active theme in its 36x42 box at (x, y), `k` times bigger (1 big, 2/3 small, 4/9 tiny). Blinking closes the eyes. */
+function drawRobot(ctx, role, x, y, k, blink, packName) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(k, k);
-  activeIconPack().draw(ctx, role, blink);
+  (packName ? iconPackFor(packName) : activeIconPack()).draw(ctx, role, blink);
   ctx.restore();
 }
 
@@ -58,7 +59,7 @@ export function createVectorScreen(canvas, { bare = false } = {}) {
       ctx.textBaseline = 'middle';
     },
     measure(s, id) { font(id); return ctx.measureText(s).width; },      // in screen units: measureText ignores the transform
-    pic(id, x, y) {
+    pic(id, x, y, packName) {
       if (id === 16) { drawBackground(); return; }
       if (id === 17) { rect(x, y, 290, 42, 6, css(COLOR.ROW)); return; }
       if (id === 18) { rect(x, y, 290, 22, 5, css(COLOR.ROW)); return; }
@@ -67,7 +68,7 @@ export function createVectorScreen(canvas, { bare = false } = {}) {
         const base = blink ? id - 36 : id;
         const size = base < 35 ? 1 : base < 43 ? 24 / 36 : 16 / 36;
         const role = (base - 27) % 8;
-        drawRobot(ctx, role, x, y, size, blink);
+        drawRobot(ctx, role, x, y, size, blink, packName);
         return;
       }
     },

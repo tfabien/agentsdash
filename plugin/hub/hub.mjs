@@ -3,9 +3,12 @@
 // serves the browser page and pushes the state over SSE. Binds to 127.0.0.1 only.
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { loadCatalog } from './themes_loader.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModel } from './model.mjs';
+import { validRules } from './rules.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
 import { createQuotaPoller, quotasEnabled } from './quotas.mjs';
 import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
@@ -23,8 +26,9 @@ const SETTING_RULES = {
   theme: (v) => typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v),
   pulse: (v) => typeof v === 'boolean',
   dim_idle: (v) => typeof v === 'boolean',
+  rules: validRules,                                                  // per-project icon pack and badge color
 };
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, rules: [] };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -74,7 +78,24 @@ export function startHub(opts = {}) {
   let serial = null;
   let relay = null;
   const relayInfo = () => (relay ? { mode: relayConf.mode, ...(serial ? { port: relayConf.port } : { host: relayConf.host }), ...relay.status() } : null);
-  const stateJson = () => ({ ...model.toState(now()), boot: startedAt, settings, ...(relayInfo() ? { relay: relayInfo() } : {}) });
+  // Themes and icon packs from the built-in and user folders. `iconFiles` maps a served URL to its file: no path comes from a request.
+  const catalogDirs = { builtinDir: opts.builtinDir ?? HUB_DIR, userDir: opts.userDir ?? path.join(os.homedir(), '.claude', 'standup-bot') };
+  let catalog = { themes: [], packs: [], errors: [] };
+  let iconFiles = new Map();
+  function reloadCatalog() {
+    catalog = loadCatalog(catalogDirs);
+    iconFiles = new Map();
+    for (const dir of [catalogDirs.builtinDir, catalogDirs.userDir]) {       // same order as the loader: the user folder wins
+      for (const p of catalog.packs) {
+        for (const url of Object.values(p.roles)) {
+          const file = path.join(dir, 'icons', p.name, path.basename(url));
+          if (fs.existsSync(file)) iconFiles.set(url, file);
+        }
+      }
+    }
+  }
+  reloadCatalog();
+  const stateJson = () => ({ ...model.toState(now()), boot: startedAt, settings, catalog, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
     for (const res of clients) res.write(`data: ${payload}\n\n`);
@@ -106,6 +127,11 @@ export function startHub(opts = {}) {
         if (opts.onShutdown) setTimeout(opts.onShutdown, 50);
         return undefined;
       case 'GET /state': return json(res, stateJson());
+      case 'POST /reload':                          // rescan the theme and icon folders (the body, if any, is ignored)
+        await readBody(req).catch(() => '');
+        reloadCatalog();
+        publish();
+        return text(res, 200, 'ok');
       case 'GET /relay': return json(res, relayInfo() ?? { mode: 'none' });
       case 'GET /relay/ports': return json(res, await (opts.listPorts ?? listSerialPorts)());
       case 'POST /relay/test': return json(res, await testRelay());
@@ -156,7 +182,7 @@ export function startHub(opts = {}) {
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
-          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle');
+          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle, rules (a list of {match, iconPack?, badgeColor?})');
           settings = { ...settings, ...next };
           for (const fn of settingsTaps) { try { fn({ sound: settings.sound }); } catch { /* tap errors stay local */ } }
           if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
@@ -169,6 +195,14 @@ export function startHub(opts = {}) {
         return text(res, 200, 'ok');
       }
       default:
+        if (req.method === 'GET' && url.pathname.startsWith('/icons/')) {
+          const file = iconFiles.get(url.pathname);   // exact catalog URL only, so traversal and unlisted names are 404
+          if (!file) return text(res, 404, 'not found');
+          let data;
+          try { data = fs.readFileSync(file); } catch { return text(res, 404, 'not found'); }
+          res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });
+          return res.end(data);
+        }
         if (req.method === 'GET') return serveStatic(res, url.pathname);
         return text(res, 404, 'not found');
     }
