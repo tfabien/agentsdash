@@ -28,3 +28,6 @@
 .quota b { color: var(--ok); } .quota.tight b { color: var(--needs); } .quota.over b { color: var(--error); } .quota.stale b, .quota.unknown b { color: var(--muted); }
 #bar .clock { font-size: 20px; font-weight: 700; }
 #bar .sound { font-size: 16px; padding: 3px 9px; }
+#bar .tools { display: flex; align-items: center; gap: 4px; }
+#bar .relay { font-size: 15px; padding: 0 6px; cursor: default; }
+#bar .relay.down { filter: grayscale(1); opacity: .5; text-decoration: line-through; }

@@ -3,7 +3,6 @@
 // hub_view.js, the beep rule in alerts.js.
 import { bestGrid, planTiles, isIdle as idleFor, MAX_TILES } from './hub_view.js';
 import { countStates, beepsFor, beep } from './alerts.js';
-import { relayLabel } from './format.js';
 import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
 import { TILES_MAX } from './settings.js';
 import { mountFooter } from './footer.js';
@@ -153,9 +152,6 @@ function showState(next) {
   counts = now;
   state = next;
   receivedAt = performance.now();
-  const label = relayLabel(next.relay), relayEl = $('relay');
-  relayEl.hidden = !label;
-  if (label) { relayEl.textContent = label.text; relayEl.title = label.why; relayEl.className = label.ok ? 'ok' : 'down'; }
 }
 
 const es = new EventSource('/events');                // the only stream: every tile reads the same state
