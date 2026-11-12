@@ -4,6 +4,8 @@
 import { renderScreen, hitTest, teamOrder, SCR_W, SCR_H } from './screen.js';
 import { createVectorScreen } from './vector_screen.js';
 import { relayLabel } from './format.js';
+import { countStates, beepsFor, beep } from './alerts.js';
+import { createSettingsMenu } from './settings.js';
 
 const MENU_MS = 8000;       // the session list closes by itself after 8 s
 const DETAIL_MS = 10000;    // a tapped agent's detail stays 10 s
@@ -24,33 +26,26 @@ let counts = null;                                   // {needs, turn} of the pre
 
 const agentsOf = (st) => st.sessions.flatMap((s) => s.agents);
 
-function beep(times) {
-  try {
-    const ctx = new AudioContext();
-    for (let i = 0; i < times; i++) {
-      const osc = ctx.createOscillator();
-      osc.frequency.value = 880;
-      osc.connect(ctx.destination);
-      osc.start(ctx.currentTime + i * 0.32);
-      osc.stop(ctx.currentTime + i * 0.32 + 0.12);
-    }
-    setTimeout(() => ctx.close(), times * 400 + 200);
-  } catch { /* no audio available */ }
-}
-
-/** Same rule as the buzzer of the gadget: two beeps when more agents need you, one when more wait for your turn (mode "all"). */
+/** Same rule as the buzzer of the gadget (alerts.js). */
 function alerts(next) {
-  const all = agentsOf(next);
-  const now = { needs: all.filter((a) => a.state === 'needs_you').length, turn: all.filter((a) => a.state === 'your_turn').length };
-  if (counts && sound !== 'off') {
-    if (now.needs > counts.needs) beep(2);
-    else if (now.turn > counts.turn && sound === 'all') beep(1);
-  }
+  const now = countStates(next.sessions);
+  const times = beepsFor(counts, now, sound);
+  if (times) beep(times);
   counts = now;
 }
 
+const settingsMenu = createSettingsMenu({ page: 'single' });
+document.getElementById('gear').append(settingsMenu.button);
+let landed = false;
+
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
+  settingsMenu.update(next.settings ?? {});
+  // The main address opens the view chosen in the settings; "?stay" (or a ?session link) keeps this one.
+  if (!landed) {
+    landed = true;
+    if (next.settings?.view === 'hub' && !location.search) { location.replace('/hub'); return; }
+  }
   alerts(next);
   state = next;
   receivedAt = performance.now();
@@ -120,6 +115,10 @@ canvas.addEventListener('click', (e) => {
   }
   draw();
 });
+
+// From the sessions hub: /?session=<id> opens that session (the hub holds the view on it for a while).
+const wanted = new URLSearchParams(location.search).get('session');
+if (wanted) fetch('/select', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: wanted, agent: 'lead', hold_ms: 120000 }) });
 
 function connect() {
   const es = new EventSource('/events');

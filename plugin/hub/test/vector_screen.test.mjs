@@ -20,12 +20,21 @@ function fakeCanvas() {
 const css = (c) => { const [r, g, b] = rgb565(c); return `rgb(${r},${g},${b})`; };
 const named = (calls, n) => calls.filter((c) => c.name === n);
 
-test('begin_sets_the_scale_and_clears_the_logical_screen', () => {
+test('begin_clears_the_canvas_then_sets_the_scale', () => {
   const { canvas, calls } = fakeCanvas();
+  canvas.width = 1680; canvas.height = 952;
   const screen = createVectorScreen(canvas);
   screen.begin(3.5);
-  assert.deepEqual(calls[0], { name: 'setTransform', args: [3.5, 0, 0, 3.5, 0, 0], fillStyle: undefined, font: undefined });
-  assert.deepEqual(calls[1].args, [0, 0, 480, 272]);
+  assert.deepEqual(calls[0].args, [1, 0, 0, 1, 0, 0]);
+  assert.deepEqual(calls[1].args, [0, 0, 1680, 952]);
+  assert.deepEqual(calls[2].args, [3.5, 0, 0, 3.5, -0, -0]);
+});
+
+test('begin_with_an_origin_shifts_the_screen_so_a_tile_shows_only_the_frame', () => {
+  const { canvas, calls } = fakeCanvas();
+  const screen = createVectorScreen(canvas);
+  screen.begin(2, { x: 6, y: 30 });
+  assert.deepEqual(calls[2].args, [2, 0, 0, 2, -12, -60]);
 });
 
 test('text_is_drawn_without_a_background_box_and_measure_uses_the_context', () => {

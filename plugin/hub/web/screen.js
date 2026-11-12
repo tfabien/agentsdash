@@ -24,7 +24,7 @@ const STALE_S = 15 * 60;                                // quotas not refreshed 
 const PULSE_STEPS = 12;
 
 const STATE_COLOR = { needs_you: COLOR.NEEDS, error: COLOR.ERROR, your_turn: COLOR.YOURTURN, working: COLOR.WORKING, waiting_subs: COLOR.WAITING, done: COLOR.FAINT };
-const STATE_LABEL = { needs_you: 'needs you', error: 'error', your_turn: 'your turn', working: 'working', waiting_subs: 'waiting', done: 'done' };
+export const STATE_LABEL = { needs_you: 'needs you', error: 'error', your_turn: 'your turn', working: 'working', waiting_subs: 'waiting', done: 'done' };
 const stateColor = (s) => STATE_COLOR[s] ?? COLOR.FAINT;
 
 /** Role (agent_type) to sprite index; unknown roles get the generic look. */
@@ -165,7 +165,7 @@ export function hitTest(x, y, ctx) {
 /**
  * @param screen drawing surface (see top of file)
  * @param state  GET /state body of the hub
- * @param ui     {elapsedS, menu, planStep: {session, index}|null, detail: {session, agent}|null, sound: 'all'|'ask'|'off', tick, pulse, timeText, eventsTo}
+ * @param ui     {bare?: true (no title bar, no status bar: a tile of the hub page), elapsedS, menu, planStep: {session, index}|null, detail: {session, agent}|null, sound: 'all'|'ask'|'off', tick, pulse, timeText, eventsTo}
  *               elapsedS: seconds since `state` arrived (ages and countdowns run on); tick: 300 ms animation tick; pulse: 100 ms phase
  */
 export function renderScreen(screen, state, ui) {
@@ -188,7 +188,7 @@ export function renderScreen(screen, state, ui) {
     const asking = Boolean(s.ask);
     const panelSubs = asking || ui.menu ? 0 : subs.length;
     const detailSlot = asking || ui.menu || !ui.detail || ui.detail.session !== s.id ? 0 : subs.findIndex((a) => a.id === ui.detail.agent) + 1;
-    drawTopBar(sessions, sel);
+    if (!ui.bare) drawTopBar(sessions, sel);
     drawLeadPanel(s, subs, panelSubs, detailSlot, sessions, sel);
     if (panelSubs > 0) drawTeam(s, subs, detailSlot);
   }
@@ -264,7 +264,7 @@ export function renderScreen(screen, state, ui) {
   }
 
   // Context fill as a ring with the percentage in the middle. Wide panel: big ring at the right end of the header, model and size to its left.
-  // Narrow panel (team beside it): small ring under the state line, model to its right.
+  // Narrow panel (team beside it): model under the state line, small ring at its right end.
   function drawCtxRing(p, wide, tx, tw, pct, ctxK, model) {
     const known = pct !== null && pct !== undefined;
     const col = !known ? COLOR.FAINT : pct >= 80 ? COLOR.ERROR : pct >= 60 ? COLOR.NEEDS : COLOR.WORKING;
@@ -278,10 +278,10 @@ export function renderScreen(screen, state, ui) {
       if (ctxK > 0) screen.text(rx - w, p.y + 28, w, S16, COLOR.FAINT, COLOR.PANEL, `${ctxK}k ctx`, 2);
       return;
     }
-    const cx = tx + 12, cy = p.y + 57;
+    const cx = p.x + p.w - 6 - 12, cy = p.y + 54;
     screen.ring(cx, cy, 9.5, 3.5, known ? Math.min(pct, 100) / 100 : 0, col, COLOR.CHIP);
     if (known) screen.text(cx - 14, cy - 7, 28, S12, col, COLOR.PANEL, String(pct), 1);
-    if (label) line(tx + 30, p.y + 48, tw - 30, S16, COLOR.LIGHT, COLOR.PANEL, label);
+    if (label) line(tx, p.y + 46, tw - 28, S16, COLOR.LIGHT, COLOR.PANEL, label);
   }
 
   function drawPlan(plan, x, y, w, p, sid) {
@@ -423,6 +423,7 @@ export function renderScreen(screen, state, ui) {
 
   // ----- bottom bar: quotas, sound button, clock -----
   function drawBottom() {
+    if (ui.bare) return;                                // a grid tile: no status bar, the hub page shows the quotas once
     screen.erase(0, 250, SCR_W, 22);
     const u = state.usage;
     const stale = !u || u.age_s + ui.elapsedS > STALE_S;

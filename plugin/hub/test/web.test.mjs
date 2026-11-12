@@ -36,3 +36,22 @@ test('page_serves_the_canvas_and_its_scripts', async () => {
     assert.equal((await fetch(`${base}/..%2fhub.mjs`)).status, 404);
   } finally { await hub.close(); }
 });
+
+test('hub_page_is_served_at_hub_and_shares_the_single_event_stream', async () => {
+  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  try {
+    const base = `http://127.0.0.1:${hub.port}`;
+    for (const p of ['/hub', '/hub/']) {
+      const res = await fetch(`${base}${p}`, { redirect: 'manual' });
+      assert.equal(res.status, 200, p);
+      const html = await res.text();
+      assert.match(html, /<title>Sessions hub<\/title>/);
+      assert.match(html, /hub_page\.js/);
+      assert.match(html, /<footer id="bar"/);          // the quota bar exists once, at the bottom
+    }
+    const page = await (await fetch(`${base}/hub_page.js`)).text();
+    assert.equal((page.match(/new EventSource\(/g) ?? []).length, 1);    // one stream for all tiles
+    for (const f of ['hub_view.js', 'alerts.js', 'hub.css', 'settings.js', 'settings.css']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
+    assert.match(await (await fetch(`${base}/`)).text(), /id="gear"/);   // the settings menu switches to the hub from the full page
+  } finally { await hub.close(); }
+});

@@ -15,6 +15,17 @@ import { stateDir } from '../scripts/common.mjs';
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
 const SOUNDS = ['all', 'ask', 'off'];
+const VIEWS = ['single', 'hub'];
+// Settings shared by every page, with what each accepts. Anything else in a POST is ignored.
+const SETTING_RULES = {
+  sound: (v) => SOUNDS.includes(v),
+  view: (v) => VIEWS.includes(v),
+  max_tiles: (v) => Number.isInteger(v) && v >= 2 && v <= 32,
+  pulse: (v) => typeof v === 'boolean',
+  dim_idle: (v) => typeof v === 'boolean',
+};
+const SETTING_DEFAULTS = { sound: 'ask', view: 'single', max_tiles: 12, pulse: true, dim_idle: true };
+const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
 const pluginVersion = (() => { try { return JSON.parse(fs.readFileSync(path.join(HUB_DIR, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version ?? ''; } catch { return ''; } })();
@@ -44,12 +55,13 @@ export function startHub(opts = {}) {
   const now = opts.now ?? (() => Date.now());
   const host = opts.host ?? '127.0.0.1';
   const wantedPort = opts.port ?? (Number(String(config.host).split(':')[1]) || 8765);
-  const model = createModel();
+  const model = createModel({ maxSessions: config.max_sessions });
   const startedAt = Date.now();
-  // Settings shared by every page (and kept in a file for the next hub): the beeps. Default: only when something needs you.
+  // Settings shared by every page (and kept in a file for the next hub): beeps (default: only when something needs you), which view
+  // opens, tiles on the hub page, pulse on events, grey idle sessions.
   const settingsFile = opts.settingsFile ?? null;
-  let settings = { sound: 'ask' };
-  if (settingsFile) { try { const saved = JSON.parse(fs.readFileSync(settingsFile, 'utf8')); if (SOUNDS.includes(saved.sound)) settings = { sound: saved.sound }; } catch { /* defaults */ } }
+  let settings = { ...SETTING_DEFAULTS };
+  if (settingsFile) { try { settings = { ...settings, ...validSettings(JSON.parse(fs.readFileSync(settingsFile, 'utf8'))) }; } catch { /* defaults */ } }
   const clients = new Set();
   const eventTaps = [];
   const usageTaps = [];
@@ -68,7 +80,7 @@ export function startHub(opts = {}) {
   const json = (res, obj) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
 
   function serveStatic(res, urlPath) {
-    const rel = urlPath === '/' ? 'index.html' : decodeURIComponent(urlPath.slice(1));
+    const rel = urlPath === '/' ? 'index.html' : urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : decodeURIComponent(urlPath.slice(1));
     const file = path.join(WEB_DIR, rel);
     if (!file.startsWith(WEB_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return text(res, 404, 'not found');
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' });
@@ -128,9 +140,10 @@ export function startHub(opts = {}) {
           if (!model.dismiss(id)) return text(res, 404, 'unknown session');
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
-          if (!body || !SOUNDS.includes(body.sound)) return text(res, 400, 'sound must be all, ask or off');
-          settings = { sound: body.sound };
-          for (const fn of settingsTaps) { try { fn(settings); } catch { /* tap errors stay local */ } }
+          const next = validSettings(body);
+          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), view (single, hub), max_tiles (2 to 32), pulse, dim_idle');
+          settings = { ...settings, ...next };
+          for (const fn of settingsTaps) { try { fn({ sound: settings.sound }); } catch { /* tap errors stay local */ } }
           if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
         } else if (route === 'POST /select') {
           if (!body || !model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');
@@ -161,7 +174,7 @@ export function startHub(opts = {}) {
     usageTaps.push((body) => relay.send('/usage', body));
     dismissTaps.push((body) => relay.send('/dismiss', body));
     settingsTaps.push((body) => relay.send('/settings', body));
-    relay.send('/settings', settings);                // the gadget buzzer follows the hub setting from the start
+    relay.send('/settings', { sound: settings.sound });   // the gadget buzzer follows the hub setting from the start
   }
 
   // Plan quotas for the desktop app (no status line): polled while a session exists, applied like a POST /usage.
