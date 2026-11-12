@@ -99,7 +99,7 @@ function createDeviceSection() {
 }
 
 /**
- * @returns {{button: HTMLButtonElement, update: (settings: object) => void, updateRelay: (relay: object|undefined) => void}}
+ * @returns {{button: HTMLButtonElement, update: (settings: object) => void}}
  */
 export function createSettingsMenu() {
   const button = el('button', 'chip gear');
@@ -143,14 +143,44 @@ export function createSettingsMenu() {
     panel.append(row);
   }
 
-  const device = createDeviceSection();
-  panel.append(device.node);
-
   function show() { for (const opt of OPTIONS) if (current[opt.key] !== undefined) rows.get(opt.key)(current[opt.key]); }
 
-  button.onclick = (e) => { e.stopPropagation(); panel.hidden = !panel.hidden; };
-  document.addEventListener('click', (e) => { if (!panel.hidden && !panel.contains(e.target) && e.target !== button) panel.hidden = true; });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') panel.hidden = true; });
+  attachPanel(button, panel);
 
-  return { button, update(settings) { current = { ...settings }; show(); }, updateRelay: (relay) => device.update(relay) };
+  return { button, update(settings) { current = { ...settings }; show(); } };
+}
+
+/** A button that toggles `panel`; a click outside or Escape closes it. */
+function attachPanel(button, panel) {
+  button.onclick = (e) => { e.stopPropagation(); panel.hidden = !panel.hidden; };
+  document.addEventListener('click', (e) => { if (!panel.hidden && !panel.contains(e.target) && !button.contains(e.target)) panel.hidden = true; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') panel.hidden = true; });
+}
+
+/**
+ * The device button of the bottom bar, apart from the settings gear: its icon is the state of the relay (no device configured, connected,
+ * unreachable) and it opens the Device panel.
+ * @returns {{button: HTMLButtonElement, updateRelay: (relay: object|undefined) => void}}
+ */
+export function createDeviceMenu() {
+  const button = el('button', 'chip devbtn');
+  button.setAttribute('aria-label', 'Device');
+  const panel = el('div', 'settings-panel');
+  panel.hidden = true;
+  document.body.append(panel);
+  const device = createDeviceSection();
+  panel.append(device.node);
+  attachPanel(button, panel);
+  let shown = '';
+
+  return {
+    button,
+    updateRelay(relay) {
+      device.update(relay);
+      const label = relayLabel(relay);
+      const state = !label ? 'none' : label.ok ? 'ok' : 'down';
+      if (shown !== state) { shown = state; button.className = `chip devbtn ${state}`; button.replaceChildren(icon(state === 'none' ? 'plugoff' : 'plug')); }
+      button.title = label ? `Device: ${label.text}${label.why ? `. ${label.why}` : ''}` : 'Device: not configured (click to set up)';
+    },
+  };
 }
