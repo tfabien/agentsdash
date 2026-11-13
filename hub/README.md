@@ -56,6 +56,7 @@ and sub-agents, then the quotas. It follows `GET /events` and reconnects when th
 |---|---|---|
 | `host` | `127.0.0.1:8765` | Where the adapters send events and where the hub listens (env `AGENTSDASH_HOST`). |
 | `relay` | `{"mode":"none"}` | `{"mode":"http","host":"<gadget ip>"}` forwards events to a gadget over Wi-Fi; `{"mode":"serial","port":"COM3"}` over USB. |
+| `lan` | `{"enabled":false,"bind":"0.0.0.0"}` | `{"enabled":true}` (or env `AGENTSDASH_LAN=1`) lets a phone on the same Wi-Fi read the page, see below. |
 | `quotas` | `true` | Read by the Claude adapter, not by the hub: poll the 5-hour and weekly plan quotas (env `AGENTSDASH_QUOTAS=0` turns it off). |
 | `context_window` | `1000000` | Context window used for the context estimate (tokens). |
 | `max_sessions` | `12` | Sessions the hub keeps (1 to 32, env `AGENTSDASH_MAX_SESSIONS`). More than 5 only helps the `/hub` page. |
@@ -120,3 +121,15 @@ change and every second), `GET /health` and `GET /` (the page).
 ```bash
 node --test hub/test/*.test.mjs
 ```
+
+## Phone (PWA)
+
+A phone on the same Wi-Fi can show the page full screen, read-only.
+
+1. Turn LAN access on: `"lan": {"enabled": true}` in `~/.agentsdash/config.json`, or start the hub with `AGENTSDASH_LAN=1`, then restart it. The hub then listens on `0.0.0.0` (`lan.bind` picks one address).
+2. Open the page on the PC, click the Device button (plug icon): the Phone section shows a QR code. The terminal view prints the same address.
+3. Scan it with the phone camera. The phone opens `/phone` and keeps a cookie; use "Add to Home Screen" to get a full-screen app.
+
+The token lives in `~/.agentsdash/lan-token`; delete the file and restart the hub to pair again. A client that is not on the PC can only read (`/phone`, `/state`, `/events`, `/health`) and gets 401 without the cookie.
+The link is plain `http`: anyone on the same Wi-Fi can read the traffic, so use it on a network you trust. HTTPS (and with it a service worker and offline mode) is not built yet.
+The page keeps the screen awake (where the phone allows it) and shows "Hub unreachable, retrying" when the PC sleeps.

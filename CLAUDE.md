@@ -21,6 +21,7 @@ Tests (no hardware): `node --test hub/test/*.test.mjs` (a directory argument fai
 ## Hub rules
 
 - The hub imports nothing from an adapter and runs from a copy of its own folder (test `core_standalone`). It binds `127.0.0.1`, answers only requests whose Host is the hub and rejects foreign Origins (no CORS).
+- LAN access for a phone is opt-in (`lan` in the config, `hub/lan.mjs`): a client that is not on loopback needs the pairing cookie, may only read (`/phone`, `/state`, `/events`, `/health`, static files) and must name a private address in Host. The phone page is `web/phone.html`.
 - Wire protocol 2 (`POST /event`, `/usage`, `/dismiss`, `/settings`...): `docs/protocol.md`; a test fails when a route or event field is missing there. `GET /health` reports `core` (from `hub/package.json`) and `protocol` (`PROTOCOL_VERSION` in `model.mjs`, equal to `package.json` `protocol`).
   Raise `version` in `hub/package.json` before tagging a release; the release workflow checks the tag against it.
 - Adapters pick a core by protocol and minimum version (`docs/protocol.md`, "How an adapter picks a core"). The hub never polls quotas: adapters post `/usage`.

@@ -5,7 +5,7 @@ the keyboard. Each device lives in a repository of its own (`agentsdash-device-<
 
 | Repository | Hardware | State |
 |---|---|---|
-| [`agentsdash-device-phone`](https://github.com/tfabien/agentsdash-device-phone) | A phone (iPhone or Android) as a PWA | idea, nothing built yet |
+| [`agentsdash-device-phone`](https://github.com/tfabien/agentsdash-device-phone) | A phone (iPhone or Android) as a PWA | first version, home Wi-Fi, read-only |
 | [`agentsdash-device-artillery-x3`](https://github.com/tfabien/agentsdash-device-artillery-x3) | ESP32 DevKit + the 4.3" touchscreen (TJC, 480x272) of an Artillery X3 3D printer | works over Wi-Fi, USB relay written (not tried on the hardware) |
 
 ## What a device receives
