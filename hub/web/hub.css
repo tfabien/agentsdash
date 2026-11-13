@@ -34,7 +34,7 @@ main { flex: 1; min-height: 0; min-width: 0; display: grid; gap: 12px; grid-temp
 .tile.stale .stale-tag { display: block; }
 .tile canvas.stale { opacity: .5; }
 .tile canvas.idle { filter: grayscale(1); opacity: .5; }
-.tile .rate-tag { position: absolute; top: 8px; right: 10px; z-index: 2; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
+.tile .rate-tag { position: absolute; bottom: 8px; right: 14px; z-index: 2; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
 .tile .rate-tag[hidden] { display: none; }
 .tile canvas.rate-0 { --glow: var(--ok); --glow-s: 3s; }              /* the halo of a working tile: green, orange, red as the token rate grows; the pulse speeds up */
 .tile canvas.rate-1 { --glow: var(--needs); --glow-s: 1.6s; }
