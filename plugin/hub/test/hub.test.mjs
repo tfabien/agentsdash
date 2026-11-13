@@ -7,6 +7,7 @@ import path from 'node:path';
 import { startHub } from '../hub.mjs';
 import { loadConfig } from '../config.mjs';
 import { forDevice } from '../ascii.mjs';
+import { PROTOCOL_VERSION } from '../model.mjs';
 
 const EV = { v: 2, session: 'abcd', project: 'proj', agent: 'lead', role: 'lead', evt: 'PreToolUse', state: 'working', cmd: 'Edit a.js', detail: '' };
 const post = (hub, p, body, raw) => fetch(`http://127.0.0.1:${hub.port}${p}`, {
@@ -220,6 +221,13 @@ test('settings_are_kept_in_a_file_for_the_next_hub', async () => {
 
 test('hub_binds_loopback_only', () => withHub(async (hub) => {
   assert.equal(hub.host, '127.0.0.1');
+}));
+
+test('core_package_protocol_matches_model', () => withHub(async (hub) => {
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const health = await (await get(hub, '/health')).json();
+  assert.equal(pkg.protocol, PROTOCOL_VERSION);
+  assert.equal(health.protocol, pkg.protocol);
 }));
 
 test('core_version_matches_plugin', () => withHub(async (hub) => {

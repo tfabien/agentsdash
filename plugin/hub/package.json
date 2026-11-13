@@ -1,6 +1,7 @@
 {
   "name": "agentsdash-hub",
   "version": "0.4.1",
+  "protocol": 2,
   "private": true,
   "type": "module",
   "description": "Local hub for the agent dashboard: state, browser page, relay to the gadget.",
