@@ -166,7 +166,7 @@ function drawTile(s, t) {
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
-  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
+  t.screen.begin(scale * (window.devicePixelRatio || 1), FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
     bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, elapsedS: elapsed(), menu: false, back: Boolean(focus), detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
