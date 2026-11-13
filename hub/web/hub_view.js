@@ -55,8 +55,8 @@ export function bestLayout(spans, boxW, boxH, aspect, gap = 12, maxW = Infinity,
   for (let cols = widest; cols <= Math.max(widest, total); cols++) {
     const rows = packRows(spans, cols);
     const w = (boxW - gap * (cols - 1)) / cols, h = (boxH - gap * (rows - 1)) / rows;
-    const h0 = Math.min(h, maxW / aspect), w0 = Math.min(w, h0 * aspect * stretch), h1 = Math.min(h0, w0 / aspect);
-    const k = Math.sqrt(w0 * h1 * aspect);
+    const h0 = Math.min(h, maxW / aspect), w0 = Math.min(w, h0 * aspect * stretch);
+    const k = Math.min(h0, w0 / aspect);                    // the height a frame ends with: text size follows it, a wide frame that is short gains nothing
     if (!best || k >= best.k - 1e-9) best = { cols, rows, k };
   }
   return { cols: best.cols, rows: best.rows };
