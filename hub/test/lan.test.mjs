@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { loadConfig } from '../config.mjs';
-import { isLoopback, loadOrCreateToken, tokenMatches, lanHosts, parseCookie, isRemoteStatic, REMOTE_ROUTES } from '../lan.mjs';
+import { setLan, isLoopback, loadOrCreateToken, tokenMatches, lanHosts, parseCookie, isRemoteStatic, REMOTE_ROUTES } from '../lan.mjs';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'lan-'));
 
@@ -69,4 +69,14 @@ test('remote_routes_and_static', () => {
   assert.equal(isRemoteStatic('/manifest.webmanifest'), true);
   assert.equal(isRemoteStatic('/shutdown'), false);
   assert.equal(isRemoteStatic('/../config.mjs'), false);
+});
+
+test('setLan_toggles_and_keeps_other_keys', () => {
+  const f = path.join(tmp(), 'c.json');
+  assert.equal(setLan(f, false), false, 'nothing to turn off');
+  assert.equal(setLan(f, true), true);
+  assert.equal(setLan(f, true), false);
+  fs.writeFileSync(f, JSON.stringify({ host: 'h:1', ...JSON.parse(fs.readFileSync(f, 'utf8')) }));
+  assert.equal(setLan(f, false), true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(f, 'utf8')), { host: 'h:1', lan: { enabled: false } });
 });

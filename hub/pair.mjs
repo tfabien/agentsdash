@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// `node pair.mjs`: turns phone access on (config `lan.enabled`), restarts the hub when it was off, prints the pairing address and its QR code.
+// `node pair.mjs`: turns phone access on (POST /lan to the running hub, else the config file and a restart), prints the pairing address and its QR code.
 // An agent runs it for the user at the end of an install; the user can run it any time. Needs Wi-Fi: the phone and this computer share a network.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,23 +7,13 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadConfig, defaultConfigPath } from './config.mjs';
 import { buildQr } from './web/qr.js';
+import { setLan } from './lan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Sets `lan.enabled` in the config file, keeping every other key. @returns {boolean} true when the file changed. */
-export function enableLan(file) {
-  let data = {};
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;
-  } catch { /* a missing or broken file starts from nothing */ }
-  if (data.lan && data.lan.enabled === true) return false;
-  data.lan = { ...(data.lan && typeof data.lan === 'object' ? data.lan : {}), enabled: true };
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
-  return true;
-}
+/** Turns `lan.enabled` on in the config file. @returns {boolean} true when the file changed. */
+export const enableLan = (file) => setLan(file, true);
 
 /**
  * The QR code of `text` as lines of text, two modules per character row (half blocks), with a 2 module quiet zone.
@@ -58,9 +48,13 @@ async function restartHub(base) {
 
 async function main() {
   const file = defaultConfigPath();
-  const changed = enableLan(file);
   const base = `http://${loadConfig(file).host}`;
-  if (changed && !(await restartHub(base))) { console.log(`The hub did not restart at ${base}. Start it, then run this command again.`); process.exitCode = 1; return; }
+  // A running hub that knows POST /lan turns phone access on in place (and writes the config). Any other case: edit the config and restart.
+  const reply = await get(`${base}/lan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) });
+  if (!reply?.ok) {
+    enableLan(file);
+    if (!(await restartHub(base))) { console.log(`The hub did not restart at ${base}. Start it, then run this command again.`); process.exitCode = 1; return; }
+  }
   let url = null;
   for (let i = 0; i < 20 && !url; i++) {
     const r = await get(`${base}/pair-info`);
@@ -72,7 +66,7 @@ async function main() {
   console.log(qrLines(url).join('\n'));
   console.log(`\n${url}\n`);
   console.log('Scan the code with the phone camera. The page opens full screen after one tap.');
-  console.log('The link is plain http: use it on a network you trust. Phone access was turned on in ' + file + '.');
+  console.log('The link is plain http: use it on a network you trust. Phone access is now on (`lan.enabled` in the config file); the QR button of the page turns it off.');
 }
 
 const isMain = (() => {
