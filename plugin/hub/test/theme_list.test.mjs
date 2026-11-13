@@ -56,3 +56,12 @@ test('filterCards_status_installed_available_updates', () => {
 test('tagCounts_orders_by_count_then_name', () => {
   assert.deepEqual(tagCounts(cards()), [['cozy', 2], ['cat', 1], ['dog', 1], ['fox', 1], ['owl', 1]]);
 });
+
+test('installed_cards_carry_the_variants_of_the_theme_and_available_ones_none', () => {
+  const catalog = [{ name: 'a', label: 'A', colors: {}, variants: { dark: { label: 'Dark' }, light: {} } }, { name: 'b', colors: {} }];
+  const market = { themes: [{ name: 'c', source: 'o/r', installed: false }] };
+  const cards = mergeCards({ catalog, market, active: 'a' });
+  assert.deepEqual(cards.find((c) => c.name === 'a').variants, [{ key: 'dark', label: 'Dark' }, { key: 'light', label: 'light' }]);
+  assert.deepEqual(cards.find((c) => c.name === 'b').variants, []);
+  assert.deepEqual(cards.find((c) => c.name === 'c').variants, []);
+});

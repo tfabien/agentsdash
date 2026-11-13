@@ -58,3 +58,10 @@ test('contrastRatio_black_on_white_is_21', () => {
   assert.equal(Math.round(contrastRatio('#000000', '#ffffff')), 21);
   assert.equal(contrastRatio('#777777', '#777777'), 1);
 });
+
+import { toHex } from '../web/theme_editor.js';
+test('toHex_reads_hex_and_rgb_css_colors', () => {
+  assert.equal(toHex('#a1b2c3'), '#a1b2c3');
+  assert.equal(toHex('rgb(255,0,16)'), '#ff0010');
+  assert.equal(toHex('nonsense'), '#000000');
+});
