@@ -183,21 +183,21 @@ let realCatalog = { themes: [], packs: [], errors: [] };
 const pageCatalog = () => (preview && !preview.installed
   ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: [...realCatalog.packs.filter((p) => p.name !== preview.theme.iconPack), { name: preview.theme.iconPack, roles: preview.roles }] }
   : realCatalog);
-function setPreview(spec) {
+function setPreview(spec, note) {
   preview = spec;
   previewList = spec ? previewSessions() : [];
   setCatalog(pageCatalog());
   applyTheme(spec ? spec.name : savedTheme);
-  if (!spec) { footer.preview.hide(); render(); return; }
+  if (!spec) { footer.preview.hide(note); render(); return; }
   const apply = async () => {
     if (spec.installed) await postSettings({ theme: spec.name });
     else {
       const res = await fetch('/market/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: spec.source, name: spec.name }) });
       if (!res.ok) throw new Error(await res.text());
     }
-    setPreview(null);
+    setPreview(null, spec.installed ? `Applied ${spec.label}` : `Installed ${spec.label} and applied it`);
   };
-  footer.preview.show(spec.label, spec.installed ? 'Apply' : 'Install and apply', apply, backToThemes);
+  footer.preview.show(spec.label, spec.installed ? 'Apply' : 'Install and apply', spec.installed ? `Applying ${spec.label}…` : `Installing ${spec.label}…`, apply, backToThemes);
   render();
 }
 function backToThemes() { setPreview(null); footer.views.openFor(footer.themeButton); }

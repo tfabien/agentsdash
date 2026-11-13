@@ -14,7 +14,7 @@ const NEXT_SOUND = { all: 'ask', ask: 'off', off: 'all' };
 /**
  * Fills `root` (a <footer>) with the bar. `onPreview(spec)`: the page shows a theme on made-up agents without saving it; `preview.show()` fills the bar for it. The theme, settings and device buttons open their menu inside `stage`, in place of the agents.
  * @returns {{update: (state: object, elapsedS: number) => void, settings: ReturnType<typeof createSettingsMenu>, views: ReturnType<typeof createViewHost>, themeButton: HTMLElement,
- *   preview: {show: (label: string, applyLabel: string, onApply: () => Promise<unknown>|void, onBack: () => void) => void, hide: () => void}}}
+ *   preview: {show: (label: string, applyLabel: string, busyText: string, onApply: () => Promise<unknown>, onBack: () => void) => void, hide: (note?: string) => void}}}
  */
 export function mountFooter(root, stage, { onPreview } = {}) {
   const quotas = el('span', 'quotas');
@@ -32,6 +32,7 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   const tools = el('span', 'tools');
   tools.append(sound, themes.button, device.button, gear);                   // icons close together; the clock stays apart
   const previewBar = el('span', 'previewbar');
+  let noteTimer = null;
   previewBar.hidden = true;
   root.replaceChildren(previewBar, quotas, el('span', 'spacer'), tools, clock);
   let mode = 'ask';
@@ -40,17 +41,40 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   return {
     settings, views, themeButton: themes.button,
     preview: {
-      show(label, applyLabel, onApply, onBack) {
+      /** The bar of a preview: Back, what is shown, and the apply button. While `onApply` runs the bar shows `busyText` with a spinner; a failure shows its reason. */
+      show(label, applyLabel, busyText, onApply, onBack) {
+        clearTimeout(noteTimer);
         const text = el('span', 'ptext', `Previewing ${label} on made-up agents`);
         const apply = el('button', 'chip', applyLabel);
-        apply.onclick = async () => { apply.disabled = true; try { await onApply(); } catch (err) { text.textContent = String(err.message ?? err); text.classList.add('err'); apply.disabled = false; } };
         const back = el('button', 'chip', '← Back');
         back.onclick = onBack;
+        apply.onclick = async () => {
+          apply.disabled = true; back.disabled = true;
+          text.className = 'ptext';
+          text.textContent = busyText;
+          previewBar.prepend(el('span', 'spin'));
+          try { await onApply(); } catch (err) {
+            previewBar.querySelector('.spin')?.remove();
+            text.textContent = String(err.message ?? err); text.classList.add('err');
+            apply.disabled = false; back.disabled = false;
+          }
+        };
         previewBar.replaceChildren(back, text, apply);
         previewBar.hidden = false;
         root.classList.add('previewing');
       },
-      hide() { previewBar.hidden = true; root.classList.remove('previewing'); },
+      /** Closes the bar; with a `note` the bar stays 5 seconds with that message (the result of the apply). */
+      hide(note) {
+        clearTimeout(noteTimer);
+        if (note) {
+          previewBar.replaceChildren(el('span', 'ptext ok', `✔ ${note}`));
+          previewBar.hidden = false;
+          root.classList.add('previewing');
+          noteTimer = setTimeout(() => { previewBar.hidden = true; root.classList.remove('previewing'); }, 5000);
+          return;
+        }
+        previewBar.hidden = true; root.classList.remove('previewing');
+      },
     },
     update(state, elapsedS) {
       mode = state.settings?.sound ?? 'ask';
