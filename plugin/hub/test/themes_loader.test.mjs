@@ -120,3 +120,29 @@ test('loader_defaults_to_tint_none_and_reports_a_bad_pack_json', () => {
   assert.deepEqual(packs.map((p) => [p.tint, p.hue]), [['none', 0], ['none', 0]]);
   assert.equal(errors.length, 1);
 });
+
+test('loader_reads_pack_json_palettes_and_reports_bad_ones', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'standup-pal-'));
+  fs.mkdirSync(path.join(dir, 'icons', 'a'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'icons', 'b'), { recursive: true });
+  for (const p of ['a', 'b']) fs.writeFileSync(path.join(dir, 'icons', p, 'lead.png'), 'x');
+  fs.writeFileSync(path.join(dir, 'icons', 'a', 'pack.json'), '{"tint":"none","palettes":{"hair-blond":{"#3B241C":"#6b4b12"},"bad":{"#000":"#fff"}}}');
+  fs.writeFileSync(path.join(dir, 'icons', 'b', 'pack.json'), '{"tint":"hue","hue":10}');
+  const { packs, errors } = loadCatalog({ builtinDir: dir });
+  const a = packs.find((p) => p.name === 'a'), b = packs.find((p) => p.name === 'b');
+  assert.deepEqual(a.palettes, { 'hair-blond': { '#3b241c': '#6b4b12' } });
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0].includes('palettes.bad'));
+  assert.ok(!('palettes' in b), 'a pack without palettes is unchanged');
+  assert.equal(b.hue, 10);
+});
+
+test('loader_refuses_a_pack_json_over_4_kb_without_crashing', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'standup-pal-'));
+  fs.mkdirSync(path.join(dir, 'icons', 'a'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'icons', 'a', 'lead.png'), 'x');
+  fs.writeFileSync(path.join(dir, 'icons', 'a', 'pack.json'), JSON.stringify({ palettes: { p: { '#000000': '#111111' } }, pad: 'x'.repeat(5000) }));
+  const { packs, errors } = loadCatalog({ builtinDir: dir });
+  assert.ok(!('palettes' in packs[0]));
+  assert.ok(errors[0].includes('over 4 KB'));
+});

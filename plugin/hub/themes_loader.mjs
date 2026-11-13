@@ -2,7 +2,7 @@
 // The user folder overrides the built-in one by theme or pack name. A bad file is skipped and listed in `errors`.
 import fs from 'node:fs';
 import path from 'node:path';
-import { validateTheme, ROLE_FILES } from './web/theme_schema.js';
+import { validateTheme, validatePalettes, ROLE_FILES } from './web/theme_schema.js';
 
 export const MAX_BYTES = 256 * 1024;
 export const MAX_RASTER_BYTES = 1024 * 1024;                          // a GIF with frames is bigger than a vector file
@@ -41,6 +41,9 @@ function readPackJson(file, errors) {
     const j = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (TINTS.includes(j?.tint)) out.tint = j.tint;
     if (Number.isFinite(j?.hue)) out.hue = ((Math.round(j.hue) % 360) + 360) % 360;
+    const p = validatePalettes(j?.palettes);
+    for (const e of p.errors) errors.push(`${file}: ${e}`);
+    if (Object.keys(p.palettes).length) out.palettes = p.palettes;
   } catch (err) { errors.push(`${file}: ${err.message}`); }
   return out;
 }

@@ -248,7 +248,49 @@ function tintedImage(url, color) {
 }
 
 /** Forgets the loaded images so the next draw fetches every SVG again (after the hub rescanned the icon folders). */
-export function clearIconCache() { images.clear(); animations.clear(); tinted.clear(); }
+export function clearIconCache() { images.clear(); animations.clear(); tinted.clear(); swapped.clear(); }
+
+// Palette swaps: exact RGB replacements on the decoded pixels of a static raster image, at its own resolution. Alpha is never touched.
+const swapped = new Map();                                   // url + palette name -> canvas | 'failed'
+const rgbOf = (hex) => parseInt(hex.slice(1), 16);
+
+/** Replaces in place every pixel of RGBA `data` whose RGB equals a key of `map` (`{ '#rrggbb': '#rrggbb' }`). Alpha and unmapped pixels stay as they are. Returns `data`. */
+export function swapPalette(data, map) {
+  const from = new Map(Object.entries(map).map(([a, b]) => [rgbOf(a), rgbOf(b)]));
+  for (let i = 0; i < data.length; i += 4) {
+    const to = from.get((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
+    if (to !== undefined) { data[i] = (to >> 16) & 255; data[i + 1] = (to >> 8) & 255; data[i + 2] = to & 255; }
+  }
+  return data;
+}
+
+function makeCanvas(w, h) {
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return c;
+}
+
+/** The loaded `img` with the palette `map` applied, cached per `url` and palette `name`. The image itself when the pixels cannot be read. */
+function swappedImage(url, name, map, img) {
+  const key = `${url}|${name}`;
+  const hit = swapped.get(key);
+  if (hit) return hit === 'failed' ? img : hit;
+  try {
+    const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    const canvas = makeCanvas(w, h);
+    const c2 = canvas.getContext('2d');
+    c2.drawImage(img, 0, 0);
+    const pixels = c2.getImageData(0, 0, w, h);
+    swapPalette(pixels.data, map);
+    c2.putImageData(pixels, 0, 0);
+    swapped.set(key, canvas);
+    return canvas;
+  } catch {
+    swapped.set(key, 'failed');                              // cross-origin or no canvas: draw the original artwork
+    return img;
+  }
+}
 
 // Animated GIF and WebP: a canvas draws only the first frame of an <img>, so the frames are decoded once with ImageDecoder (Chrome and Edge)
 // and the one that matches the clock is drawn. Without ImageDecoder the first frame stands in.
@@ -314,7 +356,7 @@ export function variantKey(roles, key, agentId, sprite) {
 }
 
 /** A pack drawn from SVG (or png, gif...) files: `roles` maps 'lead'..'generic' (and '<role>-blink') to URLs. A role without a file, or whose image is not loaded yet, draws the robot. */
-export function svgPack(name, roles, { tint = 'none', hue = 0 } = {}) {
+export function svgPack(name, roles, { tint = 'none', hue = 0, palettes = {} } = {}) {
   return {
     label: name.charAt(0).toUpperCase() + name.slice(1),
     draw(ctx, role, blink, agentId) {
@@ -342,7 +384,11 @@ export function svgPack(name, roles, { tint = 'none', hue = 0 } = {}) {
           continue;
         }
         const img = imageFor(u);
-        if (ready(img)) { paint(img); return; }
+        if (ready(img)) {
+          const map = look?.palette && /\.(png|webp|gif|jpe?g)$/i.test(u) && Object.hasOwn(palettes, look.palette) ? palettes[look.palette] : undefined;   // an unknown palette: the original artwork
+          paint(map ? swappedImage(u, look.palette, map, img) : img);
+          return;
+        }
       }
       // Nothing is loaded yet: draw nothing, the page redraws when the image arrives.
     },
@@ -365,6 +411,6 @@ export function iconPackFor(name) {
   const p = catalogPacks.get(name);
   if (!p) return ICON_PACKS[DEFAULT_PACK];
   let pack = svgPacks.get(name);
-  if (!pack) { pack = svgPack(name, p.roles, { tint: p.tint, hue: p.hue }); svgPacks.set(name, pack); }
+  if (!pack) { pack = svgPack(name, p.roles, { tint: p.tint, hue: p.hue, palettes: p.palettes }); svgPacks.set(name, pack); }
   return pack;
 }

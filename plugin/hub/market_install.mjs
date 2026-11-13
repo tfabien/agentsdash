@@ -135,7 +135,7 @@ export function saveUserTheme({ name, label, theme, variant = '', override, look
   const out = { name, label: label?.trim() ? label.trim().slice(0, 32) : name, description: theme.description || '', keywords: theme.keywords ?? [], author: 'user', version: '1', iconPack: theme.iconPack, ...(accent ? { accent } : {}), colors };
   const active = activeLooks(theme, looks);                       // the ticked looks become the author default of the saved theme
   if (active.length) {
-    out.looks = Object.fromEntries(active.map((l) => [l.key, { label: theme.looks[l.key].label, ...(l.sprite ? { sprite: l.sprite } : {}), ...(l.accent ? { accent: l.accent } : {}) }]));
+    out.looks = Object.fromEntries(active.map((l) => [l.key, { label: theme.looks[l.key].label, ...(l.sprite ? { sprite: l.sprite } : {}), ...(l.accent ? { accent: l.accent } : {}), ...(l.palette ? { palette: l.palette } : {}) }]));
     out.defaultLooks = active.map((l) => l.key);
   }
   fs.mkdirSync(path.join(userDir, 'themes'), { recursive: true });

@@ -42,7 +42,9 @@ export function validateTheme(raw) {
       if (l.sprite !== undefined && sprite === null) ignored.push(`looks.${lname}.sprite`);
       const accent = typeof l.accent === 'string' && HEX.test(l.accent) ? l.accent.toLowerCase() : '';
       if (l.accent !== undefined && !accent) ignored.push(`looks.${lname}.accent`);
-      looks[lname] = { label: typeof l.label === 'string' && l.label.trim() ? l.label.trim().slice(0, 32) : lname, sprite, accent };
+      const palette = typeof l.palette === 'string' && NAME.test(l.palette) ? l.palette : '';   // the pack may not be loaded yet: the name is not checked against it
+      if (l.palette !== undefined && !palette) ignored.push(`looks.${lname}.palette`);
+      looks[lname] = { label: typeof l.label === 'string' && l.label.trim() ? l.label.trim().slice(0, 32) : lname, sprite, accent, ...(palette ? { palette } : {}) };
     }
   }
   const defaultLooks = Array.isArray(raw.defaultLooks) ? raw.defaultLooks.filter((k) => typeof k === 'string' && k in looks) : [];
@@ -84,14 +86,43 @@ export function resolvePalette(theme, variantKey, override) {
 
 /**
  * The looks agents are drawn with, in declaration order: the `chosen` keys when they name an existing look, else the theme's `defaultLooks`, else all of them.
- * @returns {{key: string, sprite: number|null, accent: string}[]} empty when the theme has no looks
+ * @returns {{key: string, sprite: number|null, accent: string, palette?: string}[]} empty when the theme has no looks; `palette` is present only when the look names one
  */
 export function activeLooks(theme, chosen) {
   const all = Object.entries(theme.looks ?? {});
   if (!all.length) return [];
   const pick = (keys) => (Array.isArray(keys) ? all.filter(([k]) => keys.includes(k)) : []);
   const found = pick(chosen).length ? pick(chosen) : pick(theme.defaultLooks).length ? pick(theme.defaultLooks) : all;
-  return found.map(([key, l]) => ({ key, sprite: l.sprite, accent: l.accent }));
+  return found.map(([key, l]) => ({ key, sprite: l.sprite, accent: l.accent, ...(l.palette ? { palette: l.palette } : {}) }));
+}
+
+const MAX_PALETTES = 12;
+const MAX_REPLACEMENTS = 32;
+/**
+ * Validates the `palettes` of a pack.json: named maps of exact `#rrggbb` replacements.
+ * @returns {{palettes: Record<string, Record<string,string>>, errors: string[]}} colors lowercased; a bad entry is dropped and listed in `errors`
+ */
+export function validatePalettes(raw) {
+  const palettes = {};
+  const errors = [];
+  if (raw === undefined) return { palettes, errors };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { palettes, errors: ['palettes: an object of name: { "#rrggbb": "#rrggbb" }'] };
+  for (const [name, map] of Object.entries(raw)) {
+    if (!NAME.test(name)) { errors.push(`palettes.${name}: name must be 1 to 32 characters among a-z, 0-9 and -`); continue; }
+    if (Object.keys(palettes).length >= MAX_PALETTES) { errors.push(`palettes.${name}: over ${MAX_PALETTES} palettes`); continue; }
+    if (!map || typeof map !== 'object' || Array.isArray(map)) { errors.push(`palettes.${name}: an object of "#rrggbb": "#rrggbb"`); continue; }
+    const entries = Object.entries(map);
+    if (!entries.length) { errors.push(`palettes.${name}: empty`); continue; }
+    if (entries.length > MAX_REPLACEMENTS) { errors.push(`palettes.${name}: over ${MAX_REPLACEMENTS} replacements`); continue; }
+    const out = {};
+    let bad = '';
+    for (const [from, to] of entries) {
+      if (!HEX.test(from) || typeof to !== 'string' || !HEX.test(to)) { bad = from; break; }
+      out[from.toLowerCase()] = to.toLowerCase();
+    }
+    if (bad) errors.push(`palettes.${name}: ${bad} must map "#rrggbb" to "#rrggbb"`); else palettes[name] = out;
+  }
+  return { palettes, errors };
 }
 
 /** Hue of a `#rrggbb` color in degrees (0..359), 0 for greys. */

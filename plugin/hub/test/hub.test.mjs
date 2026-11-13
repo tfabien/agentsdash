@@ -530,6 +530,18 @@ test('post_themes_saves_looks_and_the_active_ones_as_default', async () => {
   }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
 });
 
+test('post_themes_keeps_the_palette_of_active_looks', async () => {
+  const d = catalogDirs();
+  fs.mkdirSync(path.join(d.builtinDir, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(d.builtinDir, 'themes', 'pl.json'), JSON.stringify({ name: 'pl', colors: {}, looks: { a: { label: 'A' }, b: { label: 'B', sprite: 2, palette: 'hair-blond', accent: '#4da6ff' } }, defaultLooks: ['a', 'b'] }));
+  await withHub(async (hub) => {
+    assert.equal((await postJson(hub, '/themes', { name: 'mine', theme: 'pl' })).status, 200);
+    const saved = JSON.parse(fs.readFileSync(path.join(d.userDir, 'themes', 'mine.json'), 'utf8'));
+    assert.deepEqual(saved.looks.a, { label: 'A' });
+    assert.deepEqual(saved.looks.b, { label: 'B', sprite: 2, accent: '#4da6ff', palette: 'hair-blond' });
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
 test('market_remove_clears_theme_looks_of_that_theme', async () => {
   const d = looksBase();
   fs.writeFileSync(path.join(d.userDir, 'themes', 'mine.json'), JSON.stringify({ name: 'mine', colors: {} }));

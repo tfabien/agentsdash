@@ -110,3 +110,45 @@ test('activeLooks_ignores_unknown_chosen_keys', () => {
 test('activeLooks_is_empty_without_looks', () => {
   assert.deepEqual(activeLooks(validateTheme({ name: 'x', colors: {} }).theme), []);
 });
+
+// ---- palettes ----
+import { validatePalettes } from '../web/theme_schema.js';
+
+test('validateTheme_keeps_look_palette_and_activeLooks_retains_it', () => {
+  const t = validateTheme({ name: 'pl', colors: {}, looks: { a: { label: 'A' }, b: { label: 'B', sprite: 2, palette: 'hair-blond', accent: '#4DA6FF' } } }).theme;
+  assert.deepEqual(t.looks.a, { label: 'A', sprite: null, accent: '' }, 'no palette field without a palette');
+  assert.deepEqual(t.looks.b, { label: 'B', sprite: 2, accent: '#4da6ff', palette: 'hair-blond' });
+  assert.deepEqual(activeLooks(t).map((l) => l.palette), [undefined, 'hair-blond']);
+});
+
+test('validateTheme_accepts_an_unknown_palette_name_and_drops_a_malformed_one', () => {
+  const r = validateTheme({ name: 'pl', colors: {}, looks: { a: { palette: 'not-loaded-yet' }, b: { palette: 'Bad Name' }, c: { palette: 3 } } });
+  assert.equal(r.theme.looks.a.palette, 'not-loaded-yet');
+  assert.ok(!('palette' in r.theme.looks.b) && !('palette' in r.theme.looks.c));
+  assert.deepEqual(r.ignored.filter((k) => k.endsWith('.palette')), ['looks.b.palette', 'looks.c.palette']);
+});
+
+test('validatePalettes_normalizes_colors_and_reports_bad_entries', () => {
+  const r = validatePalettes({
+    good: { '#3B241C': '#6B4B12' },
+    'Bad Name': { '#000000': '#ffffff' },
+    empty: {},
+    notobj: 'x',
+    badcolor: { '#000000': 'red' },
+    badkey: { 'black': '#ffffff' },
+    arr: ['#000000'],
+  });
+  assert.deepEqual(r.palettes, { good: { '#3b241c': '#6b4b12' } });
+  assert.equal(r.errors.length, 6);
+  assert.deepEqual(validatePalettes(undefined), { palettes: {}, errors: [] });
+  assert.equal(validatePalettes([]).errors.length, 1);
+});
+
+test('validatePalettes_limits_palettes_and_replacements', () => {
+  const many = Object.fromEntries(Array.from({ length: 14 }, (_, i) => [`p${i}`, { '#000000': '#111111' }]));
+  const r = validatePalettes(many);
+  assert.equal(Object.keys(r.palettes).length, 12);
+  assert.equal(r.errors.length, 2);
+  const big = Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`#${i.toString(16).padStart(6, '0')}`, '#ffffff']));
+  assert.equal(validatePalettes({ ok: Object.fromEntries(Object.entries(big).slice(0, 32)), big }).errors.length, 1);
+});

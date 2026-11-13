@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COLOR, rgb565 } from '../web/screen.js';
 import { THEMES, applyTheme, validateTheme, activeTheme, activeIconPack, activeAccent, setCatalog } from '../web/themes.js';
-import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey, setAccent, setLooks, lookFor, currentLooks } from '../web/icon_packs.js';
+import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey, setAccent, setLooks, lookFor, currentLooks, swapPalette, clearIconCache } from '../web/icon_packs.js';
 import { createVectorScreen } from '../web/vector_screen.js';
 
 function fakeCanvas() {
@@ -327,4 +327,137 @@ test('applyTheme_sets_the_active_looks_from_chosen_then_default', () => {
   assert.equal(seen(undefined), 'a,b');
   assert.equal(seen(['c']), 'c');
   applyTheme('default');
+});
+
+// ---- palette swaps ----
+// A 4 pixel image: brown hair, semi-transparent brown, skin, transparent brown.
+const PIXELS = () => new Uint8ClampedArray([0x3b, 0x24, 0x1c, 255, 0x3b, 0x24, 0x1c, 128, 0xf2, 0xcf, 0xae, 255, 0x3b, 0x24, 0x1c, 0]);
+const BLOND = { '#3b241c': '#6b4b12' };
+function pixelStubs({ failRead = false } = {}) {
+  const made = [];
+  globalThis.Image = class { constructor() { this.complete = true; this.naturalWidth = 2; this.naturalHeight = 2; this.pixels = PIXELS(); made.push(this); } };
+  const canvases = [];
+  globalThis.OffscreenCanvas = class {
+    constructor(w, h) { this.width = w; this.height = h; this.pixels = new Uint8ClampedArray(w * h * 4); canvases.push(this); }
+    getContext() {
+      const c = this;
+      return {
+        drawImage(img) { c.pixels.set(img.pixels); },
+        getImageData() { if (failRead) throw new Error('tainted'); return { data: c.pixels }; },
+        putImageData() {},
+      };
+    }
+  };
+  return { made, canvases };
+}
+const unstub = () => { delete globalThis.Image; delete globalThis.OffscreenCanvas; setLooks([]); setAccent(''); clearIconCache(); };
+const palettePack = (extra = {}) => svgPack('p', { lead: '/l1.png', 'lead-2': '/l2.png' }, { palettes: { 'hair-blond': BLOND, 'hair-red': { '#3b241c': '#8d3424' } }, ...extra });
+const lk = (palette, sprite = null, accent = '') => ({ key: palette ?? 'plain', sprite, accent, ...(palette ? { palette } : {}) });
+
+test('swapPalette_replaces_exact_rgb_keeps_alpha_and_unmapped_pixels', () => {
+  const px = swapPalette(PIXELS(), BLOND);
+  assert.deepEqual([...px], [0x6b, 0x4b, 0x12, 255, 0x6b, 0x4b, 0x12, 128, 0xf2, 0xcf, 0xae, 255, 0x6b, 0x4b, 0x12, 0]);
+  const near = swapPalette(new Uint8ClampedArray([0x3b, 0x24, 0x1d, 255]), BLOND);
+  assert.deepEqual([...near], [0x3b, 0x24, 0x1d, 255], 'one unit off: no match');
+});
+
+test('svgPack_look_palette_draws_the_swapped_image_and_leaves_the_source_alone', () => {
+  const { made } = pixelStubs();
+  setLooks([lk('hair-blond')]);
+  const r = recordingCtx();
+  palettePack().draw(r.ctx, 0, false, 'agent');
+  const drawn = r.calls[0].args[0];
+  assert.deepEqual([...drawn.pixels.slice(0, 4)], [0x6b, 0x4b, 0x12, 255]);
+  assert.deepEqual([...made[0].pixels.slice(0, 4)], [0x3b, 0x24, 0x1c, 255], 'the loaded image is untouched');
+  assert.deepEqual(r.calls[0].args.slice(1), [0, 0, 36, 42], 'drawn through the usual 36x42 path');
+  unstub();
+});
+
+test('svgPack_without_palette_or_with_an_unknown_one_draws_the_original_image', () => {
+  const { made } = pixelStubs();
+  for (const look of [lk(null), lk('ghost'), lk('constructor')]) {
+    setLooks([look]);
+    const r = recordingCtx();
+    palettePack().draw(r.ctx, 0, false, 'agent');
+    assert.equal(r.calls[0].args[0], made[0]);
+  }
+  unstub();
+});
+
+test('svgPack_palette_cache_has_one_entry_per_url_and_palette_and_clearIconCache_empties_it', () => {
+  const { canvases } = pixelStubs();
+  const pack = palettePack();
+  const draw = (look) => { setLooks([look]); const r = recordingCtx(); pack.draw(r.ctx, 0, false, 'agent'); return r.calls[0].args[0]; };
+  const blond = draw(lk('hair-blond'));
+  assert.equal(draw(lk('hair-blond')), blond, 'cached');
+  const red = draw(lk('hair-red'));
+  assert.notEqual(red, blond);
+  assert.deepEqual([...red.pixels.slice(0, 3)], [0x8d, 0x34, 0x24]);
+  assert.notEqual(draw(lk('hair-blond', 2)), blond, 'another sprite is another entry');
+  assert.equal(canvases.length, 3);
+  clearIconCache();
+  assert.notEqual(draw(lk('hair-blond')), blond, 'rebuilt after the cache was cleared');
+  unstub();
+});
+
+test('svgPack_palette_falls_back_to_the_original_when_pixels_cannot_be_read', () => {
+  const { made } = pixelStubs({ failRead: true });
+  setLooks([lk('hair-blond')]);
+  const r = recordingCtx();
+  palettePack().draw(r.ctx, 0, false, 'agent');
+  assert.equal(r.calls[0].args[0], made[0]);
+  unstub();
+});
+
+test('svgPack_look_combines_sprite_palette_and_accent_then_hue_tint', () => {
+  pixelStubs();
+  setLooks([lk('hair-blond', 2, '#0000ff')]);
+  let filter = 'none';
+  const calls = [];
+  const ctx = { get filter() { return filter; }, set filter(v) { filter = v; }, save() {}, restore() { filter = 'none'; }, drawImage(img) { calls.push({ img, filter }); } };
+  palettePack({ tint: 'hue', hue: 120 }).draw(ctx, 0, false, 'agent');
+  assert.deepEqual([...calls[0].img.pixels.slice(0, 3)], [0x6b, 0x4b, 0x12], 'palette applied');
+  assert.equal(calls[0].filter, 'hue-rotate(120deg)', 'then the hue tint on the swapped image');
+  unstub();
+});
+
+test('svgPack_palette_leaves_svg_files_unchanged', () => {
+  pixelStubs();
+  setLooks([lk('hair-blond')]);
+  const r = recordingCtx();
+  svgPack('p', { lead: '/l.svg' }, { palettes: { 'hair-blond': BLOND } }).draw(r.ctx, 0, false, 'agent');
+  assert.equal(r.calls[0].args[0].src, '/l.svg');
+  unstub();
+});
+
+test('svgPack_palette_look_is_stable_per_agent_and_covers_every_look', () => {
+  const { canvases } = pixelStubs();
+  setLooks([lk(null), lk('hair-blond'), lk('hair-red')]);
+  const pack = palettePack();
+  const pixelOf = (id) => { const r = recordingCtx(); pack.draw(r.ctx, 0, false, id); return r.calls[0].args[0].pixels[0]; };
+  const first = Array.from({ length: 40 }, (_, i) => pixelOf(`agent-${i}`));
+  assert.deepEqual(first, Array.from({ length: 40 }, (_, i) => pixelOf(`agent-${i}`)));
+  assert.equal(new Set(first).size, 3, 'original, blond and red all appear');
+  assert.equal(canvases.length, 4, 'two palettes x two numbered files (the hash also picks the file), never more');
+  unstub();
+});
+
+test('svgPack_palette_with_an_animated_extension_never_throws_and_draws_an_image', () => {
+  pixelStubs();                                                // no ImageDecoder: the animation settles as static and the first frame is drawn
+  setLooks([lk('hair-blond')]);
+  const r = recordingCtx();
+  svgPack('p', { lead: '/l.gif' }, { palettes: { 'hair-blond': BLOND } }).draw(r.ctx, 0, false, 'agent');
+  assert.equal(r.calls[0].name, 'drawImage');
+  unstub();
+});
+
+test('setCatalog_hands_pack_palettes_to_the_pack', () => {
+  pixelStubs();
+  setCatalog({ themes: [], packs: [{ name: 'pp', roles: { lead: '/icons/pp/lead.png' }, tint: 'none', hue: 0, palettes: { 'hair-blond': BLOND } }] });
+  setLooks([lk('hair-blond')]);
+  const r = recordingCtx();
+  iconPackFor('pp').draw(r.ctx, 0, false, 'agent');
+  assert.deepEqual([...r.calls[0].args[0].pixels.slice(0, 3)], [0x6b, 0x4b, 0x12]);
+  setCatalog({ themes: [], packs: [] });
+  unstub();
 });
