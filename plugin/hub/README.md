@@ -112,7 +112,7 @@ change and every second), `GET /health` and `GET /` (the page).
 - `tui.mjs` terminal view.
 - `paths.mjs` names and folders: `AGENTSDASH_*` variables with the old names as fallback, config file, state folder, user folder.
 - The hub does not poll quotas: `plugin/scripts/quota_poller.mjs` (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed) posts them to `/usage`.
-- Release: a `v*` tag packs this folder (without `test/` and `tools/`) as `agentsdash-core-<version>.tar.gz` with a `.sha256` file; run it with `node hub.mjs` or point the hooks at it with `AGENTSDASH_CORE_DIR`.
+- Release: a `v*` tag packs this folder (without `test/` and `tools/`) as `agentsdash-core-<version>-p<protocol>.tar.gz` (the protocol is in `package.json`) with a `.sha256` file; run it with `node hub.mjs` or point the hooks at it with `AGENTSDASH_CORE_DIR`.
 - `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `hub_page.js` wires SSE, taps, pages and beeps.
 
 ## Tests

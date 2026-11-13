@@ -99,6 +99,13 @@ Server-sent events: the state above is sent on connect, then after every change.
 `{ "ok": true, "version": "<plugin version>", "core": "<core version>", "protocol": 2, "script": "<path of hub.mjs>", "startedAt": <ms> }`.
 `core` and `protocol` are the compatibility check: an adapter keeps a running hub only when `protocol` matches the one it speaks and `core` is not older than the minimum it needs. A hub that predates this field answers without `core` and `protocol`; treat that as protocol 2 with an unknown core.
 
+#### How an adapter picks a core
+
+An adapter finds a core in this order: a folder or script the user names (`AGENTSDASH_CORE_DIR`), a hub folder next to the adapter (a checkout), then the highest
+`~/.agentsdash/core/<version>/` with `package.json` `protocol` equal to the protocol it speaks and `version` not below its minimum. With none, it downloads the newest
+GitHub release whose asset is named `agentsdash-core-<version>-p<protocol>.tar.gz` (plus `.sha256`) and checks the digest before unpacking. It leaves a running hub
+alone when `/health` shows the same `protocol` and a `core` at or above its minimum, and asks any other hub to stop with `POST /shutdown`.
+
 ### POST /shutdown
 
 Asks the hub to exit (a newer client starts a fresh one). Answers `bye`.

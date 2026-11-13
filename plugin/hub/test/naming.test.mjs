@@ -68,6 +68,14 @@ test('docs_new_config_names', () => {
   assert.deepEqual(hits, []);
 });
 
+test('docs_core_install', () => {
+  const read = (d) => fs.readFileSync(path.join(ROOT, d), 'utf8');
+  for (const d of ['plugin/README.md', 'INSTALL.md']) assert.match(read(d), /~\/\.agentsdash\/core/, `${d} says where cores live`);
+  assert.match(read('plugin/hub/README.md'), /-p<protocol>/, 'the release asset name');
+  assert.match(read('docs/protocol.md'), /How an adapter picks a core/, 'the protocol says how a core is picked');
+  assert.match(read('plugin/README.md'), /AGENTSDASH_CORE_DIR/);
+});
+
 test('saved_old_source_still_wins', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentsdash-name-'));
   const settingsFile = path.join(dir, 'hub-settings.json');
