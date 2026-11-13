@@ -171,20 +171,20 @@ function draw() {
   }
 }
 
-const footer = mountFooter($('bar'));
+const footer = mountFooter($('bar'), $('stage'));
 
 // Pages: the sessions run in order (first seen first, idle ones last) and are cut into pages of `capacity()` cells. Arrows, dots, swipes and the
 // left and right keys turn the page; a dot is orange or red when a session on that page needs you or failed.
 const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager');
 function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && focus && !document.querySelector('.settings-panel:not([hidden])') && !document.querySelector('dialog[open]')) { focus = null; render(); }
+  if (e.key === 'Escape' && focus && !e.defaultPrevented) { focus = null; render(); }
 });
 prevBtn.onclick = () => goto(page - 1);
 nextBtn.onclick = () => goto(page + 1);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-  if (e.target.closest?.('input, textarea, select') || document.querySelector('.settings-panel:not([hidden])') || document.querySelector('dialog[open]')) return;
+  if (e.target.closest?.('input, textarea, select') || footer.views.isOpen()) return;
   goto(page + (e.key === 'ArrowRight' ? 1 : -1));
 });
 let swipe = null;                                      // finger down: where it started

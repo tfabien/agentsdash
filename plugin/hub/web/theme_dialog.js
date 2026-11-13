@@ -1,4 +1,4 @@
-// The theme button of the bottom bar and its dialog: one card per theme with a preview (its colors and its eight agents), a click applies it.
+// The theme button of the bottom bar and its view (it opens in place of the agents, see views.js): one card per theme with a preview (its colors and its eight agents), a click applies it.
 // The choice is the `theme` setting of the hub, so every page follows (see themes.js).
 import { listThemes, themeColor } from './themes.js';
 import { iconPackFor, onIconsLoaded, clearIconCache } from './icon_packs.js';
@@ -24,17 +24,14 @@ function drawPreview(canvas, theme) {
 }
 
 /**
- * @returns {{button: HTMLButtonElement, update: (name: string|undefined) => void}}
+ * @returns {{button: HTMLButtonElement, panel: HTMLElement, onOpen: () => void, update: (name: string|undefined) => void}}
  */
-export function createThemeDialog() {
+export function createThemeMenu() {
   const button = el('button', 'chip themebtn');
   button.append(icon('palette'));
   button.title = 'Theme';
   button.setAttribute('aria-label', 'Theme');
-  const dialog = el('dialog', 'theme-dialog');
-  const head = el('div', 'thead');
-  const close = el('button', 'chip', '✕');
-  close.setAttribute('aria-label', 'Close');
+  const panel = el('div', 'vpanel vwide');
   const reload = el('button', 'chip', '↻ Reload');
   reload.title = 'Rescan the theme and icon folders';
   reload.onclick = async () => {                             // the hub rescans and pushes the new catalog to every page
@@ -42,19 +39,15 @@ export function createThemeDialog() {
     try { await fetch('/reload', { method: 'POST' }); clearIconCache(); } catch { /* the hub is unreachable: nothing changes */ }
     reload.disabled = false;
   };
-  const actions = el('div', 'tactions');
-  actions.append(reload, close);
-  head.append(el('div', 'ttitle', 'Theme'), actions);
   const list = el('div', 'tlist');
   const market = createMarket();
   const tabs = el('div', 'mtabs');
   const tabInstalled = el('button', 'chip on', 'Installed');
   const tabMarket = el('button', 'chip', 'Marketplace');
-  tabs.append(tabInstalled, tabMarket);
+  tabs.append(tabInstalled, tabMarket, el('span', 'spacer'), reload);
   market.element.hidden = true;
   const hint = el('div', 'shint', 'Colors and agent icons of the page, for every browser');
-  dialog.append(head, tabs, hint, list, market.element);
-  document.body.append(dialog);
+  panel.append(tabs, hint, list, market.element);
   function show(tab) {
     const inMarket = tab === 'market';
     tabInstalled.classList.toggle('on', !inMarket);
@@ -110,11 +103,9 @@ export function createThemeDialog() {
   }
 
   const open = () => { rebuild(); update(chosenName); for (const c of cards.values()) drawPreview(c.preview, c.theme); };
-  button.onclick = () => { show('installed'); open(); dialog.showModal(); market.refresh().then(() => { shown = ''; open(); }); };
-  onIconsLoaded(() => { if (dialog.open) for (const c of cards.values()) drawPreview(c.preview, c.theme); });
-  close.onclick = () => dialog.close();
-  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });     // a click on the backdrop closes
+  const onOpen = () => { show('installed'); open(); market.refresh().then(() => { shown = ''; open(); }); };
+  onIconsLoaded(() => { if (panel.isConnected) for (const c of cards.values()) drawPreview(c.preview, c.theme); });
 
   update(undefined);
-  return { button, update };
+  return { button, panel, onOpen, update };
 }

@@ -150,16 +150,14 @@ function createRulesSection() {
 }
 
 /**
- * @returns {{button: HTMLButtonElement, update: (settings: object, catalog?: object) => void}}
+ * @returns {{button: HTMLButtonElement, panel: HTMLElement, update: (settings: object, catalog?: object) => void}}
  */
 export function createSettingsMenu() {
   const button = el('button', 'chip gear');
   button.append(icon('gear'));
   button.title = 'Settings';
   button.setAttribute('aria-label', 'Settings');
-  const panel = el('div', 'settings-panel');
-  panel.hidden = true;
-  document.body.append(panel);
+  const panel = el('div', 'vpanel');
   let current = {};
   const rows = new Map();                              // key -> function that shows the value
 
@@ -199,36 +197,24 @@ export function createSettingsMenu() {
 
   function show() { for (const opt of OPTIONS) if (current[opt.key] !== undefined) rows.get(opt.key)(current[opt.key]); }
 
-  attachPanel(button, panel);
-
-  return { button, update(settings, catalog) { current = { ...settings }; show(); rulesSection.update(settings.rules, catalog?.packs); } };
-}
-
-/** A button that toggles `panel`; a click outside or Escape closes it. */
-function attachPanel(button, panel) {
-  button.onclick = (e) => { e.stopPropagation(); panel.hidden = !panel.hidden; };
-  document.addEventListener('click', (e) => { if (!panel.hidden && !panel.contains(e.target) && !button.contains(e.target)) panel.hidden = true; });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') panel.hidden = true; });
+  return { button, panel, update(settings, catalog) { current = { ...settings }; show(); rulesSection.update(settings.rules, catalog?.packs); } };
 }
 
 /**
  * The device button of the bottom bar, apart from the settings gear: its icon is the state of the relay (no device configured, connected,
  * unreachable) and it opens the Device panel.
- * @returns {{button: HTMLButtonElement, updateRelay: (relay: object|undefined) => void}}
+ * @returns {{button: HTMLButtonElement, panel: HTMLElement, updateRelay: (relay: object|undefined) => void}}
  */
 export function createDeviceMenu() {
   const button = el('button', 'chip devbtn');
   button.setAttribute('aria-label', 'Device');
-  const panel = el('div', 'settings-panel');
-  panel.hidden = true;
-  document.body.append(panel);
+  const panel = el('div', 'vpanel');
   const device = createDeviceSection();
   panel.append(device.node);
-  attachPanel(button, panel);
   let shown = '';
 
   return {
-    button,
+    button, panel,
     updateRelay(relay) {
       device.update(relay);
       const label = relayLabel(relay);
