@@ -231,7 +231,7 @@ export function startHub(opts = {}) {
         if (!theme) return text(res, 400, 'unknown theme');
         try { await installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }); } catch (err) { return text(res, 400, err.message); }
         reloadCatalog();
-        saveSettings({ theme: theme.name });          // a new theme is applied at once, on every page
+        saveSettings({ theme: theme.name, themeVariant: '' });          // a new theme is applied at once, on every page
         publish();
         return text(res, 200, 'ok');
       }

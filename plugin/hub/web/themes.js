@@ -2,8 +2,8 @@
 // A theme is a plain object { name, label?, author?, version?, iconPack?, colors: { KEY: '#rrggbb' } }. Missing or invalid colors keep the
 // built-in value, a missing or unknown icon pack gives the robots. The active theme is global (setting `theme`, kept by the hub).
 import { COLOR } from './screen.js';
-import { iconPackFor, setCatalogPacks } from './icon_packs.js';
-import { validateTheme } from './theme_schema.js';
+import { iconPackFor, setCatalogPacks, setAccent } from './icon_packs.js';
+import { validateTheme, resolvePalette } from './theme_schema.js';
 
 const BASE = { ...COLOR };                                   // the palette of ui_theme.h, as RGB565
 const to565 = (hex) => { const n = parseInt(hex.slice(1), 16); return (((n >> 19) & 31) << 11) | (((n >> 10) & 63) << 5) | ((n >> 3) & 31); };
@@ -58,6 +58,7 @@ export function themeColor(theme, key) {
 }
 
 let active = THEMES[DEFAULT_THEME];
+let activeAccentHex = '';
 let catalogThemes = null;                                    // name -> theme of the hub catalog; null until one arrived
 
 /** Stores the hub catalog ({ themes, packs }). THEMES stays the offline fallback and the source of `default`. */
@@ -71,15 +72,25 @@ export function setCatalog(catalog) {
 export const listThemes = () => (catalogThemes ? [...catalogThemes.values()] : Object.values(THEMES));
 const findTheme = (name) => catalogThemes?.get(name) ?? THEMES[name];
 
-/** Makes `theme` (an object of THEMES, or its name) the one every drawing reads. An unknown or missing name gives the default theme. */
-export function applyTheme(theme) {
+/**
+ * Makes `theme` (an object of THEMES, or its name) the one every drawing reads. An unknown or missing name gives the default theme.
+ * `variantKey` picks one of its variants (unknown or empty: the base). `overrides` is the setting `themeOverrides`: the entry of `<theme>` or `<theme>/<variant>`
+ * (the one that matches) is applied last.
+ */
+export function applyTheme(theme, variantKey = '', overrides = {}) {
   const t = (typeof theme === 'string' ? findTheme(theme) : theme) ?? THEMES[DEFAULT_THEME];
+  const variant = variantKey && t.variants?.[variantKey] ? variantKey : '';
+  const { colors, accent } = resolvePalette(t, variant, overrides?.[variant ? `${t.name}/${variant}` : t.name]);
   Object.assign(COLOR, BASE);
-  for (const [key, hex] of Object.entries(t.colors)) if (key in BASE && HEX.test(hex)) COLOR[key] = to565(hex);
+  for (const [key, hex] of Object.entries(colors)) if (key in BASE && HEX.test(hex)) COLOR[key] = to565(hex);
   active = t;
+  activeAccentHex = accent;
+  setAccent(accent);
   return t;
 }
 
 export const activeTheme = () => active;
+/** The icon accent (`#rrggbb`, '' for none) of the applied theme, variant and override. */
+export const activeAccent = () => activeAccentHex;
 /** The icon pack of the active theme. */
 export const activeIconPack = () => iconPackFor(active.iconPack);

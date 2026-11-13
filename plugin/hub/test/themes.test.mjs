@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COLOR, rgb565 } from '../web/screen.js';
-import { THEMES, applyTheme, validateTheme, activeTheme, activeIconPack, setCatalog } from '../web/themes.js';
-import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey } from '../web/icon_packs.js';
+import { THEMES, applyTheme, validateTheme, activeTheme, activeIconPack, activeAccent, setCatalog } from '../web/themes.js';
+import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey, setAccent } from '../web/icon_packs.js';
 import { createVectorScreen } from '../web/vector_screen.js';
 
 function fakeCanvas() {
@@ -199,4 +199,75 @@ test('compareVersions_orders_dotted_numbers', () => {
   assert.equal(compareVersions('beta', 'beta'), 0);
   assert.equal(compareVersions('beta', 'rc'), 1);
   assert.equal(compareVersions('', '1'), -1);
+});
+
+// ---- variants and accent ----
+const variantTheme = { name: 'vt', label: 'vt', author: 't', version: '1', iconPack: 'robot', accent: '#ff0000', colors: { FRAME: '#111111' },
+  variants: { dark: { label: 'Dark', colors: { FRAME: '#222222' }, accent: '' }, light: { label: 'Light', colors: {}, accent: '#0000ff' } } };
+const frame = () => ({ ...COLOR }).FRAME;
+const rgbOf = (hex) => { applyTheme({ name: 'x', colors: { FRAME: hex } }); return frame(); };
+
+test('applyTheme_applies_variant_colors', () => {
+  setCatalog({ themes: [variantTheme], packs: [] });
+  applyTheme('vt', 'dark');
+  assert.equal(frame(), rgbOf('#222222'));
+});
+
+test('applyTheme_applies_override_of_the_exact_variant_key_only', () => {
+  setCatalog({ themes: [variantTheme], packs: [] });
+  const overrides = { 'vt/dark': { colors: { FRAME: '#abcdef' } } };
+  applyTheme('vt', 'dark', overrides);
+  assert.equal(frame(), rgbOf('#abcdef'));
+  setCatalog({ themes: [variantTheme], packs: [] });
+  applyTheme('vt', 'light', overrides);
+  assert.equal(frame(), rgbOf('#111111'));
+  applyTheme('vt', '', overrides);
+  assert.equal(frame(), rgbOf('#111111'));
+});
+
+test('applyTheme_ignores_overrides_of_unknown_theme_or_variant', () => {
+  setCatalog({ themes: [variantTheme], packs: [] });
+  applyTheme('vt', 'nope', { 'ghost/x': { colors: { FRAME: '#abcdef' } }, 'vt/nope': { colors: { FRAME: '#abcdef' } } });
+  assert.equal(frame(), rgbOf('#111111'));
+});
+
+test('activeAccent_follows_variant_then_theme', () => {
+  setCatalog({ themes: [variantTheme], packs: [] });
+  applyTheme('vt');
+  assert.equal(activeAccent(), '#ff0000');
+  applyTheme('vt', 'dark');
+  assert.equal(activeAccent(), '#ff0000');
+  applyTheme('vt', 'light');
+  assert.equal(activeAccent(), '#0000ff');
+  applyTheme('default');
+  assert.equal(activeAccent(), '');
+});
+
+function filterCtx() {
+  const calls = [];
+  let filter = 'none';
+  const ctx = { get filter() { return filter; }, set filter(v) { filter = v; }, save() {}, restore() { filter = 'none'; }, drawImage(...a) { calls.push({ filter, a }); } };
+  return { ctx, calls };
+}
+
+test('svgPack_hue_mode_sets_ctx_filter_with_the_hue_difference', () => {
+  stubImage(true);
+  const pack = svgPack('p', { lead: '/l.png' }, { tint: 'hue', hue: 120 });
+  setAccent('#0000ff');                                       // hue 240
+  const r = filterCtx();
+  pack.draw(r.ctx, 0, false);
+  assert.equal(r.calls[0].filter, 'hue-rotate(120deg)');
+  setAccent('');
+  delete globalThis.Image;
+});
+
+test('svgPack_none_mode_never_sets_a_filter', () => {
+  stubImage(true);
+  const pack = svgPack('p', { lead: '/l.png' });
+  setAccent('#0000ff');
+  const r = filterCtx();
+  pack.draw(r.ctx, 0, false);
+  assert.equal(r.calls[0].filter, 'none');
+  setAccent('');
+  delete globalThis.Image;
 });

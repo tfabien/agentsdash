@@ -179,6 +179,10 @@ function draw() {
 let preview = null;
 let previewList = [];
 let savedTheme = 'default';
+let savedVariant = '';
+let savedOverrides = {};
+// What the tiles draw: the preview shows a theme (and variant) as authored, the saved choice also carries the user's color edits.
+const applySaved = () => (preview ? applyTheme(preview.name, preview.variant ?? '') : applyTheme(savedTheme, savedVariant, savedOverrides));
 let realCatalog = { themes: [], packs: [], errors: [] };
 const pageCatalog = () => (preview && !preview.installed
   ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: [...realCatalog.packs.filter((p) => p.name !== preview.theme.iconPack), { name: preview.theme.iconPack, roles: preview.roles }] }
@@ -187,10 +191,10 @@ function setPreview(spec, note) {
   preview = spec;
   previewList = spec ? previewSessions() : [];
   setCatalog(pageCatalog());
-  applyTheme(spec ? spec.name : savedTheme);
+  applySaved();
   if (!spec) { footer.preview.hide(note); render(); return; }
   const apply = async () => {
-    if (spec.installed) await postSettings({ theme: spec.name });
+    if (spec.installed) await postSettings({ theme: spec.name, themeVariant: spec.variant ?? '' });
     else {
       const res = await fetch('/market/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: spec.source, name: spec.name }) });
       if (!res.ok) throw new Error(await res.text());
@@ -299,8 +303,10 @@ function showState(next) {
   if (next.catalog) realCatalog = next.catalog;
   if (preview && next.settings?.theme !== savedTheme) { preview = null; previewList = []; footer.preview.hide(); }     // another page chose a theme
   savedTheme = next.settings?.theme ?? 'default';
+  savedVariant = next.settings?.themeVariant ?? '';
+  savedOverrides = next.settings?.themeOverrides ?? {};
   setCatalog(pageCatalog());
-  applyTheme(preview ? preview.name : savedTheme);
+  applySaved();
   footer.settings.update(next.settings ?? {}, next.catalog);
   const now = countStates(next.sessions);
   const times = beepsFor(counts, now, sound);
