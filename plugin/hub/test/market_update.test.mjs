@@ -52,13 +52,16 @@ test('source_errors_are_reported', async () => {
   assert.deepEqual((await u.check()).errors, ['o/r: HTTP 403']);
 });
 
-test('the_listing_is_cached_for_10_minutes', async () => {
+test('the_listing_is_cached_for_24_hours', async () => {
   let t = 1000;
   let n = 0;
   const u = createUpdater({ getInstalled: () => ({}), list: async () => { n++; return { themes: [], errors: [] }; }, install: async () => {}, now: () => t });
   await u.list('o/r'); await u.list('o/r');
   assert.equal(n, 1);
-  t += 10 * 60 * 1000 + 1;
+  t += 24 * 3600 * 1000 - 1;
+  await u.list('o/r');
+  assert.equal(n, 1);
+  t += 2;
   await u.list('o/r');
   assert.equal(n, 2);
 });
@@ -76,4 +79,23 @@ test('the_timer_checks_every_6_hours_only_while_active', async () => {
   assert.deepEqual(calls.installed, ['a']);
   u.stop();
   assert.equal(calls.cleared, true);
+});
+
+test('a_listing_survives_in_the_store_and_a_failed_listing_is_not_kept', async () => {
+  let disk = {};
+  let n = 0;
+  const store = { read: () => disk, write: (d) => { disk = d; } };
+  const make = (errors) => createUpdater({ store, getInstalled: () => ({}), list: async () => { n++; return { themes: [listed('a', '1.0.0')], errors }; }, install: async () => {}, now: () => 5000 });
+  const first = make([]);
+  await first.list('o/r');
+  const second = make([]);                                // a new hub: the store answers, no fetch
+  assert.deepEqual((await second.list('o/r')).themes.map((t) => t.name), ['a']);
+  assert.equal(n, 1);
+  assert.deepEqual(second.refreshedAt(['o/r', 'x/y']), { 'o/r': 5000, 'x/y': 0 });
+  disk = {};
+  const failing = make(['o/r: HTTP 403']);
+  await failing.list('o/r'); await failing.list('o/r');
+  assert.equal(n, 3, 'a listing with errors is fetched again every time');
+  first.forget();
+  assert.deepEqual(disk, {});
 });

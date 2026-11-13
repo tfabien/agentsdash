@@ -375,8 +375,11 @@ test('market_install_then_remove_changes_the_catalog', async () => {
     assert.equal(st.catalog.themes[0].description, 'cat look');
     assert.deepEqual(st.catalog.packs.map((p) => p.name), ['cat']);
     assert.equal((await (await get(hub, '/market')).json()).themes[0].installed, true);
+    assert.equal(st.settings.theme, 'cat', 'an installed theme is applied at once');
     assert.equal((await postJson(hub, '/market/remove', { name: 'cat' })).status, 200);
-    assert.deepEqual((await (await get(hub, '/state')).json()).catalog.themes, []);
+    const after = await (await get(hub, '/state')).json();
+    assert.deepEqual(after.catalog.themes, []);
+    assert.equal(after.settings.theme, 'default', 'deleting the active theme goes back to default');
     assert.equal((await postJson(hub, '/market/remove', { name: 'cat' })).status, 404);
   }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
 });
@@ -415,3 +418,32 @@ test('market_settings_are_validated', () => withHub(async (hub) => {
   assert.equal(st.settings.themeAutoUpdate, false);
   assert.deepEqual(st.settings.marketSources, ['a/b']);
 }));
+
+test('market_delete_covers_a_hand_made_theme_and_refuses_a_built_in_one', async () => {
+  const d = catalogDirs();
+  fs.mkdirSync(path.join(d.builtinDir, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(d.builtinDir, 'themes', 'base.json'), JSON.stringify({ name: 'base', colors: {} }));
+  fs.writeFileSync(path.join(d.userDir, 'themes', 'mine.json'), JSON.stringify({ name: 'mine', colors: {} }));
+  await withHub(async (hub) => {
+    assert.deepEqual((await (await get(hub, '/market')).json()).userThemes, ['mine']);
+    assert.equal((await postJson(hub, '/market/remove', { name: 'base' })).status, 400);
+    assert.equal((await postJson(hub, '/market/remove', { name: 'mine' })).status, 200);
+    assert.deepEqual((await (await get(hub, '/state')).json()).catalog.themes.map((t) => t.name), ['base']);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_refresh_clears_the_listing_cache', async () => {
+  const d = catalogDirs();
+  const f = market();
+  await withHub(async (hub) => {
+    await get(hub, '/market'); await get(hub, '/market');
+    const lists = () => f.calls.filter((u) => u.endsWith('/git/trees/main?recursive=1')).length;
+    assert.equal(lists(), 1, 'the second GET came from the cache');
+    assert.equal((await postJson(hub, '/market/refresh', {})).status, 200);
+    await get(hub, '/market');
+    assert.equal(lists(), 2);
+    assert.ok(fs.existsSync(path.join(d.userDir, 'market-cache.json')));
+    const m = await (await get(hub, '/market')).json();
+    assert.ok(m.refreshedAt[DEFAULT_SOURCE] > 0);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: f });
+});

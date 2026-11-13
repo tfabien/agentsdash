@@ -64,16 +64,32 @@ test('limits_fail_the_install', async () => {
   assert.equal(fs.existsSync(path.join(userDir, 'themes', 'cat.json')), false);
 });
 
-test('remove_deletes_only_a_market_theme', async () => {
+test('remove_deletes_a_theme_of_the_user_folder_and_its_unused_pack', async () => {
   const userDir = tmp();
   await installTheme({ theme: entry('cat', ['icons/lead.png']), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat'), 'cat/icons/lead.png': 'a' }) });
-  fs.writeFileSync(path.join(userDir, 'themes', 'mine.json'), themeJson('mine'));
   assert.equal(removeTheme({ name: 'cat', userDir }), true);
   assert.equal(fs.existsSync(path.join(userDir, 'themes', 'cat.json')), false);
   assert.equal(fs.existsSync(path.join(userDir, 'icons', 'cat')), false);
   assert.deepEqual(readInstalled(userDir), {});
-  assert.equal(removeTheme({ name: 'mine', userDir }), false);
-  assert.equal(fs.existsSync(path.join(userDir, 'themes', 'mine.json')), true);
+  assert.equal(removeTheme({ name: 'cat', userDir }), false);
+});
+
+test('remove_deletes_a_hand_made_theme_and_keeps_a_pack_another_theme_uses', () => {
+  const userDir = tmp();
+  fs.mkdirSync(path.join(userDir, 'themes'), { recursive: true });
+  fs.mkdirSync(path.join(userDir, 'icons', 'shared'), { recursive: true });
+  fs.writeFileSync(path.join(userDir, 'icons', 'shared', 'lead.png'), 'a');
+  for (const n of ['one', 'two']) fs.writeFileSync(path.join(userDir, 'themes', `${n}.json`), JSON.stringify({ name: n, iconPack: 'shared', colors: {} }));
+  assert.equal(removeTheme({ name: 'one', userDir }), true);
+  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'shared', 'lead.png')), true, 'two still uses the pack');
+  assert.equal(removeTheme({ name: 'two', userDir }), true);
+  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'shared')), false);
+});
+
+test('remove_refuses_a_built_in_name_and_a_bad_name', () => {
+  const userDir = tmp();
+  assert.throws(() => removeTheme({ name: 'default', userDir, builtinNames: new Set(['default']) }), /built-in/);
+  assert.equal(removeTheme({ name: '../x', userDir }), false);
 });
 
 test('readInstalled_gives_an_empty_object_for_a_missing_or_corrupt_file', () => {

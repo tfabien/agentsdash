@@ -95,13 +95,23 @@ export function installTheme({ theme, userDir, builtinNames, fetchFn = fetch }) 
   });
 }
 
-/** Deletes an installed marketplace theme and its icon folder. False when `name` was not installed from a marketplace. */
-export function removeTheme({ name, userDir }) {
-  const log = readInstalled(userDir);
-  if (!(name in log) || !/^[a-z0-9-]{1,32}$/.test(name)) return false;
-  fs.rmSync(path.join(userDir, 'themes', `${name}.json`), { force: true });
-  fs.rmSync(path.join(userDir, 'icons', name), { recursive: true, force: true });
-  const { [name]: _gone, ...rest } = log;
+/**
+ * Deletes a theme of the user folder (from a marketplace or written by hand) and its icon pack, unless another theme of the folder uses that pack.
+ * @returns {boolean} false when the user folder has no such theme; throws for a built-in theme name
+ */
+export function removeTheme({ name, userDir, builtinNames = new Set() }) {
+  if (!/^[a-z0-9-]{1,32}$/.test(name)) return false;
+  if (builtinNames.has(name)) throw new Error(`${name} is a built-in theme and cannot be deleted`);
+  const file = path.join(userDir, 'themes', `${name}.json`);
+  if (!fs.existsSync(file)) return false;
+  let pack = '';
+  try { pack = String(JSON.parse(fs.readFileSync(file, 'utf8')).iconPack ?? ''); } catch { /* an unreadable theme file goes anyway */ }
+  fs.rmSync(file, { force: true });
+  const usedElsewhere = fs.readdirSync(path.join(userDir, 'themes')).filter((f) => f.endsWith('.json')).some((f) => {
+    try { return JSON.parse(fs.readFileSync(path.join(userDir, 'themes', f), 'utf8')).iconPack === pack; } catch { return false; }
+  });
+  if (/^[a-z0-9-]{1,32}$/.test(pack) && !usedElsewhere) fs.rmSync(path.join(userDir, 'icons', pack), { recursive: true, force: true });
+  const { [name]: _gone, ...rest } = readInstalled(userDir);
   writeInstalled(userDir, rest);
   return true;
 }

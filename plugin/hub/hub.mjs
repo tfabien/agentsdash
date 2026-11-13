@@ -106,7 +106,13 @@ export function startHub(opts = {}) {
   // current by a timer (market_update.mjs). The page talks to these routes only, never to GitHub.
   const fetchFn = opts.fetch ?? globalThis.fetch;
   const builtinNames = () => new Set(loadCatalog({ builtinDir: catalogDirs.builtinDir, userDir: null }).themes.map((t) => t.name));
+  const cacheFile = path.join(catalogDirs.userDir, 'market-cache.json');
+  const store = {
+    read: () => { try { const d = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); return d && typeof d === 'object' && !Array.isArray(d) ? d : {}; } catch { return {}; } },
+    write: (data) => { try { fs.mkdirSync(catalogDirs.userDir, { recursive: true }); fs.writeFileSync(cacheFile, JSON.stringify(data), 'utf8'); } catch { /* the listing is only fetched again */ } },
+  };
   const updater = createUpdater({
+    store,
     getInstalled: () => readInstalled(catalogDirs.userDir),
     list: (source) => listSource(source, fetchFn),
     install: (theme) => installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }),
@@ -172,8 +178,13 @@ export function startHub(opts = {}) {
         const listings = await Promise.all(settings.marketSources.map((source) => updater.list(source)));
         const installed = readInstalled(catalogDirs.userDir);
         const themes = annotate(listings.flatMap((l) => l.themes), installed).map(({ files: _files, branch: _branch, ...t }) => t);
-        return json(res, { sources: settings.marketSources, installed, themes, errors: listings.flatMap((l) => l.errors), lastCheck: updater.lastCheck(), autoUpdate: settings.themeAutoUpdate });
+        const userThemes = loadCatalog({ builtinDir: null, userDir: catalogDirs.userDir }).themes.map((t) => t.name).filter((n) => !builtinNames().has(n));
+        return json(res, { sources: settings.marketSources, installed, userThemes, themes, errors: listings.flatMap((l) => l.errors), lastCheck: updater.lastCheck(), refreshedAt: updater.refreshedAt(settings.marketSources), autoUpdate: settings.themeAutoUpdate });
       }
+      case 'POST /market/refresh':                  // forget every listing: the next GET /market fetches them again
+        await readBody(req).catch(() => '');
+        updater.forget();
+        return text(res, 200, 'ok');
       case 'POST /market/sources': {
         const body = await jsonBody(req, res);
         if (!body) return undefined;
@@ -194,13 +205,16 @@ export function startHub(opts = {}) {
         if (!theme) return text(res, 400, 'unknown theme');
         try { await installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }); } catch (err) { return text(res, 400, err.message); }
         reloadCatalog();
+        saveSettings({ theme: theme.name });          // a new theme is applied at once, on every page
         publish();
         return text(res, 200, 'ok');
       }
       case 'POST /market/remove': {
         const body = await jsonBody(req, res);
         if (!body) return undefined;
-        if (!removeTheme({ name: String(body.name ?? ''), userDir: catalogDirs.userDir })) return text(res, 404, 'not installed from a marketplace');
+        const name = String(body.name ?? '');
+        try { if (!removeTheme({ name, userDir: catalogDirs.userDir, builtinNames: builtinNames() })) return text(res, 404, 'no such theme in the user folder'); } catch (err) { return text(res, 400, err.message); }
+        if (settings.theme === name) saveSettings({ theme: 'default' });
         reloadCatalog();
         publish();
         return text(res, 200, 'ok');
