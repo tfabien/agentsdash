@@ -19,7 +19,7 @@ import { createQuotaPoller, quotasEnabled } from './quotas.mjs';
 import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
 import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
-import { stateDir } from '../scripts/common.mjs';
+import { stateDir, userDir, migrateUserDir } from './paths.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
@@ -51,7 +51,7 @@ const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: 
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
-const pluginVersion = (() => { try { return JSON.parse(fs.readFileSync(path.join(HUB_DIR, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version ?? ''; } catch { return ''; } })();
+const pluginVersion = (() => { try { return JSON.parse(fs.readFileSync(path.join(HUB_DIR, 'package.json'), 'utf8')).version ?? ''; } catch { return ''; } })();
 const realScript = (() => { try { return fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return fileURLToPath(import.meta.url); } })();
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
 
@@ -92,13 +92,13 @@ export function startHub(opts = {}) {
   const settingsTaps = [];
   const changeTaps = [];
 
-  // The relay to the device: chosen in agent-gadget.json, or from the page (POST /relay), which swaps it while the hub runs.
+  // The relay to the device: chosen in the config file, or from the page (POST /relay), which swaps it while the hub runs.
   let relayConf = config.relay ?? { mode: 'none' };
   let serial = null;
   let relay = null;
   const relayInfo = () => (relay ? { mode: relayConf.mode, ...(serial ? { port: relayConf.port } : { host: relayConf.host }), ...relay.status() } : null);
   // Themes and icon packs from the built-in and user folders. `iconFiles` maps a served URL to its file: no path comes from a request.
-  const catalogDirs = { builtinDir: opts.builtinDir ?? HUB_DIR, userDir: opts.userDir ?? path.join(os.homedir(), '.claude', 'standup-bot') };
+  const catalogDirs = { builtinDir: opts.builtinDir ?? HUB_DIR, userDir: opts.userDir ?? userDir() };
   let catalog = { themes: [], packs: [], errors: [] };
   let iconFiles = new Map();
   function reloadCatalog() {
@@ -366,7 +366,7 @@ export function startHub(opts = {}) {
   settingsTaps.push((body) => relay?.send('/settings', body));
   buildRelay();
 
-  /** Swaps the relay while the hub runs and writes the choice into the `relay` key of agent-gadget.json (the other keys stay). */
+  /** Swaps the relay while the hub runs and writes the choice into the `relay` key of the config file (the other keys stay). */
   function swapRelay(next) {
     if (!sameRelay(next, relayConf)) {
       serial?.release();                     // frees the COM port before another relay may open it
@@ -446,7 +446,11 @@ const isMain = (() => {
   try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
 })();
 if (isMain) {
-  startHub({ firstRunTheme: true, settingsFile: path.join(stateDir(), 'hub-settings.json'), configFile: defaultConfigPath(), onShutdown: () => process.exit(0) }).then((hub) => {
+  migrateUserDir();
+  const settingsFile = path.join(stateDir(), 'hub-settings.json');
+  const oldSettings = path.join(os.tmpdir(), 'agent-gadget-plugin', 'hub-settings.json');      // before the rename the settings lived here
+  try { if (!fs.existsSync(settingsFile) && fs.existsSync(oldSettings)) { fs.mkdirSync(path.dirname(settingsFile), { recursive: true }); fs.copyFileSync(oldSettings, settingsFile); } } catch { /* start without them */ }
+  startHub({ firstRunTheme: true, settingsFile, configFile: defaultConfigPath(), onShutdown: () => process.exit(0) }).then((hub) => {
     process.stderr.write(`agentsdash hub listening on http://${hub.host}:${hub.port}/\n`);
   }).catch((e) => {
     process.stderr.write(`agentsdash hub: cannot start (${e.code ?? e.message})\n`);
