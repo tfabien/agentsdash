@@ -57,16 +57,17 @@ export async function applyScene(hub, name) {
 }
 
 /**
- * Starts a hub on a temporary user folder with `themes` installed from the marketplace (the last one is applied) and two project rules.
+ * Starts a hub on a temporary user folder with two project rules. `themes` are installed from the marketplace (the last one is applied); without any, the built-in `theme` is applied.
  * @returns {Promise<{hub: object, userDir: string, close: () => Promise<void>}>}
  */
-export async function startDemoHub({ themes = [] } = {}) {
+export async function startDemoHub({ themes = [], theme = 'line' } = {}) {
   const userDir = fs.mkdtempSync(path.join(os.tmpdir(), 'standup-demo-'));
   const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false }, userDir, settingsFile: path.join(userDir, 'hub-settings.json') });
   for (const name of themes) {
     const r = await post(hub, '/market/install', { source: 'tfabien/standup-bot-themes', name });
     if (r.status !== 200) throw new Error(`install ${name}: ${await r.text()}`);
   }
+  if (!themes.length) await post(hub, '/settings', { theme });                        // the built-in example theme (variants, looks), no network
   await post(hub, '/settings', { rules: [{ match: 'C:/work/prod-*', badgeColor: '#e03131' }, { match: '**/docs-*', badgeColor: '#7048e8' }] });
   return { hub, userDir, close: async () => { await hub.close(); fs.rmSync(userDir, { recursive: true, force: true }); } };
 }
