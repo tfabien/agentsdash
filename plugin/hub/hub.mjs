@@ -172,7 +172,7 @@ export function startHub(opts = {}) {
         const listings = await Promise.all(settings.marketSources.map((source) => updater.list(source)));
         const installed = readInstalled(catalogDirs.userDir);
         const themes = annotate(listings.flatMap((l) => l.themes), installed).map(({ files: _files, branch: _branch, ...t }) => t);
-        return json(res, { sources: settings.marketSources, themes, errors: listings.flatMap((l) => l.errors), lastCheck: updater.lastCheck(), autoUpdate: settings.themeAutoUpdate });
+        return json(res, { sources: settings.marketSources, installed, themes, errors: listings.flatMap((l) => l.errors), lastCheck: updater.lastCheck(), autoUpdate: settings.themeAutoUpdate });
       }
       case 'POST /market/sources': {
         const body = await jsonBody(req, res);
