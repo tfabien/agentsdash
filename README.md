@@ -187,32 +187,32 @@ Docs: [hub/README.md](hub/README.md) (hub, configuration, API, relays).
 
 ## TODO (known and not fixed)
 
-Tracked as issues:
+Every item is an issue in the repository it belongs to; the maintainer follows them on a private GitHub Project board.
 
-- **One screen component for the page and the device.** The sessions hub tiles are HTML (`hub_page.js`, logic in `hub_view.js`), the full page is still one canvas (`screen.js`) ([issue #3](https://github.com/tfabien/agentsdash/issues/3)).
-- **Allow or deny a permission request from the screen.** A `PermissionRequest` hook can allow or deny, so the hook would wait for the hub ([issue #4](https://github.com/tfabien/agentsdash/issues/4)). A free choice among options needs another channel: no hook can inject an answer into a running `AskUserQuestion`.
-- **Reliable usage and quotas.** The usage endpoint returns 429 (backoff 15 minutes), numbers can be stale, and the context estimate from transcripts assumes a 1M window ([issue #6](https://github.com/tfabien/agentsdash/issues/6)).
-- **Phone as a device** (a PWA for iPhone and Android, with hub discovery): a project of its own, [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) (idea and open questions, [issue #1](https://github.com/tfabien/agentsdash-device-phone/issues/1)).
+Core ([issues](https://github.com/tfabien/agentsdash/issues)):
 
-Adapters:
+- **One screen component for the page and the device** ([#3](https://github.com/tfabien/agentsdash/issues/3)).
+- **Allow or deny a permission request from the screen** ([#4](https://github.com/tfabien/agentsdash/issues/4)). A free choice among options needs another channel: no hook can inject an answer into a running `AskUserQuestion`.
+- **Reliable usage and quotas** ([#6](https://github.com/tfabien/agentsdash/issues/6)): the usage endpoint returns 429 and numbers can be stale.
+- **Adapters never fetch a newer core** ([#57](https://github.com/tfabien/agentsdash/issues/57)).
+- **The page does not follow the session that has the focus in the agent** ([#59](https://github.com/tfabien/agentsdash/issues/59)).
+- **Tap a step of the plan bar to preview it** ([#60](https://github.com/tfabien/agentsdash/issues/60)).
+- **Raise the default of `max_sessions`** ([#61](https://github.com/tfabien/agentsdash/issues/61)).
+- Smaller: recorded events copied by hand between repositories ([#58](https://github.com/tfabien/agentsdash/issues/58)), minor items of the hub review ([#62](https://github.com/tfabien/agentsdash/issues/62)), a GitHub organization ([#63](https://github.com/tfabien/agentsdash/issues/63)), a stub for the plugin under the first name ([#64](https://github.com/tfabien/agentsdash/issues/64)).
 
-- **Codex: tokens, context and session title.** They need the Codex transcript format ([agentsdash-codex](https://github.com/tfabien/agentsdash-codex)). The hooks were written from the documentation and have not run in a real Codex yet, and the plugin form (`.codex-plugin`) is untested.
-- **Claude Code: the `error` state.** The page draws it, but no hook sends it yet (a failed tool or a stopped turn could).
-- **Prompts: a staleness hint on the screen itself,** and a way to see how well sessions follow the rules.
-- **The page does not follow the session that has the focus.** Today it picks the session itself (needs-you first) or by click.
+Codex adapter ([agentsdash-codex](https://github.com/tfabien/agentsdash-codex/issues)):
 
-The core and the repositories:
+- **Tokens, context and session title** from the Codex transcript ([#1](https://github.com/tfabien/agentsdash-codex/issues/1)).
+- **Run the hooks in a real Codex and test the plugin form** ([#2](https://github.com/tfabien/agentsdash-codex/issues/2)).
+- **Core download behind a proxy** ([#3](https://github.com/tfabien/agentsdash-codex/issues/3)).
 
-- **Downloads behind a proxy.** The adapters download the hub with `fetch`, which ignores `HTTP_PROXY`: on a work PC behind a proxy the first install needs `AGENTSDASH_CORE_DIR`.
-- **Core updates.** An adapter keeps the core it found and only replaces a hub older than its minimum version: nothing fetches a newer release by itself.
-- **Recorded events are copied by hand** between the adapters and `hub/test/fixtures/`. A check in CI would catch a stale copy.
-- **A GitHub organization** for the repositories, if third parties start to contribute (the topics `agentsdash` group them for now).
-- **A stub for the plugin under the project's first name** that tells its users to switch, planned and not made.
+Claude Code adapter ([agentsdash-claude](https://github.com/tfabien/agentsdash-claude/issues)):
 
-Smaller items:
+- **Send the `error` state** the page already draws ([#2](https://github.com/tfabien/agentsdash-claude/issues/2)).
+- **Core download behind a proxy** ([#1](https://github.com/tfabien/agentsdash-claude/issues/1)).
+- **Prompts: a staleness hint on the screen** and a rule-following report ([#3](https://github.com/tfabien/agentsdash-claude/issues/3)).
 
-- **Tap a step of the plan bar to preview it.** Needs the titles of all steps (today the plan fields carry only `done`, `total`, the current and the next step).
-- **Raise the default of `max_sessions`** once the session list of the full page scrolls (12 rows overflow it today).
-- **Minor items of the hub review:** `"constructor"` accepted as a state, 400 ms per hook when the hub cannot start (no backoff), the plan file lock can wait 2 s, the hub does not replay its state to a device that rebooted.
+Devices:
 
-The TODO of the ESP32 gadget (USB relay test on hardware, clock settings, other boards) is in its repository: [agentsdash-device-artillery-x3](https://github.com/tfabien/agentsdash-device-artillery-x3#todo).
+- **Phone as a device** (a PWA for iPhone and Android): [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) ([#1](https://github.com/tfabien/agentsdash-device-phone/issues/1)).
+- **ESP32 gadget:** USB relay test on hardware ([#1](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/1)), a screen that is easy to buy ([#2](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/2)), clock settings ([#3](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/3)), the default OTA password ([#4](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/4)). More in its [TODO](https://github.com/tfabien/agentsdash-device-artillery-x3#todo).
