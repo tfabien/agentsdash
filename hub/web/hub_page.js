@@ -1,5 +1,6 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic (order, pages, grid shape) is in hub_view.js, the beep rule in alerts.js.
+import { rateLevel } from './rate_glow.js';
 import { bestLayout, fillLastRow, orderSessions, paginate, autoCapacity, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
@@ -82,6 +83,7 @@ function tileFor(s, part = 'lead') {
     box.dataset.session = s.id;
     box.dataset.part = part;
     box.append(canvas, el('span', 'stale-tag', 'stale'));
+    if (part === 'lead') box.append(el('span', 'rate-tag'));
     if (part === 'lead') {
       const trash = el('button', 'trash', '\u{1F5D1}');    // shown on greyed-out tiles: hides the session until it works again
       trash.title = 'Remove this session';
@@ -101,7 +103,10 @@ function tileFor(s, part = 'lead') {
   }
   t.box.classList.toggle('stale', !!s.stale);
   t.box.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false);
-  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
+  const rate = part === 'lead' ? rateLevel(s, state.usage, state.settings) : null;      // glow and readout follow the token rate of the session
+  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}${rate ? ` rate-${rate.level}` : ''}`;
+  const tag = t.box.querySelector('.rate-tag');
+  if (tag) { tag.textContent = rate ? rate.label : ''; tag.hidden = !rate; }
   return t;
 }
 
