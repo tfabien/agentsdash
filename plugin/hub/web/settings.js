@@ -18,6 +18,8 @@ export const OPTIONS = [
     hint: 'Auto fits the window; 1 shows one session at a time. More sessions make pages' },
   { key: 'sound', label: 'Beeps', kind: 'choice', choices: [['all', 'All'], ['ask', 'Questions'], ['off', 'Off']], hint: 'Shared with the gadget buzzer' },
   { key: 'pulse', label: 'Pulse on events', kind: 'toggle', hint: 'A tile frame lights up when something happens' },
+  { key: 'done_excerpt', label: 'Reply when it is your turn', kind: 'choice', choices: [['first', 'First'], ['last', 'Last'], ['off', 'Off']],
+    hint: 'First or last paragraph of the reply, in place of "Done, waiting for you"' },
   { key: 'dim_idle', label: 'Grey out idle sessions', kind: 'toggle', hint: 'After 5 minutes waiting for you' },
 ];
 

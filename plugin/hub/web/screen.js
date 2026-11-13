@@ -304,10 +304,12 @@ export function renderScreen(screen, state, ui) {
     drawCtxRing(p, wide, tx, tw, s.ctx_pct, s.ctx_k, chip && !wide ? '' : lead.model, chip);
     if (chip && !wide) drawProjectChip(chip, tx, p.y + 44, tw - 30);
     if (s.ask) { drawQuestion(s.ask, x, p.y + 68, w, p); return; }
-    wrapText(lead.cmd, w, 2, m(S16)).forEach((l, i) => screen.text(x, p.y + 68 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
+    const mode = state.settings?.done_excerpt ?? 'first';
+    const reply = lead.state === 'your_turn' && mode !== 'off' ? lead[mode === 'last' ? 'reply_last' : 'reply_first'] : '';
+    wrapText(reply || lead.cmd, w, reply && !s.plan ? 5 : 2, m(S16)).forEach((l, i) => screen.text(x, p.y + 68 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     const y = p.y + 110;
     if (s.plan) drawPlan(s.plan, x, y, w, p, s.id);
-    else if (lead.prev) {
+    else if (lead.prev && !reply) {
       screen.text(x, y, w, S16, COLOR.ACCENT, COLOR.PANEL, 'BEFORE');
       wrapText(lead.prev, w, 2, m(S16)).forEach((l, i) => screen.text(x, y + 20 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     }

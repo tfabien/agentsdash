@@ -41,7 +41,7 @@ function optNull(value) {
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function newAgent(id, role, now, rev) {
-  return { id, role, state: ST.WORKING, cmd: '', detail: '', prevCmd: '', prevAt: 0, since: now, lastSeen: now, rev, tok: 0, model: '' };
+  return { id, role, state: ST.WORKING, cmd: '', detail: '', replyFirst: '', replyLast: '', prevCmd: '', prevAt: 0, since: now, lastSeen: now, rev, tok: 0, model: '' };
 }
 
 function newSession(id, now) {
@@ -234,6 +234,7 @@ export function createModel(opts = {}) {
         hasPlanCur: typeof ev.plan_cur === 'string', planCur: clean(ev.plan_cur),
         hasPlanNext: typeof ev.plan_next === 'string', planNext: clean(ev.plan_next),
         planState: clean(ev.plan_state), ask: clean(ev.question), askOpts: clean(ev.options),
+        replyFirst: clean(ev.reply_first, 300), replyLast: clean(ev.reply_last, 300),
       };
     }
     const name = clean(ev.agent);
@@ -246,6 +247,7 @@ export function createModel(opts = {}) {
       session: (h & 0xffff).toString(16).padStart(4, '0'), agent: 'lead', state, project: name, role: 'lead',
       evt: 'V1', cmd: clean(ev.task), detail: '', title: '', tok: -1, stok: -1, model: '', ctxPct: -1, ctxK: -1, planDone: -1, planItems: null,
       planTotal: -1, hasPlanCur: false, planCur: '', hasPlanNext: false, planNext: '', planState: '', ask: '', askOpts: '',
+      replyFirst: '', replyLast: '',
     };
   }
 
@@ -303,6 +305,7 @@ export function createModel(opts = {}) {
       a.cmd = e.cmd;
     }
     a.detail = e.detail;
+    a.replyFirst = e.replyFirst; a.replyLast = e.replyLast;      // only a Stop carries them: any later event clears them
     if (e.tok >= 0) a.tok = e.tok;
     if (e.model) a.model = e.model;
     if (isLead) { applyLeadUsage(s, e, now); applyLeadAsk(s, e); }
@@ -417,6 +420,7 @@ export function createModel(opts = {}) {
   function agentJson(s, a, isLead, now) {
     return {
       tok: a.tok, model: a.model, id: a.id, parent: isLead ? '' : 'lead', role: a.role, state: NAMES[effective(s, a)], cmd: a.cmd, detail: a.detail,
+      ...(a.replyFirst ? { reply_first: a.replyFirst, reply_last: a.replyLast } : {}),
       prev: a.prevCmd, prev_age: a.prevCmd ? Math.floor((now - a.prevAt) / 1000) : 0, age: Math.floor((now - a.since) / 1000),
     };
   }
