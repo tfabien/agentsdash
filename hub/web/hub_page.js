@@ -164,6 +164,8 @@ function drawTile(s, t) {
   if (owner.planStep && now >= owner.planStep.until) owner.planStep = null;
   const scale = fit(t);
   if (!scale) return;
+  const tag = t.box.querySelector('.rate-tag');                                       // the readout sits inside the frame: the canvas can be narrower than its cell
+  if (tag) { tag.style.right = `${t.box.clientWidth - t.canvas.offsetLeft - t.canvas.offsetWidth + 14}px`; tag.style.bottom = `${t.box.clientHeight - t.canvas.offsetTop - t.canvas.offsetHeight + 10}px`; }
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
