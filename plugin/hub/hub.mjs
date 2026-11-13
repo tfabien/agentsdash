@@ -9,6 +9,9 @@ import { loadCatalog, ICON_TYPES } from './themes_loader.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModel } from './model.mjs';
 import { validRules } from './rules.mjs';
+import { SOURCE_RE, parseSource, listSource } from './market_source.mjs';
+import { installTheme, removeTheme, readInstalled } from './market_install.mjs';
+import { annotate, createUpdater } from './market_update.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
 import { createQuotaPoller, quotasEnabled } from './quotas.mjs';
 import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
@@ -27,8 +30,11 @@ const SETTING_RULES = {
   pulse: (v) => typeof v === 'boolean',
   dim_idle: (v) => typeof v === 'boolean',
   rules: validRules,                                                  // per-project icon pack and badge color
+  marketSources: (v) => Array.isArray(v) && v.length <= MAX_SOURCES && v.every((x) => typeof x === 'string' && SOURCE_RE.test(x)) && new Set(v).size === v.length,
+  themeAutoUpdate: (v) => typeof v === 'boolean',                     // install newer versions of marketplace themes (every 6 hours)
 };
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, rules: [] };
+const MAX_SOURCES = 10;
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, rules: [], marketSources: ['tfabien/standup-bot-themes'], themeAutoUpdate: true };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -95,6 +101,19 @@ export function startHub(opts = {}) {
     }
   }
   reloadCatalog();
+
+  // Marketplace: themes of GitHub repositories (market_source.mjs), installed into the user folder (market_install.mjs) and kept
+  // current by a timer (market_update.mjs). The page talks to these routes only, never to GitHub.
+  const fetchFn = opts.fetch ?? globalThis.fetch;
+  const builtinNames = () => new Set(loadCatalog({ builtinDir: catalogDirs.builtinDir, userDir: null }).themes.map((t) => t.name));
+  const updater = createUpdater({
+    getInstalled: () => readInstalled(catalogDirs.userDir),
+    list: (source) => listSource(source, fetchFn),
+    install: (theme) => installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }),
+    isActive: () => settings.themeAutoUpdate && (clients.size > 0 || model.toState(now()).sessions.length > 0),
+    onDone: () => { reloadCatalog(); publish(); },
+  });
+  updater.start();
   const stateJson = () => ({ ...model.toState(now()), boot: startedAt, settings, catalog, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
@@ -110,6 +129,23 @@ export function startHub(opts = {}) {
     if (!file.startsWith(WEB_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return text(res, 404, 'not found');
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' });
     fs.createReadStream(file).pipe(res);
+  }
+
+  /** Applies validated settings: memory, the gadget taps and the settings file. */
+  function saveSettings(next) {
+    settings = { ...settings, ...next };
+    for (const fn of settingsTaps) { try { fn({ sound: settings.sound }); } catch { /* tap errors stay local */ } }
+    if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
+  }
+
+  /** The JSON body of a request as an object, or null after answering 400 or 413. */
+  async function jsonBody(req, res) {
+    try {
+      const body = JSON.parse(await readBody(req));
+      if (body && typeof body === 'object' && !Array.isArray(body)) return body;
+    } catch (e) { if (e.status === 413) { text(res, 413, 'body too large'); return null; } }
+    text(res, 400, 'invalid JSON');
+    return null;
   }
 
   async function handle(req, res) {
@@ -132,6 +168,51 @@ export function startHub(opts = {}) {
         reloadCatalog();
         publish();
         return text(res, 200, 'ok');
+      case 'GET /market': {
+        const listings = await Promise.all(settings.marketSources.map((source) => updater.list(source)));
+        const installed = readInstalled(catalogDirs.userDir);
+        const themes = annotate(listings.flatMap((l) => l.themes), installed).map(({ files: _files, branch: _branch, ...t }) => t);
+        return json(res, { sources: settings.marketSources, installed, themes, errors: listings.flatMap((l) => l.errors), lastCheck: updater.lastCheck(), autoUpdate: settings.themeAutoUpdate });
+      }
+      case 'POST /market/sources': {
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        const add = body.add === undefined ? null : parseSource(body.add);
+        if (body.add !== undefined && !add) return text(res, 400, 'a source is owner/repo of GitHub');
+        const next = [...settings.marketSources.filter((s) => s !== body.remove), ...(add && !settings.marketSources.includes(add) ? [add] : [])];
+        if (!SETTING_RULES.marketSources(next)) return text(res, 400, `at most ${MAX_SOURCES} sources`);
+        saveSettings({ marketSources: next });
+        updater.forget();
+        publish();
+        return text(res, 200, 'ok');
+      }
+      case 'POST /market/install': {
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        if (!settings.marketSources.includes(body.source)) return text(res, 400, 'unknown source');
+        const theme = (await updater.list(body.source)).themes.find((t) => t.name === body.name);
+        if (!theme) return text(res, 400, 'unknown theme');
+        try { await installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }); } catch (err) { return text(res, 400, err.message); }
+        reloadCatalog();
+        publish();
+        return text(res, 200, 'ok');
+      }
+      case 'POST /market/remove': {
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        if (!removeTheme({ name: String(body.name ?? ''), userDir: catalogDirs.userDir })) return text(res, 404, 'not installed from a marketplace');
+        reloadCatalog();
+        publish();
+        return text(res, 200, 'ok');
+      }
+      case 'POST /market/update': {
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        const result = await updater.check(typeof body.name === 'string' ? body.name : undefined);
+        reloadCatalog();
+        publish();
+        return json(res, result);
+      }
       case 'GET /relay': return json(res, relayInfo() ?? { mode: 'none' });
       case 'GET /relay/ports': return json(res, await (opts.listPorts ?? listSerialPorts)());
       case 'POST /relay/test': return json(res, await testRelay());
@@ -182,10 +263,8 @@ export function startHub(opts = {}) {
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
-          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle, rules (a list of {match, iconPack?, badgeColor?})');
-          settings = { ...settings, ...next };
-          for (const fn of settingsTaps) { try { fn({ sound: settings.sound }); } catch { /* tap errors stay local */ } }
-          if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
+          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle, rules (a list of {match, iconPack?, badgeColor?}), marketSources (a list of owner/repo), themeAutoUpdate (true or false)');
+          saveSettings(next);
         } else if (route === 'POST /select') {
           if (!body || !model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');
         } else {
@@ -276,7 +355,7 @@ export function startHub(opts = {}) {
   serial?.start();
 
   return new Promise((resolve, reject) => {
-    server.once('error', (e) => { clearInterval(timer); quotas.stop(); reject(e); });
+    server.once('error', (e) => { clearInterval(timer); updater.stop(); quotas.stop(); reject(e); });
     server.listen(wantedPort, host, () => {
       resolve({
         port: server.address().port, host, model, quotas,
@@ -285,6 +364,7 @@ export function startHub(opts = {}) {
         onChange: (fn) => changeTaps.push(fn),
         close: () => new Promise((done) => {
           clearInterval(timer);
+          updater.stop();
           quotas.stop();
           serial?.release();
           relay?.stop?.();

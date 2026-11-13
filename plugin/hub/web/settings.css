@@ -60,3 +60,21 @@
 .rrow { display: grid; grid-template-columns: 1fr 96px 74px auto; gap: 4px; align-items: center; }
 .rrow .dinput { min-width: 0; padding: 5px 6px; font-size: 12px; }
 .rcolor.bad { border-color: var(--error); }
+
+.mtabs { display: flex; gap: 6px; margin: 8px 0 4px; }
+.mtabs .chip.on { background: #3b6fd4; color: #fff; }
+.tcell { display: grid; gap: 6px; }
+.market { display: grid; gap: 8px; margin-top: 6px; }
+.market[hidden], .tlist[hidden], .shint[hidden] { display: none; }
+.msources { display: flex; flex-wrap: wrap; gap: 6px; }
+.mtools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.mtools .dinput { flex: 1; min-width: 160px; }
+.mstatus { min-height: 1em; }
+.mcard { display: flex; gap: 12px; align-items: flex-start; cursor: default; }
+.mcard:hover { border-color: #1f2a3a; }
+.mprev { width: 160px; max-height: 110px; object-fit: contain; border-radius: 8px; background: #121a26; flex: none; }
+.mbody { display: grid; gap: 4px; min-width: 0; }
+.mdesc { font-size: 13px; color: #c9d4e0; }
+.mkw { display: flex; flex-wrap: wrap; gap: 4px; }
+.kw { background: #1c2638; color: #c9d4e0; border-radius: 10px; padding: 2px 8px; font-size: 11px; }
+.kw .chip { padding: 0 4px; font-size: 11px; background: transparent; }

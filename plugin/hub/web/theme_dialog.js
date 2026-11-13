@@ -4,6 +4,7 @@ import { listThemes, themeColor } from './themes.js';
 import { iconPackFor, onIconsLoaded, clearIconCache } from './icon_packs.js';
 import { postSettings } from './settings.js';
 import { icon } from './icons.js';
+import { createMarket } from './market.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const SWATCHES = ['FRAME', 'PANEL', 'TEXT', 'WORKING', 'NEEDS', 'ERROR', 'ACCENT'];
@@ -45,14 +46,31 @@ export function createThemeDialog() {
   actions.append(reload, close);
   head.append(el('div', 'ttitle', 'Theme'), actions);
   const list = el('div', 'tlist');
-  dialog.append(head, el('div', 'shint', 'Colors and agent icons of the page, for every browser'), list);
+  const market = createMarket();
+  const tabs = el('div', 'mtabs');
+  const tabInstalled = el('button', 'chip on', 'Installed');
+  const tabMarket = el('button', 'chip', 'Marketplace');
+  tabs.append(tabInstalled, tabMarket);
+  market.element.hidden = true;
+  const hint = el('div', 'shint', 'Colors and agent icons of the page, for every browser');
+  dialog.append(head, tabs, hint, list, market.element);
   document.body.append(dialog);
+  function show(tab) {
+    const inMarket = tab === 'market';
+    tabInstalled.classList.toggle('on', !inMarket);
+    tabMarket.classList.toggle('on', inMarket);
+    list.hidden = inMarket; hint.hidden = inMarket; market.element.hidden = !inMarket;
+    if (inMarket) market.refresh();
+  }
+  tabInstalled.onclick = () => show('installed');
+  tabMarket.onclick = () => show('market');
 
   const cards = new Map();
   let shown = '', chosenName = 'default';
   function rebuild() {                                       // the cards follow the catalog: rebuilt only when it changed
     const themes = listThemes();
-    const key = JSON.stringify(themes);
+    const log = market.installed();
+    const key = JSON.stringify([themes, Object.keys(log), market.autoUpdate(), [...market.updatable()]]);
     if (key === shown) return;
     shown = key;
     cards.clear();
@@ -65,9 +83,22 @@ export function createThemeDialog() {
       for (const k of SWATCHES) { const sw = el('span', 'tsw'); sw.style.background = themeColor(theme, k); swatches.append(sw); }
       const name = el('div', 'tname', theme.label ?? theme.name);
       const by = el('div', 'shint', `${iconPackFor(theme.iconPack).label} icons${theme.author ? ` · ${theme.author}` : ''}`);
-      card.append(preview, name, by, swatches);
+      card.append(preview, name, by);
+      if (theme.description) card.append(el('div', 'mdesc', theme.description));
+      if (theme.keywords?.length) { const kw = el('div', 'mkw'); for (const k of theme.keywords) kw.append(el('span', 'kw', k)); card.append(kw); }
+      card.append(swatches);
       card.onclick = () => { update(theme.name); postSettings({ theme: theme.name }); };
-      list.append(card);
+      const cell = el('div', 'tcell');
+      cell.append(card);
+      if (theme.name in log) {                                 // installed from a marketplace: it can be removed, and flagged when auto-update is off
+        const row = el('div', 'mtools');
+        if (!market.autoUpdate() && market.updatable().has(theme.name)) row.append(el('span', 'kw', 'update available'));
+        const remove = el('button', 'chip', 'Remove');
+        remove.onclick = async () => { remove.disabled = true; await fetch('/market/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: theme.name }) }); await market.refresh(); shown = ''; rebuild(); remove.disabled = false; };
+        row.append(remove);
+        cell.append(row);
+      }
+      list.append(cell);
       cards.set(theme.name, { card, preview, theme });
     }
   }
@@ -78,7 +109,8 @@ export function createThemeDialog() {
     for (const [n, c] of cards) { c.card.classList.toggle('on', n === chosenName); c.card.setAttribute('aria-pressed', String(n === chosenName)); }
   }
 
-  button.onclick = () => { rebuild(); update(chosenName); for (const c of cards.values()) drawPreview(c.preview, c.theme); dialog.showModal(); };
+  const open = () => { rebuild(); update(chosenName); for (const c of cards.values()) drawPreview(c.preview, c.theme); };
+  button.onclick = () => { show('installed'); open(); dialog.showModal(); market.refresh().then(() => { shown = ''; open(); }); };
   onIconsLoaded(() => { if (dialog.open) for (const c of cards.values()) drawPreview(c.preview, c.theme); });
   close.onclick = () => dialog.close();
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });     // a click on the backdrop closes

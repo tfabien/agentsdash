@@ -326,3 +326,92 @@ test('raster_icons_are_served_with_their_own_mime', async () => {
     }
   }, { builtinDir: d.builtinDir, userDir: d.userDir });
 });
+
+// ---- marketplace ----
+import { fakeGitHub } from './fake_github.mjs';
+
+const DEFAULT_SOURCE = 'tfabien/standup-bot-themes';
+const mt = (name, version = '1.0.0') => JSON.stringify({ name, label: name, description: `${name} look`, keywords: [name], version, colors: { FRAME: '#112233' } });
+const market = (version = '1.0.0') => fakeGitHub({
+  [DEFAULT_SOURCE]: { files: { 'cat/theme.json': mt('cat', version), 'cat/preview.png': 'p', 'cat/icons/lead.png': 'png' } },
+  'o/r': { files: { 'dog/theme.json': mt('dog'), 'dog/icons/lead.png': 'png' } },
+});
+const postJson = (hub, p, body, headers = {}) => fetch(`http://127.0.0.1:${hub.port}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+test('market_lists_the_default_source', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    const m = await (await get(hub, '/market')).json();
+    assert.deepEqual(m.sources, [DEFAULT_SOURCE]);
+    assert.deepEqual(m.errors, []);
+    assert.equal(m.themes[0].name, 'cat');
+    assert.equal(m.themes[0].installed, false);
+    assert.equal(m.themes[0].files, undefined);
+    assert.equal(m.autoUpdate, true);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_sources_can_be_added_and_removed', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    assert.equal((await postJson(hub, '/market/sources', { add: 'https://github.com/o/r' })).status, 200);
+    assert.deepEqual((await (await get(hub, '/state')).json()).settings.marketSources, [DEFAULT_SOURCE, 'o/r']);
+    assert.deepEqual((await (await get(hub, '/market')).json()).themes.map((t) => t.name), ['cat', 'dog']);
+    assert.equal((await postJson(hub, '/market/sources', { remove: DEFAULT_SOURCE })).status, 200);
+    assert.deepEqual((await (await get(hub, '/state')).json()).settings.marketSources, ['o/r']);
+    assert.equal((await postJson(hub, '/market/sources', { add: 'not a repo' })).status, 400);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_install_then_remove_changes_the_catalog', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    assert.equal((await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'ghost' })).status, 400);
+    assert.equal((await postJson(hub, '/market/install', { source: 'x/y', name: 'cat' })).status, 400);
+    assert.equal((await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' })).status, 200);
+    const st = await (await get(hub, '/state')).json();
+    assert.deepEqual(st.catalog.themes.map((t) => t.name), ['cat']);
+    assert.equal(st.catalog.themes[0].iconPack, 'cat');
+    assert.equal(st.catalog.themes[0].description, 'cat look');
+    assert.deepEqual(st.catalog.packs.map((p) => p.name), ['cat']);
+    assert.equal((await (await get(hub, '/market')).json()).themes[0].installed, true);
+    assert.equal((await postJson(hub, '/market/remove', { name: 'cat' })).status, 200);
+    assert.deepEqual((await (await get(hub, '/state')).json()).catalog.themes, []);
+    assert.equal((await postJson(hub, '/market/remove', { name: 'cat' })).status, 404);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_update_installs_a_newer_version_and_nothing_when_current', async () => {
+  const d = catalogDirs();
+  let version = '1.0.0';
+  const proxy = (url, init) => market(version)(url, init);
+  await withHub(async (hub) => {
+    await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' });
+    assert.deepEqual(await (await postJson(hub, '/market/update', {})).json(), { updated: [], errors: [] });
+    version = '1.1.0';
+    assert.deepEqual(await (await postJson(hub, '/market/update', {})).json(), { updated: ['cat'], errors: [] });
+    assert.equal((await (await get(hub, '/state')).json()).catalog.themes[0].version, '1.1.0');
+    const m = await (await get(hub, '/market')).json();
+    assert.equal(m.themes[0].updatable, false);
+    assert.ok(m.lastCheck > 0);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
+});
+
+test('market_routes_refuse_a_foreign_origin', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    const r = await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' }, { Origin: 'http://evil.example' });
+    assert.equal(r.status, 403);
+    assert.deepEqual((await (await get(hub, '/state')).json()).catalog.themes, []);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_settings_are_validated', () => withHub(async (hub) => {
+  assert.equal((await post(hub, '/settings', { themeAutoUpdate: false })).status, 200);
+  assert.equal((await post(hub, '/settings', { themeAutoUpdate: 'yes' })).status, 400);
+  assert.equal((await post(hub, '/settings', { marketSources: ['a/b', 'a/b'] })).status, 400);
+  assert.equal((await post(hub, '/settings', { marketSources: ['a/b'] })).status, 200);
+  const st = await (await get(hub, '/state')).json();
+  assert.equal(st.settings.themeAutoUpdate, false);
+  assert.deepEqual(st.settings.marketSources, ['a/b']);
+}));
