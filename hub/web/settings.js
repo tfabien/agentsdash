@@ -21,6 +21,12 @@ export const OPTIONS = [
   { key: 'pulse', label: 'Pulse on events', kind: 'toggle', hint: 'A tile frame lights up when something happens' },
   { key: 'done_excerpt', label: 'Reply when it is your turn', kind: 'choice', choices: [['first', 'First'], ['last', 'Last'], ['off', 'Off']],
     hint: 'First or last paragraph of the reply, in place of "Done, waiting for you"' },
+  { key: 'rate_mode', label: 'Glow by token rate', kind: 'choice', choices: [['off', 'Off'], ['tokens', 'Tokens'], ['quota', 'Quota']],
+    hint: 'A working tile glows green, orange or red with the tokens it burns per minute (Quota: percent of the 5 hour quota per minute)' },
+  { key: 'rate_orange_k', label: 'Orange from', kind: 'stepper', min: 1, max: 1000, step: 5, format: (v) => `${v}k/min`, hint: 'Tokens mode' },
+  { key: 'rate_red_k', label: 'Red from', kind: 'stepper', min: 1, max: 1000, step: 5, format: (v) => `${v}k/min`, hint: 'Tokens mode' },
+  { key: 'rate_orange_pct', label: 'Orange from (quota)', kind: 'stepper', min: 0.1, max: 100, step: 0.1, format: (v) => `${v.toFixed(1)}%/min`, hint: 'Quota mode; tokens thresholds apply until the hub has measured the quota pace' },
+  { key: 'rate_red_pct', label: 'Red from (quota)', kind: 'stepper', min: 0.1, max: 100, step: 0.1, format: (v) => `${v.toFixed(1)}%/min`, hint: 'Quota mode' },
   { key: 'dim_idle', label: 'Grey out idle sessions', kind: 'toggle', hint: 'After 5 minutes waiting for you' },
 ];
 
@@ -181,8 +187,9 @@ export function createSettingsMenu() {
       rows.set(opt.key, (val) => btns.forEach(([v, b]) => b.classList.toggle('on', v === val)));
     } else if (opt.kind === 'stepper') {
       const minus = el('button', 'seg', '−'), plus = el('button', 'seg', '+'), n = el('span', 'sval');
-      minus.onclick = () => set(opt, Math.max(opt.min, (current[opt.key] ?? opt.min) - 1));
-      plus.onclick = () => set(opt, Math.min(opt.max, (current[opt.key] ?? opt.min) + 1));
+      const step = opt.step ?? 1, round = (v) => Math.round(v * 100) / 100;             // 0.1 steps without float noise
+      minus.onclick = () => set(opt, Math.max(opt.min, round((current[opt.key] ?? opt.min) - step)));
+      plus.onclick = () => set(opt, Math.min(opt.max, round((current[opt.key] ?? opt.min) + step)));
       ctl.append(minus, n, plus);
       rows.set(opt.key, (val) => { n.textContent = opt.format ? opt.format(val) : String(val); minus.disabled = val <= opt.min; plus.disabled = val >= opt.max; });
     } else {

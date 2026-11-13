@@ -40,6 +40,7 @@ function optNull(value) {
   return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : null;
 }
 
+const RATE_WINDOW_MS = 300000, RATE_MIN_SPAN_MS = 60000;      // the rate looks at 5 minutes and never divides by less than 1
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function newAgent(id, role, now, rev) {
@@ -48,7 +49,7 @@ function newAgent(id, role, now, rev) {
 
 function newSession(id, now) {
   return {
-    id, project: '', cwd: '', title: '', ctxPct: CTX_UNKNOWN, ctxK: 0, ctxFromStatusLine: false, ctxAt: 0, stok: 0, usageRev: 0,
+    id, project: '', cwd: '', title: '', ctxPct: CTX_UNKNOWN, ctxK: 0, ctxFromStatusLine: false, ctxAt: 0, stok: 0, samples: [], usageRev: 0,
     planDone: 0, planTotal: 0, planItems: [], planCur: '', planNext: '', planState: '', ask: '', askOpts: '',
     lead: null, subs: new Array(MAX_SUBS).fill(null), more: 0, hidden: [], waitingKids: false,
     lastActive: now, lastYourTurn: 0, lastPrompt: 0,
@@ -68,6 +69,8 @@ export function createModel(opts = {}) {
   let dismissed = [];                                  // sessions the user hid: they come back only with real activity
   let manual = null;                                   // {session, agent, until}
   let quotas = { h5: emptyWindow(), d7: emptyWindow(), receivedAt: 0, rev: 0 };
+  let burned = 0;                                      // tokens seen growing in every session since the hub started
+  let calib = null;                                    // {burned0, pct0, last}: `burned` and the 5 hour quota percent when the current window was first seen
 
   const used = (s) => s.subs.filter(Boolean);
   const kidsRunning = (s) => used(s).some((a) => a.state === ST.WORKING || a.state === ST.NEEDS_YOU);
@@ -148,9 +151,27 @@ export function createModel(opts = {}) {
   // ---------- usage ----------
   const statusLineFresh = (s, now) => s.ctxFromStatusLine && now - s.ctxAt < CTX_STATUSLINE_MS;
 
+  // Token samples of a session, kept for the rate. The first value is a baseline (it never counts as burned), a lower one restarts the list.
+  function noteStok(s, v, now) {
+    const last = s.samples[s.samples.length - 1];
+    if (!last) s.samples.push({ t: now, stok: v });
+    else if (v < last.stok) s.samples = [{ t: now, stok: v }];
+    else if (v > last.stok) { burned += v - last.stok; s.samples.push({ t: now, stok: v }); }
+    while (s.samples.length > 1 && now - s.samples[0].t > RATE_WINDOW_MS) s.samples.shift();
+  }
+
+  /** Tokens per minute over the last 5 minutes; null with fewer than 2 samples in the window. */
+  function rateOf(s, now) {
+    const inWin = s.samples.filter((x) => now - x.t <= RATE_WINDOW_MS);
+    if (inWin.length < 2) return null;
+    const first = inWin[0], last = inWin[inWin.length - 1];
+    return { tok_min: Math.round(((last.stok - first.stok) / Math.max(now - first.t, RATE_MIN_SPAN_MS)) * 60000) };
+  }
+
   function applyLeadUsage(s, e, now) {
     let changed = false;
     if (e.title && s.title !== e.title) { s.title = e.title; changed = true; }
+    if (e.stok >= 0) noteStok(s, e.stok, now);
     if (e.stok >= 0 && e.stok !== s.stok) { s.stok = e.stok; changed = true; }
     if (e.ctxPct >= 0 && !statusLineFresh(s, now)) {          // transcript estimate: only without a fresh status line value
       const pct = Math.min(e.ctxPct, 254);
@@ -202,6 +223,8 @@ export function createModel(opts = {}) {
       setWindow(quotas.h5, f('h5_pct'), f('h5_reset_s'), f('h5_rate10'), f('h5_proj'), f('h5_empty_s'));
       setWindow(quotas.d7, f('d7_pct'), f('d7_reset_s'), f('d7_rate10'), f('d7_proj'), f('d7_empty_s'));
       quotas.receivedAt = now;
+      if (quotas.h5.known && (!calib || quotas.h5.pct < calib.last)) calib = { burned0: burned, pct0: quotas.h5.pct, last: quotas.h5.pct };
+      else if (calib && quotas.h5.known) calib.last = quotas.h5.pct;
       // rev moves only when what is shown changes (resets count down on their own)
       const same = (a, b) => a.known === b.known && a.pct === b.pct && a.proj === b.proj && a.rate10 === b.rate10;
       if (!same(h5, quotas.h5) || !same(d7, quotas.d7)) quotas.rev = ++rev;
@@ -441,7 +464,7 @@ export function createModel(opts = {}) {
         id: s.id, project: s.project, cwd: s.cwd, dot: NAMES[sessionDot(s)], count: 1 + used(s).length, more: s.more, title: s.title,
         ctx_pct: s.ctxPct === CTX_UNKNOWN ? null : s.ctxPct, ctx_k: s.ctxK,
         ctx_src: s.ctxPct === CTX_UNKNOWN ? '' : s.ctxFromStatusLine ? 'statusline' : 'transcript',
-        tok: s.stok,
+        tok: s.stok, rate: rateOf(s, now),
         plan: s.planTotal === 0 ? null : { done: s.planDone, total: s.planTotal, cur: s.planCur, next: s.planNext, state: s.planState, items: s.planItems.map((x) => ({ state: x[0], title: x.slice(2) })) },
         ask: asking(s) ? { question: s.ask, options: s.askOpts } : null,
         agents: [agentJson(s, s.lead, true, now), ...used(s).map((a) => agentJson(s, a, false, now))],
@@ -454,6 +477,7 @@ export function createModel(opts = {}) {
     };
     if (quotas.h5.known || quotas.d7.known) {
       out.usage = { age_s: Math.floor((now - quotas.receivedAt) / 1000) };
+      out.usage.tok_per_pct = calib && quotas.h5.known && quotas.h5.pct - calib.pct0 >= 1 ? Math.round((burned - calib.burned0) / (quotas.h5.pct - calib.pct0)) : null;
       if (quotas.h5.known) Object.assign(out.usage, windowJson('h5', quotas.h5, now));
       if (quotas.d7.known) Object.assign(out.usage, windowJson('d7', quotas.d7, now));
     }

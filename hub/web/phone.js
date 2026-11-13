@@ -31,3 +31,17 @@ function watch() {
   };
 }
 watch();
+
+// /phone?debug prints what the phone measures (the page has no developer console on a phone).
+if (new URLSearchParams(location.search).has('debug')) {
+  const pre = document.body.appendChild(Object.assign(document.createElement('pre'), { id: 'page-debug' }));
+  const grid = document.getElementById('tiles');
+  setInterval(() => {
+    const dims = (e) => `${e.clientWidth}x${e.clientHeight}`;
+    pre.textContent = [
+      `viewport ${innerWidth}x${innerHeight} dpr ${devicePixelRatio} screen ${screen.width}x${screen.height}`,
+      `grid ${dims(grid)} cols ${grid.style.getPropertyValue('--cols')} rows ${grid.style.getPropertyValue('--rows')}`,
+      ...[...document.querySelectorAll('.tile')].map((t) => `tile ${dims(t)} canvas ${t.querySelector('canvas')?.style.width}x${t.querySelector('canvas')?.style.height} (${t.querySelector('canvas')?.width}x${t.querySelector('canvas')?.height})`),
+    ].join('\n');
+  }, 1000);
+}

@@ -73,7 +73,7 @@ Body `{ "session": "<id>" }`. Hides a session; it returns with its next working,
 
 ### POST /settings
 
-Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 32), `theme`, `pulse`, `dim_idle`, `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`. Invalid entries are ignored; 400 when none is valid.
+Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 32), `theme`, `pulse`, `dim_idle`, `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`, `rate_mode` (`off`, `tokens`, `quota`: what the tile glow measures), `rate_orange_k`, `rate_red_k` (1 to 1000, thousands of tokens per minute), `rate_orange_pct`, `rate_red_pct` (above 0, up to 100, percent of the quota per minute). Invalid entries are ignored; 400 when none is valid.
 
 ### POST /select
 
@@ -87,7 +87,8 @@ Forgets every session. The body may be empty.
 
 ### GET /state
 
-The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `plan`, `ask`, `agents`), `more_sessions`, `view`, `usage` (when quotas are known), `agents` (flat v0.1 list), `boot`, `settings`, `catalog`, and `relay` (when a device relay is set).
+The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `rate`, `plan`, `ask`, `agents`), `more_sessions`, `view`, `usage` (when quotas are known; it also holds `tok_per_pct`, tokens burned per percent of the 5 hour quota, or `null` until one percent has passed), `agents` (flat v0.1 list), `boot`, `settings`, `catalog`, and `relay` (when a device relay is set).
+`rate` is `{ "tok_min": number }`, the tokens per minute of the session over the last 5 minutes, or `null` with fewer than 2 samples.
 Each entry of `agents` holds `id`, `parent`, `role`, `state`, `cmd`, `detail`, `tok`, `model`, `prev`, `prev_age`, `age` and, after a `Stop`, `reply_first` and `reply_last`.
 
 ### GET /events

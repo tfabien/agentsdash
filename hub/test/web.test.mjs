@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { formatTokens, formatAge, fmtDuration, relayLabel } from '../web/format.js';
 import { startHub } from '../hub.mjs';
+import { OPTIONS } from '../web/settings.js';
 
 
 test('format_helpers_match_firmware', () => {
@@ -40,8 +41,13 @@ test('main_address_and_hub_alias_serve_the_one_page', async () => {
     }
     const page = await (await fetch(`${base}/hub_page.js`)).text();
     assert.equal((page.match(/new EventSource\(/g) ?? []).length, 1);    // one stream for all tiles
-    for (const f of ['hub_view.js', 'alerts.js', 'hub.css', 'settings.js', 'settings.css', 'footer.js', 'screen.js', 'vector_screen.js', 'format.js']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
+    for (const f of ['hub_view.js', 'alerts.js', 'hub.css', 'settings.js', 'settings.css', 'footer.js', 'screen.js', 'vector_screen.js', 'format.js', 'rate_glow.js']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
     assert.equal((await fetch(`${base}/app.js`)).status, 404, 'the one-session page is gone');
     assert.equal((await fetch(`${base}/..%2fhub.mjs`)).status, 404);
   } finally { await hub.close(); }
+});
+
+test('settings_panel_offers_the_rate_glow_options', () => {
+  const keys = OPTIONS.map((o) => o.key);
+  for (const k of ['rate_mode', 'rate_orange_k', 'rate_red_k', 'rate_orange_pct', 'rate_red_pct']) assert.ok(keys.includes(k), k);
 });
