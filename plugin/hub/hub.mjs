@@ -10,7 +10,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModel } from './model.mjs';
 import { validRules } from './rules.mjs';
 import { SOURCE_RE, parseSource, listSource } from './market_source.mjs';
-import { installTheme, removeTheme, readInstalled } from './market_install.mjs';
+import { installTheme, removeTheme, readInstalled, saveUserTheme } from './market_install.mjs';
+import { validatePalettePart } from './web/theme_schema.js';
 import { annotate, createUpdater } from './market_update.mjs';
 import { installFirstTheme } from './market_bootstrap.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
@@ -23,6 +24,10 @@ import { stateDir } from '../scripts/common.mjs';
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
 const SOUNDS = ['all', 'ask', 'off'];
+const OVERRIDE_KEY = /^[a-z0-9-]{1,32}(\/[a-z0-9-]{1,32})?$/;
+/** `{ "<theme>" | "<theme>/<variant>": { colors?, accent? } }`: the user's color edits. The whole value is refused when any entry is invalid. */
+const validOverrides = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 64
+  && Object.entries(v).every(([k, o]) => OVERRIDE_KEY.test(k) && o && typeof o === 'object' && !Array.isArray(o) && validatePalettePart(o).ignored.length === 0);
 // Settings shared by every page, with what each accepts. Anything else in a POST is ignored.
 const SETTING_RULES = {
   sound: (v) => SOUNDS.includes(v),
@@ -33,10 +38,12 @@ const SETTING_RULES = {
   rules: validRules,                                                  // per-project icon pack and badge color
   marketSources: (v) => Array.isArray(v) && v.length <= MAX_SOURCES && v.every((x) => typeof x === 'string' && SOURCE_RE.test(x)) && new Set(v).size === v.length,
   done_excerpt: (v) => ['first', 'last', 'off'].includes(v),          // what a session waiting for you shows: first or last paragraph of its reply, or the fixed text
+  themeVariant: (v) => v === '' || (typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v)),   // variant of the theme, '' for the base
+  themeOverrides: validOverrides,                                     // the user's color edits per theme or theme/variant
   themeAutoUpdate: (v) => typeof v === 'boolean',                     // install newer versions of marketplace themes (every 6 hours)
 };
 const MAX_SOURCES = 10;
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, done_excerpt: 'first', rules: [], marketSources: ['tfabien/standup-bot-themes'], themeAutoUpdate: true };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, rules: [], marketSources: ['tfabien/standup-bot-themes'], themeAutoUpdate: true };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -233,8 +240,24 @@ export function startHub(opts = {}) {
         if (!body) return undefined;
         const name = String(body.name ?? '');
         try { if (!removeTheme({ name, userDir: catalogDirs.userDir, builtinNames: builtinNames() })) return text(res, 404, 'no such theme in the user folder'); } catch (err) { return text(res, 400, err.message); }
-        if (settings.theme === name) saveSettings({ theme: 'default' });
+        if (settings.theme === name) saveSettings({ theme: 'default', themeVariant: '' });
+        const kept = Object.fromEntries(Object.entries(settings.themeOverrides).filter(([k]) => k !== name && !k.startsWith(`${name}/`)));
+        if (Object.keys(kept).length !== Object.keys(settings.themeOverrides).length) saveSettings({ themeOverrides: kept });
         reloadCatalog();
+        publish();
+        return text(res, 200, 'ok');
+      }
+      case 'POST /themes': {                         // saves the current look (a theme, a variant, the user's edits) as a user theme
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        const base = catalog.themes.find((t) => t.name === body.theme);
+        if (!base) return text(res, 400, 'unknown theme');
+        const override = validatePalettePart(body.override);
+        try {
+          saveUserTheme({ name: String(body.name ?? ''), label: typeof body.label === 'string' ? body.label : undefined, theme: base, variant: typeof body.variant === 'string' ? body.variant : '', override, userDir: catalogDirs.userDir, builtinNames: builtinNames(), overwrite: body.overwrite === true });
+        } catch (err) { return text(res, /exists$/.test(err.message) ? 409 : 400, err.message); }
+        reloadCatalog();
+        saveSettings({ theme: String(body.name), themeVariant: '' });
         publish();
         return text(res, 200, 'ok');
       }
