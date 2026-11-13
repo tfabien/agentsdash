@@ -9,8 +9,8 @@ import { DEVICE_LIMITS } from '../ascii.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const read = (...p) => fs.readFileSync(path.join(HERE, ...p), 'utf8');
-const protocol = read('..', '..', '..', 'docs', 'protocol.md');
-const deviceProtocol = read('..', '..', '..', 'docs', 'device-protocol.md');
+const protocol = read('..', '..', 'docs', 'protocol.md');
+const deviceProtocol = read('..', '..', 'docs', 'device-protocol.md');
 
 test('every_hub_route_is_documented', () => {
   const routes = [...read('..', 'hub.mjs').matchAll(/case '((?:GET|POST) \/[^']*)'/g)].map((m) => m[1]);

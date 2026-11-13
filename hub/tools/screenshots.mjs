@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Takes the screenshots of the README from the real page: starts a hub, opens /scene.html?name=<scene> in a headless
 // Edge or Chrome and saves docs/images/screen-<scene>.png (480x272 units, 2 device pixels per unit by default).
-//   node plugin/hub/tools/screenshots.mjs [--out docs/images] [--scale 2] [scene ...]
+//   node hub/tools/screenshots.mjs [--out docs/images] [--scale 2] [scene ...]
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -50,7 +50,7 @@ export async function shoot({ browser, port, scene, out, scale = 2 }) {
 async function main() {
   const args = process.argv.slice(2);
   const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : dflt; };
-  const out = path.resolve(opt('--out', path.join(HERE, '..', '..', '..', 'docs', 'images')));
+  const out = path.resolve(opt('--out', path.join(HERE, '..', '..', 'docs', 'images')));
   const scale = Number(opt('--scale', 2));
   const scenes = args.length ? args : SCENE_NAMES;
   const browser = findBrowser();

@@ -9,13 +9,13 @@ the keyboard. Each device lives in its own folder here, with its firmware, its t
 
 ## What a device receives
 
-The hub (`plugin/hub/`) forwards what it receives from the plugin. Two links exist today, chosen with `relay` in
+The hub (`hub/`) forwards what it receives from the adapters. Two links exist today, chosen with `relay` in
 `~/.agentsdash/config.json`:
 
 | `relay` | Link | Device side |
 |---|---|---|
 | `{"mode": "http", "host": "<ip>"}` | the hub calls `POST /event` and `POST /usage` of the device over Wi-Fi | the device runs an HTTP server with that API |
-| `{"mode": "serial", "port": "COM3"}` | the hub writes one JSON line per event on a USB serial port (needs `npm install serialport` in `plugin/hub/`) | the device reads lines `{"type":"event"\|"usage","body":{...}}` |
+| `{"mode": "serial", "port": "COM3"}` | the hub writes one JSON line per event on a USB serial port (needs `npm install serialport` in `hub/`) | the device reads lines `{"type":"event"\|"usage","body":{...}}` |
 
 The body of an event is the same everywhere (wire format v2, ASCII, one full agent state per event, so the next event repairs a device
 that rebooted). It is described in [`artillery-x3-esp32/ARCHITECTURE.md`](artillery-x3-esp32/ARCHITECTURE.md#wire-format). A device that
@@ -32,5 +32,5 @@ driven by a small program can all read `GET /events` of the hub, with no firmwar
 3. Pick a link: relay over HTTP or serial (the device implements the small API above), or read `GET /events` of the hub.
 4. Add a row to the table above and to the [Devices section of the main README](../README.md#devices-optional).
 
-The screen layout of the page (`plugin/hub/web/screen.js`) is a port of the firmware of the first device: a new device with a
+The screen layout of the page (`hub/web/screen.js`) is a port of the firmware of the first device: a new device with a
 different size can reuse its rules (which view is shown, which rows, which colors) and draw them its own way.

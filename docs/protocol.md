@@ -1,7 +1,7 @@
 # agentsdash protocol
 
 The wire contract between an adapter (the code that watches an agent: Claude Code hooks, a Codex client...), the hub, and the pages and devices that read the hub.
-An adapter or a device is correct when it follows this document. A test (`plugin/hub/test/protocol_doc.test.mjs`) fails when a route or an event field of the code is missing here, or when a route listed here no longer exists.
+An adapter or a device is correct when it follows this document. A test (`hub/test/protocol_doc.test.mjs`) fails when a route or an event field of the code is missing here, or when a route listed here no longer exists.
 
 The protocol version is **2**. `GET /health` reports it as `protocol` (see below). An adapter declares the protocol it speaks and refuses a hub that answers another one.
 
@@ -96,7 +96,7 @@ Server-sent events: the state above is sent on connect, then after every change.
 
 ### GET /health
 
-`{ "ok": true, "version": "<plugin version>", "core": "<core version>", "protocol": 2, "script": "<path of hub.mjs>", "startedAt": <ms> }`.
+`{ "ok": true, "version": "<core version>", "core": "<core version>", "protocol": 2, "script": "<path of hub.mjs>", "startedAt": <ms> }`.
 `core` and `protocol` are the compatibility check: an adapter keeps a running hub only when `protocol` matches the one it speaks and `core` is not older than the minimum it needs. A hub that predates this field answers without `core` and `protocol`; treat that as protocol 2 with an unknown core.
 
 #### How an adapter picks a core

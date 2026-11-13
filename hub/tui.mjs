@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Terminal view of the hub: the same information as the browser page, drawn with ANSI colors.
-//   node plugin/hub/tui.mjs [--host 127.0.0.1:8765]      (Ctrl+C to quit)
+//   node hub/tui.mjs [--host 127.0.0.1:8765]      (Ctrl+C to quit)
 import http from 'node:http';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';

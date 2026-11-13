@@ -1,4 +1,4 @@
-// The core must run from a copy of its own folder: no sibling scripts/, no .claude-plugin/, nothing outside hub/.
+// The core must run from a copy of its own folder: nothing outside the hub folder.
 // This is what the release tarball holds (see .github/workflows/release.yml).
 import test from 'node:test';
 import assert from 'node:assert/strict';

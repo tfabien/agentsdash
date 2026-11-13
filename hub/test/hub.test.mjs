@@ -230,14 +230,6 @@ test('core_package_protocol_matches_model', () => withHub(async (hub) => {
   assert.equal(health.protocol, pkg.protocol);
 }));
 
-test('core_version_matches_plugin', () => withHub(async (hub) => {
-  // Until the repos split (step 3) the core and the Claude plugin are released together.
-  const plugin = JSON.parse(fs.readFileSync(new URL('../../.claude-plugin/plugin.json', import.meta.url), 'utf8'));
-  const health = await (await get(hub, '/health')).json();
-  assert.equal(health.core, plugin.version);
-  assert.equal(health.version, plugin.version);
-}));
-
 test('loadConfig_defaults_and_file_and_env', () => {
   const dflt = loadConfig(path.join(os.tmpdir(), 'no-such-agent-gadget.json'), {});
   assert.deepEqual(dflt, { host: '127.0.0.1:8765', relay: { mode: 'none' }, context_window: 1000000, max_sessions: 12, first_theme: 'robot' });

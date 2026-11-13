@@ -2,7 +2,7 @@
 
 How the hub finds, installs and serves themes, plus the project rules. The format of themes and icon packs (theme file, looks, accent, palette swaps, marketplace layout) is documented in the themes repository: https://github.com/tfabien/agentsdash-themes/blob/main/docs/format.md
 
-The page has one global theme, chosen with the palette button of the bottom bar. The hub keeps the choice (`theme` in `hub-settings.json`), so every page follows without a restart. The physical screen is not affected. The hub reads the built-in themes from `plugin/hub/` (none ship today) and yours from `~/.agentsdash/` (the old `~/.claude/standup-bot/` is copied there once, at the first start), and publishes them as `catalog` in `GET /state`.
+The page has one global theme, chosen with the palette button of the bottom bar. The hub keeps the choice (`theme` in `hub-settings.json`), so every page follows without a restart. The physical screen is not affected. The hub reads the built-in themes from `hub/` (none ship today) and yours from `~/.agentsdash/` (the old `~/.claude/standup-bot/` is copied there once, at the first start), and publishes them as `catalog` in `GET /state`.
 
 ## Built-in theme and more themes
 
@@ -50,13 +50,13 @@ The hub serves icons from `GET /icons/<pack>/<file>` only for files in the catal
 
 ## Regenerate the built-ins
 
-The built-in themes and packs are generated from the canvas drawings in `plugin/hub/web/icon_packs.js` and `themes.js`:
+The built-in themes and packs are generated from the canvas drawings in `hub/web/icon_packs.js` and `themes.js`:
 
 ```sh
-node plugin/hub/tools/export_builtin.mjs
+node hub/tools/export_builtin.mjs
 ```
 
-It rewrites `plugin/hub/themes/*.json` and `plugin/hub/icons/<pack>/*.svg`. To start a pack of your own, copy one of those folders to `~/.agentsdash/icons/<new-name>/` and edit the SVGs.
+It rewrites `hub/themes/*.json` and `hub/icons/<pack>/*.svg`. To start a pack of your own, copy one of those folders to `~/.agentsdash/icons/<new-name>/` and edit the SVGs.
 
 ## Marketplace
 

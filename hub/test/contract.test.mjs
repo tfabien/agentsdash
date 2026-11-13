@@ -1,4 +1,4 @@
-// The contract between adapter and core: the v2 events the Claude hooks send (recorded by plugin/test/tools/record_events.mjs)
+// The contract between adapter and core: the v2 events the Claude hooks send (recorded in the adapter repository, plugin/test/tools/record_events.mjs of agentsdash-claude, and copied here)
 // are replayed against a hub, and the state it publishes must follow them. A hub that fails this breaks every adapter.
 import test from 'node:test';
 import assert from 'node:assert/strict';

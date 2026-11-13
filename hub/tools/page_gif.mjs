@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // A guided tour of the page as an animated GIF for the top of the README: the real page, fed live by a demo hub (two sessions, a third one,
 // sub-agents, the plan moving, a question, an error, a session that finishes) with a caption bar that says what happens.
-//   node plugin/hub/tools/page_gif.mjs [--out docs/images/tour.gif] [--scale 0.6]
+//   node hub/tools/page_gif.mjs [--out docs/images/tour.gif] [--scale 0.6]
 // Frames are PNG files in a temp folder, assembled by frames_to_gif.py (Python and Pillow). The page is driven through the DevTools protocol.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -29,7 +29,7 @@ const CAPTION = `
 async function main() {
   const args = process.argv.slice(2);
   const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : dflt; };
-  const out = path.resolve(opt('--out', path.join(HERE, '..', '..', '..', 'docs', 'images', 'tour.gif')));
+  const out = path.resolve(opt('--out', path.join(HERE, '..', '..', 'docs', 'images', 'tour.gif')));
   const scale = Number(opt('--scale', 0.6));
   const width = 1280, height = 680 + CAPTION_H;                    // the page keeps the 680 px it fills the grid with, the caption bar comes on top
   const browser = findBrowser();

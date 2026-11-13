@@ -11,33 +11,30 @@ each plan has come, and which agent waits for you. It makes the daily work with 
 
 ![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question, an error, a session is done](docs/images/tour.gif)
 
-It is a Claude Code plugin plus a small Node.js server that draws the screen **in your browser**. Nothing to buy, nothing to flash.
+It is a small Node.js server (the hub, this repository) that draws the screen **in your browser**, fed by adapters that watch your agents (Claude Code today, Codex next). Nothing to buy, nothing to flash.
 An external screen (an ESP32 gadget, a USB display) is a bonus, see [Devices](#devices-optional).
 
 ## Install
 
-Paste this to Claude Code, in any session:
+You install an adapter; it downloads this hub by itself on first use (a release of this repository, sha256 checked, into `~/.agentsdash/core/<version>/`).
+
+| Agent | Adapter |
+|---|---|
+| Claude Code | [tfabien/agentsdash-claude](https://github.com/tfabien/agentsdash-claude) |
+
+For Claude Code, paste this in any session:
 
 ```text
-Install agentsdash by following https://raw.githubusercontent.com/tfabien/agentsdash/main/INSTALL.md
+Install agentsdash by following https://raw.githubusercontent.com/tfabien/agentsdash-claude/main/INSTALL.md
 ```
 
-Claude checks Node.js, installs the plugin and tells you what to open. Then **start a new Claude Code session** (hooks load when a
-session starts) and open **<http://127.0.0.1:8765/>**.
-
-By hand, it is two commands and Node.js 18 or later:
-
-```bash
-claude plugin marketplace add tfabien/agentsdash
-claude plugin install agentsdash@agentsdash --scope user
-```
-
-Details, update, uninstall and troubleshooting: [INSTALL.md](INSTALL.md).
+Then **start a new Claude Code session** (hooks load when a session starts) and open **<http://127.0.0.1:8765/>**. Node.js 18 or later is needed.
+Running the hub alone, updates and troubleshooting: [INSTALL.md](INSTALL.md).
 
 ## What you see
 
 The page is a grid with one tile per session. Each tile is drawn like the screen of the gadget, as vectors at the resolution of your display.
-The screenshots below are taken from the real page, fed with made-up sessions (`node plugin/hub/tools/page_screenshots.mjs`).
+The screenshots below are taken from the real page, fed with made-up sessions (`node hub/tools/page_screenshots.mjs`).
 
 ### Sessions hub: all sessions at once
 
@@ -97,18 +94,18 @@ agentsdash ships no theme: the hub downloads one at its first launch from [tfabi
 ## How it works
 
 ```text
-Claude Code hooks --POST /event--> hub (Node.js) --SSE--> browser page
-status line / quota poller --POST /usage-->  |
+adapter (Claude Code hooks) --POST /event--> hub (Node.js) --SSE--> browser page
+adapter (status line, quota poller) --POST /usage-->  |
                                              +--relay--> devices (optional): ESP32 gadget over Wi-Fi or USB
 ```
 
-- The **plugin** (`plugin/`) has the hooks. Each hook turns a Claude Code event into a small JSON event (`POST /event`) and never slows Claude down.
-- The **hub** (`plugin/hub/`) starts with your first session, keeps the state of all sessions and serves the page. It listens on `127.0.0.1` only. A small script of the plugin posts the plan quotas to it.
+- An **adapter** (a repository of its own, for example [agentsdash-claude](https://github.com/tfabien/agentsdash-claude)) turns what an agent does into small JSON events (`POST /event`) and never slows the agent down. The contract is [docs/protocol.md](docs/protocol.md).
+- The **hub** (`hub/`) starts with your first session, keeps the state of all sessions and serves the page. It listens on `127.0.0.1` only. Adapters post the plan quotas to it.
 - A **device** (`devices/`) gets the same events from the hub and shows the same screen on real hardware.
 
 Privacy: prompts, commands and file paths are shown on the page, on your computer only. Set `AGENTSDASH_MASK=1` to send only tool names.
 
-Options (host, sessions kept, relay) live in `~/.agentsdash/config.json` or in variables such as `AGENTSDASH_HOST`, see [plugin/hub/README.md](plugin/hub/README.md#configuration).
+Options (host, sessions kept, relay) live in `~/.agentsdash/config.json` or in variables such as `AGENTSDASH_HOST`, see [hub/README.md](hub/README.md#configuration).
 
 ## Devices (optional)
 
@@ -124,29 +121,26 @@ More devices are welcome: [devices/README.md](devices/README.md) says what a dev
 ## Repository
 
 ```text
-plugin/                    the Claude Code plugin (what users install)
-  hooks/ scripts/          hooks, status line, transcript and plan readers (Node.js)
-  hub/                     the core: server, model, web page, relays, terminal view (runs alone, released as a tarball)
-  test/                    tests of the hooks (node --test)
+hub/                       the core: server, model, web page, relays, terminal view (runs alone, released as a tarball)
 devices/                   optional external screens
   artillery-x3-esp32/      ESP32 firmware, screen project, hardware notes, tests
-.claude-plugin/            marketplace file (agentsdash)
-docs/                      protocol and device protocol ([protocol.md](docs/protocol.md), [device-protocol.md](docs/device-protocol.md)), specs, plans, captured hook payloads, README images
-INSTALL.md                 install instructions, written for Claude Code to follow
+docs/                      protocol and device protocol ([protocol.md](docs/protocol.md), [device-protocol.md](docs/device-protocol.md)), theme notes, specs, plans, README images
+INSTALL.md                 running the hub, updates, troubleshooting
+
+Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-themes` (themes and icon packs).
 ```
 
-Tests (no hardware): `node --test plugin/hub/test/*.test.mjs plugin/test/*.test.mjs`. Docs: [plugin/README.md](plugin/README.md) (hooks, options), [plugin/hub/README.md](plugin/hub/README.md) (hub, configuration, API, relays).
+Tests (no hardware): `node --test hub/test/*.test.mjs`. Docs: [hub/README.md](hub/README.md) (hub, configuration, API, relays).
 
 ## TODO (known and not fixed)
 
 - **Share the screen component with the hub page.** The sessions hub tiles are HTML (`hub_page.js`, logic in `hub_view.js`), the full page is still one canvas (`screen.js`). Issue #2 asks for one component used by both. Also open: raise the default of `max_sessions` once the session list of the full page scrolls (12 rows overflow it today).
 - **Configuration names (done).** The file is `~/.agentsdash/config.json` and the variables are `AGENTSDASH_*`. The old `~/.claude/agent-gadget.json` and `CLAUDE_GADGET_*` names still work as a fallback for one major version.
-- **Restart the hub after a plugin update.** A hub started by the old version keeps running; the hook could compare versions and replace it.
 - **Show the model used by each session and agent** (Opus, Sonnet, Haiku) in the lead panel and the agent detail. To check: which hook payloads carry the model, then add a short `model` field to `/event`.
 - **Tap a step of the plan bar to preview it.** Needs the titles of all steps (today the plan fields carry only `done`, `total`, the current and the next step).
 - **Answer a question from the screen?** The hooks only send events: no hook can inject an answer into a running `AskUserQuestion`. A `PermissionRequest` hook can allow or deny, so Allow/Deny buttons are feasible by making the hook wait for the hub; a free choice among options needs another channel.
 - **The page does not follow the session that has the focus in Claude Code.** Today it picks the session itself (needs-you first) or by click.
-- **Prompts (first version done, on by default).** The plugin adds the rules at session start and a stale-plan reminder, see [plugin/README.md](plugin/README.md#prompts); `AGENTSDASH_PROMPTS=0` turns it off. Left: a staleness hint on the screen itself, and a way to see how well sessions follow the rules ([issue #5](https://github.com/tfabien/agentsdash/issues/5)).
+- **Prompts (first version done, on by default).** The plugin adds the rules at session start and a stale-plan reminder, see the [Claude adapter](https://github.com/tfabien/agentsdash-claude); `AGENTSDASH_PROMPTS=0` turns it off. Left: a staleness hint on the screen itself, and a way to see how well sessions follow the rules ([issue #5](https://github.com/tfabien/agentsdash/issues/5)).
 - **Usage and quotas stay problematic.** The usage endpoint returns 429 (backoff 15 minutes), numbers can be stale, and the context estimate from transcripts assumes a 1M window.
 - Show the context fill as a circle with the percentage in the middle; show the tokens of each agent in its row.
 - Minor items of the hub review, postponed: `"constructor"` accepted as a state, 400 ms per hook when the hub cannot start (no backoff), the plan file lock can wait 2 s, the hub does not replay its state to a device that rebooted.

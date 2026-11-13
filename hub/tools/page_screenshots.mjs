@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Real screenshots of the hub page for the README: starts a demo hub (demo_seed.mjs), drives a headless Edge or Chrome through the DevTools protocol
 // (click the real buttons, wait, capture) and saves docs/images/page-<shot>.png.
-//   node plugin/hub/tools/page_screenshots.mjs [--out docs/images] [--width 1280] [--height 800] [shot ...]
+//   node hub/tools/page_screenshots.mjs [--out docs/images] [--width 1280] [--height 800] [shot ...]
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -76,7 +76,7 @@ async function runStep(cdp, step) {
 async function main() {
   const args = process.argv.slice(2);
   const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : dflt; };
-  const out = path.resolve(opt('--out', path.join(HERE, '..', '..', '..', 'docs', 'images')));
+  const out = path.resolve(opt('--out', path.join(HERE, '..', '..', 'docs', 'images')));
   const width = Number(opt('--width', 1280)), height = Number(opt('--height', 680));
   const names = args.length ? args : DEFAULT_SHOTS;
   const browser = findBrowser();

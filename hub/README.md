@@ -1,19 +1,19 @@
 # agentsdash hub
 
-Local Node.js hub for the agent dashboard. It receives what the Claude Code plugin sends (`POST /event` v2,
+Local Node.js hub for the agent dashboard. It receives what the adapters send (Claude Code today) (`POST /event` v2,
 `POST /usage`, the same wire format as the gadget), keeps the state of every session and sub-agent, and shows it in a
 browser page. It works with no hardware, and can relay the same events to the ESP32 gadget.
-The wire contract is in [docs/protocol.md](../../docs/protocol.md) and [docs/device-protocol.md](../../docs/device-protocol.md).
+The wire contract is in [docs/protocol.md](../docs/protocol.md) and [docs/device-protocol.md](../docs/device-protocol.md).
 
 Requires Node.js >= 18. No npm install is needed (the optional `serialport` package is only for USB mode).
 
 ## Run
 
-The plugin starts the hub by itself: the first hook finds nothing on `127.0.0.1:8765`, starts `hub.mjs` detached
+An adapter starts the hub by itself: the first hook finds nothing on `127.0.0.1:8765`, starts `hub.mjs` detached
 and sends its event again. To run it by hand:
 
 ```bash
-node plugin/hub/hub.mjs
+node hub/hub.mjs
 ```
 
 Then open <http://127.0.0.1:8765/>: the page shows the gadget screen with the same layout, colors and wording: title bar with the
@@ -42,7 +42,7 @@ The hub binds to `127.0.0.1` only and has no authentication.
 ## Terminal view
 
 ```bash
-node plugin/hub/tui.mjs [--host 127.0.0.1:8765]
+node hub/tui.mjs [--host 127.0.0.1:8765]
 ```
 
 The same information in the terminal, with colors: one block per session (most urgent first), its plan, context, question
@@ -54,9 +54,9 @@ and sub-agents, then the quotas. It follows `GET /events` and reconnects when th
 
 | Key | Default | Meaning |
 |---|---|---|
-| `host` | `127.0.0.1:8765` | Where the plugin sends events and where the hub listens (env `AGENTSDASH_HOST`). |
+| `host` | `127.0.0.1:8765` | Where the adapters send events and where the hub listens (env `AGENTSDASH_HOST`). |
 | `relay` | `{"mode":"none"}` | `{"mode":"http","host":"<gadget ip>"}` forwards events to a gadget over Wi-Fi; `{"mode":"serial","port":"COM3"}` over USB. |
-| `quotas` | `true` | Read by the Claude plugin, not by the hub: poll the 5-hour and weekly plan quotas (env `AGENTSDASH_QUOTAS=0` turns it off). |
+| `quotas` | `true` | Read by the Claude adapter, not by the hub: poll the 5-hour and weekly plan quotas (env `AGENTSDASH_QUOTAS=0` turns it off). |
 | `context_window` | `1000000` | Context window used for the context estimate (tokens). |
 | `max_sessions` | `12` | Sessions the hub keeps (1 to 32, env `AGENTSDASH_MAX_SESSIONS`). More than 5 only helps the `/hub` page. |
 
@@ -86,7 +86,7 @@ Test sends `GET /state` to the gadget (Wi-Fi) or reports the state of the open p
 For places without Wi-Fi: `"relay": {"mode": "serial", "port": "COM3"}`. The hub opens the port at 115200 baud
 (this resets the ESP32, so it waits 2.5 s) and writes one JSON line per event or usage report:
 `{"type":"event","body":{...}}` (body = the POST body). The firmware reads these lines on USB (lines that
-start with `{`; any other character keeps its old meaning, `r` `t` `w`). Install the driver once, in `plugin/hub/`:
+start with `{`; any other character keeps its old meaning, `r` `t` `w`). Install the driver once, in `hub/`:
 `npm install serialport` (prebuilt binaries, no compiler needed).
 
 One program owns the COM port at a time. To flash the firmware or the screen from the PC, give the port back first:
@@ -111,12 +111,12 @@ change and every second), `GET /health` and `GET /` (the page).
 - `relay_http.mjs`, `relay_serial.mjs` forward events to a gadget (Wi-Fi, USB); `relay_config.mjs` validates a relay chosen from the page.
 - `tui.mjs` terminal view.
 - `paths.mjs` names and folders: `AGENTSDASH_*` variables with the old names as fallback, config file, state folder, user folder.
-- The hub does not poll quotas: `plugin/scripts/quota_poller.mjs` (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed) posts them to `/usage`.
+- The hub does not poll quotas: the Claude adapter's `quota_poller.mjs` (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed) posts them to `/usage`.
 - Release: a `v*` tag packs this folder (without `test/` and `tools/`) as `agentsdash-core-<version>-p<protocol>.tar.gz` (the protocol is in `package.json`) with a `.sha256` file; run it with `node hub.mjs` or point the hooks at it with `AGENTSDASH_CORE_DIR`.
 - `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `hub_page.js` wires SSE, taps, pages and beeps.
 
 ## Tests
 
 ```bash
-node --test plugin/hub/test/*.test.mjs
+node --test hub/test/*.test.mjs
 ```

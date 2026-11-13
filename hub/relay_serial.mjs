@@ -9,7 +9,7 @@ export const RETRY_MS = 5000;       // reconnect delay when the port is missing 
 
 async function defaultOpen(path, baud) {
   let mod;
-  try { mod = await import('serialport'); } catch { throw new Error('serialport package not installed (run: npm install serialport, in plugin/hub)'); }
+  try { mod = await import('serialport'); } catch { throw new Error('serialport package not installed (run: npm install serialport, in hub)'); }
   return new Promise((resolve, reject) => {
     const port = new mod.SerialPort({ path, baudRate: baud, autoOpen: false });
     port.open((err) => (err ? reject(err) : resolve(port)));
@@ -19,7 +19,7 @@ async function defaultOpen(path, baud) {
 /** Serial ports of this computer, for the settings page. `error` says why there is no list (serialport missing). */
 export async function listSerialPorts() {
   let mod;
-  try { mod = await import('serialport'); } catch { return { ports: [], error: 'serialport package not installed (run: npm install serialport, in plugin/hub)' }; }
+  try { mod = await import('serialport'); } catch { return { ports: [], error: 'serialport package not installed (run: npm install serialport, in hub)' }; }
   try {
     const found = await mod.SerialPort.list();
     return { ports: found.map((p) => ({ path: p.path, label: [p.friendlyName, p.manufacturer].filter(Boolean).join(' - ') })) };

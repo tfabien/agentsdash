@@ -1,5 +1,5 @@
 // Writes the built-in themes and icon packs as files: themes/<name>.json and icons/<pack>/<role>[-blink].svg.
-// The canvas drawings of web/icon_packs.js run against a recording context that emits SVG. Run: node plugin/hub/tools/export_builtin.mjs
+// The canvas drawings of web/icon_packs.js run against a recording context that emits SVG. Run: node hub/tools/export_builtin.mjs
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
