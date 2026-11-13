@@ -23,6 +23,8 @@ function writeInstalled(userDir, data) {
   fs.writeFileSync(path.join(userDir, LOG), `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 }
 
+const MAX_PACK_JSON = 4096;
+
 /** The icon files of a theme that the loader would accept: `icons/<role>[-N][-blink].<ext>`, no sub-folder. */
 function iconFiles(files) {
   return files.filter((f) => {
@@ -68,6 +70,9 @@ export function installTheme({ theme, userDir, builtinNames, fetchFn = fetch }) 
         total += data.length;
         if (total > MAX_TOTAL) throw new Error(`${name}: more than 20 MB`);
         fs.writeFileSync(path.join(tmp, f), data);
+      }
+      if (icons.length && theme.files.includes('icons/pack.json')) {      // tint mode of the pack (see themes_loader.mjs), 4 KB at most
+        fs.writeFileSync(path.join(tmp, 'icons', 'pack.json'), await download(fetchFn, `${base}/icons/pack.json`, MAX_PACK_JSON));
       }
       const themeFile = path.join(userDir, 'themes', `${name}.json`);
       const iconDir = path.join(userDir, 'icons', name);
