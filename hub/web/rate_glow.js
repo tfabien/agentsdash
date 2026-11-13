@@ -1,4 +1,4 @@
-// How hard a session burns tokens, as a level for the pulse color of its tile: 0 normal, 1 orange, 2 red. Pure: the settings and the state in, a level and a label out.
+// How hard a session burns tokens, as a level for the readout of its tile: 0 normal, 1 orange, 2 red. Pure: the settings and the state in, a level and a label out.
 
 const tokLabel = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k/min` : `${Math.round(n)}/min`);
 
@@ -6,7 +6,7 @@ const tokLabel = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k/min` : `${Math.ro
  * @param session  a session of the state (`dot`, `rate: {tok_min}|null`)
  * @param usage    `state.usage` (`tok_per_pct`), may be absent
  * @param settings `rate_mode` ('off'|'tokens'|'quota'), `rate_orange_k`, `rate_red_k`, `rate_orange_pct`, `rate_red_pct`
- * @returns {{level: 0|1|2, label: string}|null} null: no color change, no readout
+ * @returns {{level: 0|1|2, label: string}|null} null: no readout
  */
 export function rateLevel(session, usage, settings) {
   const mode = settings?.rate_mode ?? 'tokens';
