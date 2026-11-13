@@ -126,6 +126,7 @@ export function startHub(opts = {}) {
   const firstTheme = async () => {
     const name = await installFirstTheme({
       sources: settings.marketSources,
+      preferred: config.first_theme,
       hasTheme: () => catalog.themes.length > 0,
       list: (source) => updater.list(source),
       install: (theme) => installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }),

@@ -25,3 +25,17 @@ test('tries_the_next_source_after_a_failure_and_returns_null_when_all_fail', asy
   assert.equal(await installFirstTheme({ sources: ['bad/one'], hasTheme: () => false, list, install: async () => {} }), null);
   assert.equal(await installFirstTheme({ sources: ['s/r'], hasTheme: () => false, list: async () => ({ themes: [theme('robot')] }), install: async () => { throw new Error('x'); } }), null);
 });
+
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { loadConfig } from '../config.mjs';
+
+test('first_theme_comes_from_env_then_file_then_robot', () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'standup-cfg-')), 'c.json');
+  assert.equal(loadConfig(file, {}).first_theme, 'robot');
+  fs.writeFileSync(file, JSON.stringify({ theme: 'office-modern' }));
+  assert.equal(loadConfig(file, {}).first_theme, 'office-modern');
+  assert.equal(loadConfig(file, { CLAUDE_GADGET_THEME: 'cat' }).first_theme, 'cat');
+  assert.equal(loadConfig(file, { CLAUDE_GADGET_THEME: '../x' }).first_theme, 'office-modern');
+});
