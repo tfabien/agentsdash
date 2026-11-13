@@ -33,7 +33,8 @@ let page = 0, pages = [], current = [];               // the page shown, all pag
 let focus = null;                                      // session id shown full screen (tap on a tile, BACK or Esc returns), null in the grid
 let expandable = false;                                // a tap can expand only when the grid shows several cells
 const FOCUS_SCALE = 3;                                 // a full-screen session may grow up to 3x the gadget size
-const PHONE = document.documentElement.dataset.mode === 'phone';   // phone page: one session per page, its team stacked under it
+const PHONE = document.documentElement.dataset.mode === 'phone';   // phone page: one session per page
+let stacked = false;                                   // portrait phone: the team goes under the lead; landscape keeps them side by side
 const maxScale = () => (focus ? FOCUS_SCALE : MAX_SCALE);
 const SWIPE_PX = 50;                                  // a horizontal swipe of 50 px or more turns the page
 const seen = new Map();                               // session id -> rank of its first appearance, the order of the grid
@@ -111,7 +112,7 @@ function tileFor(s, part = 'lead') {
 }
 
 /** Which side a tile is welded on: the lead of a session with sub-agents touches its team on the right, the team touches its lead on the left. */
-const weldOf = (t) => (!PHONE && t.session && hasTeam(t.session) ? (t.part === 'team' ? 'left' : 'right') : '');
+const weldOf = (t) => (!stacked && t.session && hasTeam(t.session) ? (t.part === 'team' ? 'left' : 'right') : '');
 
 /** The canvas takes the largest size of the frame's aspect ratio that fits its cell, at the pixel ratio of the display. */
 function fit(t) {
@@ -166,7 +167,7 @@ function drawTile(s, t) {
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
-  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
+  t.screen.begin(scale * (window.devicePixelRatio || 1), FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
     bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, elapsedS: elapsed(), menu: false, back: Boolean(focus), detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
@@ -288,7 +289,9 @@ function render() {
   if (!focused) page = Math.max(0, Math.min(page, pages.length - 1));                  // the grid page is kept while a session is full screen
   current = pages[focused ? 0 : page] ?? [];
   const grid = $('tiles');
-  const { cols, rows } = PHONE ? { cols: 1, rows: Math.max(1, current.reduce((n, s) => n + cellsOf(s), 0)) }
+  stacked = PHONE && grid.clientHeight > grid.clientWidth;
+  grid.toggleAttribute('data-stack', stacked);
+  const { cols, rows } = stacked ? { cols: 1, rows: Math.max(1, current.length) }      // the group itself holds the two stacked rows
     : bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * maxScale(), STRETCH);   // a team is 2 columns wide
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);

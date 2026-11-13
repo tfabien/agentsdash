@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Agents">
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/phone-192.png">
 <link rel="apple-touch-icon" href="/phone-180.png">
 <link rel="stylesheet" href="/settings.css">
 <link rel="stylesheet" href="/hub.css">
@@ -24,6 +25,13 @@ addEventListener('unhandledrejection', (e) => { const p = document.getElementByI
 </script>
 </head>
 <body>
+<section id="onboard" hidden>
+<h1>Use it as a dedicated screen</h1>
+<button id="onboard-full" class="primary" hidden>Full screen</button>
+<p id="onboard-steps"></p>
+<button id="onboard-ok">Got it</button>
+</section>
+<button id="fs-button" aria-label="Full screen" title="Full screen" hidden>&#9974;</button>
 <div id="hub-down" hidden>Hub unreachable, retrying</div>
 <div id="stage">
 <main id="tiles"></main>

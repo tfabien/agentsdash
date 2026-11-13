@@ -126,9 +126,12 @@ node --test hub/test/*.test.mjs
 
 A phone on the same Wi-Fi can show the page full screen, read-only.
 
+Shortcut: `node pair.mjs` (in the hub folder, `~/.agentsdash/core/<version>/`) does steps 1 and 2: it turns LAN access on, restarts the hub and prints the address and a QR code in the terminal.
+
 1. Turn LAN access on: `"lan": {"enabled": true}` in `~/.agentsdash/config.json`, or start the hub with `AGENTSDASH_LAN=1`, then restart it. The hub then listens on `0.0.0.0` (`lan.bind` picks one address).
 2. Open the page on the PC, click the Device button (plug icon): the Phone section shows a QR code. The terminal view prints the same address.
-3. Scan it with the phone camera. The phone opens `/phone` and keeps a cookie; use "Add to Home Screen" to get a full-screen app.
+3. Scan it with the phone camera. The phone opens `/phone` and keeps a cookie.
+4. A card explains the rest on the first visit: the "Full screen" button hides the browser bars (the Fullscreen API works over plain http), and the steps for a home screen shortcut. Afterwards a corner button re-enters full screen. On an iPhone, "Add to Home Screen" opens the page without bars. Android's install prompt needs HTTPS, which is not built yet.
 
 The token lives in `~/.agentsdash/lan-token`; delete the file and restart the hub to pair again. A client that is not on the PC can only read (`/phone`, `/state`, `/events`, `/health`) and gets 401 without the cookie.
 The link is plain `http`: anyone on the same Wi-Fi can read the traffic, so use it on a network you trust. HTTPS (and with it a service worker and offline mode) is not built yet.

@@ -3,7 +3,6 @@
 import { relayLabel } from './format.js';
 import { icon } from './icons.js';
 import { validRules } from './rules.js';
-import { createPhoneSection } from './phone_section.js';
 
 export const TILES_MIN = 0, TILES_MAX = 12;          // tiles per page; 0 is Auto (what fits the window)
 
@@ -159,7 +158,7 @@ function createRulesSection() {
 }
 
 /**
- * @returns {{button: HTMLButtonElement, panel: HTMLElement, update: (settings: object, catalog?: object) => void}}
+ * @returns {{button: HTMLButtonElement, panel: HTMLElement, update: (settings: object, catalog?: object) => void, updateRelay: (relay: object|undefined) => void}}
  */
 export function createSettingsMenu() {
   const button = el('button', 'chip gear');
@@ -167,6 +166,7 @@ export function createSettingsMenu() {
   button.title = 'Settings';
   button.setAttribute('aria-label', 'Settings');
   const panel = el('div', 'vpanel');
+  const general = [];                                  // the option rows, shown in the General tab
   let current = {};
   const rows = new Map();                              // key -> function that shows the value
 
@@ -199,40 +199,43 @@ export function createSettingsMenu() {
       rows.set(opt.key, (val) => { b.classList.toggle('on', Boolean(val)); b.setAttribute('aria-pressed', String(Boolean(val))); });
     }
     row.append(text, ctl);
-    panel.append(row);
+    general.push(row);
   }
 
   const rulesSection = createRulesSection();
-  panel.append(rulesSection.node);
+  const device = createDeviceSection();
+  const phoneNote = el('div', 'shint', 'Phone: the QR button of the bottom bar pairs a phone with this hub.');
+  const TABS = [['general', 'General', 'sliders', general], ['projects', 'Projects', 'folder', [rulesSection.node]], ['devices', 'Devices', 'plug', [device.node, phoneNote]]];
+  const nav = el('nav', 'snav');                        // tabs stacked on the left, an icon and a label each
+  const body = el('div', 'sbody');
+  const panes = new Map();
+  let tab = 'general';
+  const showTab = (id) => { tab = id; for (const [k, [b, p]] of panes) { b.classList.toggle('on', k === id); p.hidden = k !== id; } };
+  for (const [id, label, ico, nodes] of TABS) {
+    const b = el('button', 'snavbtn');
+    b.append(icon(ico), el('span', '', label));
+    b.onclick = () => showTab(id);
+    const p = el('div', 'spane');
+    p.append(...nodes);
+    panes.set(id, [b, p]);
+    nav.append(b);
+    body.append(p);
+  }
+  panel.classList.add('ssplit');
+  panel.append(nav, body);
+  showTab(tab);
 
   function show() { for (const opt of OPTIONS) if (current[opt.key] !== undefined) rows.get(opt.key)(current[opt.key]); }
 
-  return { button, panel, update(settings, catalog) { current = { ...settings }; show(); rulesSection.update(settings.rules, catalog?.packs); } };
-}
-
-/**
- * The device button of the bottom bar, apart from the settings gear: its icon is the state of the relay (no device configured, connected,
- * unreachable) and it opens the Device panel.
- * @returns {{button: HTMLButtonElement, panel: HTMLElement, updateRelay: (relay: object|undefined) => void}}
- */
-export function createDeviceMenu() {
-  const button = el('button', 'chip devbtn');
-  button.setAttribute('aria-label', 'Device');
-  const panel = el('div', 'vpanel');
-  const device = createDeviceSection();
-  const phone = createPhoneSection();
-  panel.append(device.node, phone.node);
-  button.addEventListener('click', () => phone.refresh());       // the address can change with the network
-  let shown = '';
-
   return {
     button, panel,
+    update(settings, catalog) { current = { ...settings }; show(); rulesSection.update(settings.rules, catalog?.packs); },
+    /** The relay state: the Devices tab, and a dot on the gear when a configured device does not answer. */
     updateRelay(relay) {
       device.update(relay);
       const label = relayLabel(relay);
-      const state = !label ? 'none' : label.ok ? 'ok' : 'down';
-      if (shown !== state) { shown = state; button.className = `chip devbtn ${state}`; button.replaceChildren(icon(state === 'none' ? 'plugoff' : 'plug')); }
-      button.title = label ? `Device: ${label.text}${label.why ? `. ${label.why}` : ''}` : 'Device: not configured (click to set up)';
+      button.dataset.relay = !label ? 'none' : label.ok ? 'ok' : 'down';
+      button.title = label && !label.ok ? `Settings. Device: ${label.text}${label.why ? `. ${label.why}` : ''}` : 'Settings';
     },
   };
 }
