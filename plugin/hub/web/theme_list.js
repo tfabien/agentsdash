@@ -1,13 +1,15 @@
 // The pure part of the theme view: one list of cards made from the installed themes (the hub catalog) and the marketplace listing
-// (GET /market), with search, tag and status filters. No DOM and no imports, so it loads in Node.
+// (GET /market), with search, tag and status filters. No DOM, so it loads in Node.
+import { activeLooks } from './theme_schema.js';
 
 /**
- * @param {{catalog: object[], market: object | null, active: string}} p `catalog`: the installed themes; `market`: the GET /market answer (or null)
+ * @param {{catalog: object[], market: object | null, active: string, looks?: object}} p `catalog`: the installed themes; `market`: the GET /market answer (or null);
+ *   `looks`: the setting `themeLooks` (ticked look keys per theme)
  * @returns {object[]} cards: { name, label, description, keywords, author, version, source, preview, installed, active, updatable, availableVersion, deletable }
  *   Available cards also carry `colors` and `roles` (icon URLs) for a preview without installing.
  *   Installed cards first (the active one on top), then the ones only the marketplace has; each group by label.
  */
-export function mergeCards({ catalog, market, active }) {
+export function mergeCards({ catalog, market, active, looks = {} }) {
   const listed = new Map((market?.themes ?? []).map((t) => [t.name, t]));
   const user = new Set(market?.userThemes ?? []);
   const installed = catalog.map((t) => {
@@ -17,13 +19,14 @@ export function mergeCards({ catalog, market, active }) {
       name: t.name, label: t.label || t.name, description: t.description || fromMarket?.description || '', keywords: t.keywords?.length ? t.keywords : fromMarket?.keywords ?? [],
       author: t.author || '', version: t.version || '', source: fromMarket?.source ?? '', preview: fromMarket?.preview ?? null,
       variants: Object.entries(t.variants ?? {}).map(([key, v]) => ({ key, label: v.label || key })),
+      looks: Object.entries(t.looks ?? {}).map(([key, l]) => ({ key, label: l.label || key })), activeLooks: activeLooks(t, looks[t.name]).map((l) => l.key),
       installed: true, active: t.name === active, updatable: Boolean(fromMarket?.updatable), availableVersion: fromMarket?.updatable ? fromMarket.version : '', deletable: user.has(t.name),
     };
   });
   const have = new Set(catalog.map((t) => t.name));
   const available = (market?.themes ?? []).filter((t) => !t.installed && !have.has(t.name)).map((t) => ({
     name: t.name, label: t.label || t.name, description: t.description || '', keywords: t.keywords ?? [], author: t.author || '', version: t.version || '', source: t.source,
-    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, variants: [], installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
+    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, variants: [], looks: [], activeLooks: [], installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
   }));
   const byLabel = (a, b) => a.label.localeCompare(b.label);
   installed.sort((a, b) => (b.active - a.active) || byLabel(a, b));

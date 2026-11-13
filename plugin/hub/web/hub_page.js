@@ -181,8 +181,9 @@ let previewList = [];
 let savedTheme = 'default';
 let savedVariant = '';
 let savedOverrides = {};
+let savedLooks = {};
 // What the tiles draw: the preview shows a theme (and variant) as authored, the saved choice also carries the user's color edits.
-const applySaved = () => (preview ? applyTheme(preview.name, preview.variant ?? '') : applyTheme(savedTheme, savedVariant, savedOverrides));
+const applySaved = () => (preview ? applyTheme(preview.name, preview.variant ?? '') : applyTheme(savedTheme, savedVariant, savedOverrides, savedLooks[savedTheme]));
 let realCatalog = { themes: [], packs: [], errors: [] };
 const pageCatalog = () => (preview && !preview.installed
   ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: [...realCatalog.packs.filter((p) => p.name !== preview.theme.iconPack), { name: preview.theme.iconPack, roles: preview.roles }] }
@@ -305,6 +306,7 @@ function showState(next) {
   savedTheme = next.settings?.theme ?? 'default';
   savedVariant = next.settings?.themeVariant ?? '';
   savedOverrides = next.settings?.themeOverrides ?? {};
+  savedLooks = next.settings?.themeLooks ?? {};
   setCatalog(pageCatalog());
   applySaved();
   footer.settings.update(next.settings ?? {}, next.catalog);

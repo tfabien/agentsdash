@@ -45,5 +45,23 @@
       },
       "accent": "#3b6fd4"
     }
-  }
+  },
+  "looks": {
+    "classic": {
+      "label": "Classic"
+    },
+    "ember": {
+      "label": "Ember",
+      "accent": "#f2a33a"
+    },
+    "mint": {
+      "label": "Mint",
+      "accent": "#2fb5a5"
+    }
+  },
+  "defaultLooks": [
+    "classic",
+    "ember",
+    "mint"
+  ]
 }

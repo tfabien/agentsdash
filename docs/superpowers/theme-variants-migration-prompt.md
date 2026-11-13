@@ -22,15 +22,20 @@ Adapt every theme of the repository `tfabien/standup-bot-themes` to the theme va
    - Multi-color artwork (skin, eyes, scenery in several hues): no `pack.json`. The accent would shift every color, so do not set `accent` either.
    - Write the reasoning for each theme in the PR (svg, hue with the value, or none and why).
 
+3. `looks` (optional, only when it fits the theme):
+   - When roles have several numbered sprites (`lead.png`, `lead-2.png`, `lead-3.png`), add one look per sprite number: `{ "label": "<short name from the artwork>", "sprite": <n> }`, and a `defaultLooks` list with all of them (the current behavior, now selectable).
+   - When the pack gets a tint mode, add 2 or 3 accent looks (`{ "label": "Ember", "accent": "#f2a33a" }`, one per accent of the palette) and `defaultLooks` with all of them. Combine `sprite` and `accent` in one look when both apply.
+   - Skip themes with a single sprite per role and no tint mode.
+
 Do not change icon files except the `currentColor` replacement above. Do not rename a theme. When a theme is ambiguous, stop and report it instead of guessing.
 
 ## Checks
 
-3. Extend `tools/check.mjs` and run it. It also fails when: `variants` has more than 12 entries, a variant key does not match `^[a-z0-9-]{1,32}$`, a color is not `#rrggbb` or its key is unknown, `accent` is invalid, `pack.json` is over 4 KB, invalid JSON, or has a `tint` other than `svg`, `hue`, `none`, a `hue` outside 0..359, `tint` is `svg` but no SVG uses `currentColor`, or the contrast of `TEXT` on `PANEL` or `SCREEN` is under 4.5 in the theme or in any variant.
+3. Extend `tools/check.mjs` and run it. It also fails when: `variants` has more than 12 entries, a variant key does not match `^[a-z0-9-]{1,32}$`, a color is not `#rrggbb` or its key is unknown, `accent` is invalid, `pack.json` is over 4 KB, invalid JSON, or has a `tint` other than `svg`, `hue`, `none`, a `hue` outside 0..359, `tint` is `svg` but no SVG uses `currentColor`, a look has an invalid `sprite` (not an integer 1 to 99, or no icon file with that number for any role), an invalid `accent`, or a key of `defaultLooks` that is not in `looks`, or the contrast of `TEXT` on `PANEL` or `SCREEN` is under 4.5 in the theme or in any variant.
 4. Check at least 3 themes on the page: install them from the Marketplace list, click each swatch, press Preview, and report with a screenshot description that the icons keep their look (tint `none`) or take the accent (tint `svg` or `hue`).
 
 ## Docs and PR
 
 5. Update `README.md`: the table gets a column "Variants" (labels) and "Accent" (yes when a tint mode is set); the layout section for contributors lists `variants`, `accent` and `icons/pack.json`.
 6. Update `install.md` ("Create a theme"): the metadata fields, variants, accent and the three tint modes with their rule of choice.
-7. Commit in two commits (the `theme.json` and `pack.json` changes, then `check.mjs`, README and `install.md`). Push and open the PR with: the list of themes with their tint mode, the variants added per theme, and any theme left without accent.
+7. Commit in two commits (the `theme.json` (variants, accent, looks) and `pack.json` changes, then `check.mjs`, README and `install.md`). Push and open the PR with: the list of themes with their tint mode, the variants added per theme, and any theme left without accent.

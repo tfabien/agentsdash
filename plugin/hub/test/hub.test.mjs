@@ -500,3 +500,42 @@ test('market_remove_clears_overrides_of_that_theme', async () => {
     assert.deepEqual([Object.keys(st.themeOverrides), st.theme, st.themeVariant], [['base'], 'default', '']);
   }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
 });
+
+// ---- theme looks ----
+const looksBase = () => {
+  const d = catalogDirs();
+  fs.mkdirSync(path.join(d.builtinDir, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(d.builtinDir, 'themes', 'lk.json'), JSON.stringify({ name: 'lk', colors: {}, looks: { a: { label: 'A' }, b: { label: 'B', sprite: 2, accent: '#ff0000' }, c: { label: 'C' } }, defaultLooks: ['a', 'b'] }));
+  return d;
+};
+
+test('settings_accept_theme_looks_and_refuse_invalid_ones', () => withHub(async (hub) => {
+  assert.equal((await postJson(hub, '/settings', { themeLooks: { lk: ['a', 'b'] } })).status, 200);
+  assert.deepEqual((await (await get(hub, '/state')).json()).settings.themeLooks, { lk: ['a', 'b'] });
+  await postJson(hub, '/settings', { themeLooks: { 'Bad Key': ['a'] } });
+  await postJson(hub, '/settings', { themeLooks: { lk: 'a' } });
+  assert.deepEqual((await (await get(hub, '/state')).json()).settings.themeLooks, { lk: ['a', 'b'] });
+}));
+
+test('post_themes_saves_looks_and_the_active_ones_as_default', async () => {
+  const d = looksBase();
+  await withHub(async (hub) => {
+    assert.equal((await postJson(hub, '/themes', { name: 'mine', theme: 'lk', looks: ['c', 'b'] })).status, 200);
+    const saved = JSON.parse(fs.readFileSync(path.join(d.userDir, 'themes', 'mine.json'), 'utf8'));
+    assert.deepEqual(Object.keys(saved.looks), ['b', 'c']);
+    assert.deepEqual(saved.looks.b, { label: 'B', sprite: 2, accent: '#ff0000' });
+    assert.deepEqual(saved.defaultLooks, ['b', 'c']);
+    assert.equal((await postJson(hub, '/themes', { name: 'plain', theme: 'lk' })).status, 200);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(d.userDir, 'themes', 'plain.json'), 'utf8')).defaultLooks, ['a', 'b'], 'the author default when nothing is ticked');
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_remove_clears_theme_looks_of_that_theme', async () => {
+  const d = looksBase();
+  fs.writeFileSync(path.join(d.userDir, 'themes', 'mine.json'), JSON.stringify({ name: 'mine', colors: {} }));
+  await withHub(async (hub) => {
+    await postJson(hub, '/settings', { themeLooks: { mine: ['a'], lk: ['a'] } });
+    assert.equal((await postJson(hub, '/market/remove', { name: 'mine' })).status, 200);
+    assert.deepEqual((await (await get(hub, '/state')).json()).settings.themeLooks, { lk: ['a'] });
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});

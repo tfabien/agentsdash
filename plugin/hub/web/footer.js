@@ -78,7 +78,7 @@ export function mountFooter(root, stage, { onPreview } = {}) {
     },
     update(state, elapsedS) {
       mode = state.settings?.sound ?? 'ask';
-      themes.update(state.settings?.theme, state.settings?.themeVariant, state.settings?.themeOverrides);
+      themes.update(state.settings?.theme, state.settings?.themeVariant, state.settings?.themeOverrides, state.settings?.themeLooks);
       device.updateRelay(state.relay);
       if (sound.dataset.mode !== mode) { sound.dataset.mode = mode; sound.replaceChildren(icon(SOUND_ICON[mode] ?? SOUND_ICON.ask)); }
       sound.title = `Beeps: ${SOUND_LABEL[mode] ?? mode} (click to change)`;

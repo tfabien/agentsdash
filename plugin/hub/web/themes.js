@@ -2,8 +2,8 @@
 // A theme is a plain object { name, label?, author?, version?, iconPack?, colors: { KEY: '#rrggbb' } }. Missing or invalid colors keep the
 // built-in value, a missing or unknown icon pack gives the robots. The active theme is global (setting `theme`, kept by the hub).
 import { COLOR } from './screen.js';
-import { iconPackFor, setCatalogPacks, setAccent } from './icon_packs.js';
-import { validateTheme, resolvePalette } from './theme_schema.js';
+import { iconPackFor, setCatalogPacks, setAccent, setLooks } from './icon_packs.js';
+import { validateTheme, resolvePalette, activeLooks } from './theme_schema.js';
 
 const BASE = { ...COLOR };                                   // the palette of ui_theme.h, as RGB565
 const to565 = (hex) => { const n = parseInt(hex.slice(1), 16); return (((n >> 19) & 31) << 11) | (((n >> 10) & 63) << 5) | ((n >> 3) & 31); };
@@ -75,9 +75,9 @@ const findTheme = (name) => catalogThemes?.get(name) ?? THEMES[name];
 /**
  * Makes `theme` (an object of THEMES, or its name) the one every drawing reads. An unknown or missing name gives the default theme.
  * `variantKey` picks one of its variants (unknown or empty: the base). `overrides` is the setting `themeOverrides`: the entry of `<theme>` or `<theme>/<variant>`
- * (the one that matches) is applied last.
+ * (the one that matches) is applied last. `chosenLooks` is the user's ticked look keys for this theme (`themeLooks[name]`); without them the theme's own default looks apply.
  */
-export function applyTheme(theme, variantKey = '', overrides = {}) {
+export function applyTheme(theme, variantKey = '', overrides = {}, chosenLooks) {
   const t = (typeof theme === 'string' ? findTheme(theme) : theme) ?? THEMES[DEFAULT_THEME];
   const variant = variantKey && t.variants?.[variantKey] ? variantKey : '';
   const { colors, accent } = resolvePalette(t, variant, overrides?.[variant ? `${t.name}/${variant}` : t.name]);
@@ -86,6 +86,7 @@ export function applyTheme(theme, variantKey = '', overrides = {}) {
   active = t;
   activeAccentHex = accent;
   setAccent(accent);
+  setLooks(activeLooks(t, chosenLooks));
   return t;
 }
 

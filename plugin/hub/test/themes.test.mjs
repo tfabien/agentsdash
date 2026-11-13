@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COLOR, rgb565 } from '../web/screen.js';
 import { THEMES, applyTheme, validateTheme, activeTheme, activeIconPack, activeAccent, setCatalog } from '../web/themes.js';
-import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey, setAccent } from '../web/icon_packs.js';
+import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey, setAccent, setLooks, lookFor, currentLooks } from '../web/icon_packs.js';
 import { createVectorScreen } from '../web/vector_screen.js';
 
 function fakeCanvas() {
@@ -270,4 +270,61 @@ test('svgPack_none_mode_never_sets_a_filter', () => {
   assert.equal(r.calls[0].filter, 'none');
   setAccent('');
   delete globalThis.Image;
+});
+
+// ---- looks ----
+const looksTheme = { name: 'lt', label: 'lt', author: 't', version: '1', iconPack: 'robot', colors: {},
+  looks: { a: { label: 'A', sprite: null, accent: '' }, b: { label: 'B', sprite: 2, accent: '#0000ff' }, c: { label: 'C', sprite: null, accent: '#ff0000' } }, defaultLooks: ['a', 'b'] };
+const L = [{ key: 'a', sprite: null, accent: '' }, { key: 'b', sprite: 2, accent: '#0000ff' }, { key: 'c', sprite: null, accent: '#ff0000' }];
+
+test('lookFor_is_stable_per_agent_and_uses_every_look', () => {
+  const seen = new Set();
+  for (let i = 0; i < 60; i++) { const k = lookFor(L, `agent-${i}`).key; assert.equal(k, lookFor(L, `agent-${i}`).key); seen.add(k); }
+  assert.equal(seen.size, 3);
+});
+
+test('lookFor_without_agent_id_uses_the_first_look_and_nothing_without_looks', () => {
+  assert.equal(lookFor(L, undefined).key, 'a');
+  assert.equal(lookFor([], 'x'), null);
+});
+
+test('variantKey_with_sprite_picks_the_numbered_file_or_falls_back', () => {
+  const roles = { lead: '/a', 'lead-2': '/b', general: '/c' };
+  assert.equal(variantKey(roles, 'lead', 'x', 2), 'lead-2');
+  assert.equal(variantKey(roles, 'lead', 'x', 1), 'lead');
+  assert.equal(variantKey(roles, 'general', 'x', 2), 'general', 'no such number: the unnumbered file');
+  assert.equal(variantKey(roles, 'lead', 'x', 3), 'lead');
+});
+
+test('svgPack_look_sprite_draws_the_numbered_file', () => {
+  const made = stubImage(true);
+  const pack = svgPack('p', { lead: '/l1.png', 'lead-2': '/l2.png' });
+  setLooks([{ key: 'b', sprite: 2, accent: '' }]);
+  const r = recordingCtx();
+  pack.draw(r.ctx, 0, false, 'agent');
+  assert.equal(r.calls[0].args[0].src, '/l2.png');
+  setLooks([]);
+  assert.equal(made.length, 1);
+  delete globalThis.Image;
+});
+
+test('svgPack_look_accent_sets_the_hue_filter_for_that_agent_and_none_mode_ignores_it', () => {
+  stubImage(true);
+  setLooks([{ key: 'c', sprite: null, accent: '#0000ff' }]);
+  let r = filterCtx();
+  svgPack('p', { lead: '/l.png' }, { tint: 'hue', hue: 120 }).draw(r.ctx, 0, false, 'agent');
+  assert.equal(r.calls[0].filter, 'hue-rotate(120deg)');
+  r = filterCtx();
+  svgPack('p', { lead: '/l.png' }).draw(r.ctx, 0, false, 'agent');
+  assert.equal(r.calls[0].filter, 'none');
+  setLooks([]);
+  delete globalThis.Image;
+});
+
+test('applyTheme_sets_the_active_looks_from_chosen_then_default', () => {
+  setCatalog({ themes: [looksTheme], packs: [] });
+  const seen = (chosen) => { applyTheme('lt', '', {}, chosen); const out = new Set(); for (let i = 0; i < 40; i++) out.add(lookFor(currentLooks(), `x${i}`).key); return [...out].sort().join(); };
+  assert.equal(seen(undefined), 'a,b');
+  assert.equal(seen(['c']), 'c');
+  applyTheme('default');
 });

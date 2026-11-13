@@ -65,3 +65,17 @@ test('installed_cards_carry_the_variants_of_the_theme_and_available_ones_none', 
   assert.deepEqual(cards.find((c) => c.name === 'b').variants, []);
   assert.deepEqual(cards.find((c) => c.name === 'c').variants, []);
 });
+
+test('installed_cards_carry_looks_and_their_active_keys', () => {
+  const t = { name: 'lk', colors: {}, looks: { a: { label: 'A', sprite: null, accent: '' }, b: { label: 'B', sprite: 2, accent: '' }, c: { label: 'C', sprite: null, accent: '' } }, defaultLooks: ['a', 'b'] };
+  const card = (looks) => mergeCards({ catalog: [t], market: null, active: 'lk', looks })[0];
+  assert.deepEqual(card({}).looks, [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }, { key: 'c', label: 'C' }]);
+  assert.deepEqual(card({}).activeLooks, ['a', 'b'], 'the author default');
+  assert.deepEqual(card({ lk: ['c'] }).activeLooks, ['c'], 'the setting wins');
+  assert.deepEqual(card({ lk: ['ghost'] }).activeLooks, ['a', 'b']);
+});
+
+test('available_cards_have_no_looks', () => {
+  const cards = mergeCards({ catalog: [], market: { themes: [{ name: 'c', source: 'o/r', installed: false }] }, active: 'default' });
+  assert.deepEqual([cards[0].looks, cards[0].activeLooks], [[], []]);
+});
