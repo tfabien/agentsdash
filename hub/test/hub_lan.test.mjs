@@ -44,7 +44,7 @@ test('pair_sets_cookie_and_state_is_readable_without_the_token', () => withLan(a
   const set = r.headers['set-cookie'][0];
   assert.match(set, /agentsdash_token=/);
   assert.match(set, /HttpOnly/);
-  assert.match(set, /SameSite=Strict/);
+  assert.match(set, /SameSite=Lax/);
   const s = await call(hub, { p: '/state', headers: cookie(token) });
   assert.equal(s.status, 200);
   assert.ok(!s.body.includes(token), 'the token never appears in the state');

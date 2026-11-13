@@ -121,7 +121,7 @@ It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/h
 
 ### GET /pair
 
-`?t=<token>`: a matching token answers `302` to `/phone` and sets the cookie (HttpOnly, SameSite=Strict); any other token answers 401.
+`?t=<token>`: a matching token answers `302` to `/phone` and sets the cookie (HttpOnly, SameSite=Lax); any other token answers 401.
 
 ### GET /pair-info
 

@@ -56,7 +56,7 @@ A random 128-bit token, created on first use and stored in `~/.agentsdash/lan-to
 ### Request rules when `lan.enabled`
 
 - A request from a loopback address (`127.0.0.1`, `::1`) follows today's rules, no token.
-- A request from any other address must carry the token as the cookie `agentsdash_token` (HttpOnly, SameSite=Strict, long life). Without it: `401`, no body detail.
+- A request from any other address must carry the token as the cookie `agentsdash_token` (HttpOnly, SameSite=Lax (Strict drops the cookie after a QR scan, which is a cross-site navigation), long life). Without it: `401`, no body detail.
 - `GET /pair?t=<token>`: if the token matches, set the cookie and redirect to `/phone`; else `401`. The token appears in a URL only here (your call: it will show in browser history of that one URL; the page after the redirect has none).
 - Remote clients may use only: `GET /phone`, `/phone.html`, `/manifest.webmanifest`, `/state`, `/events`, `/health` and the static files and icons the page loads. Any other route answers `403`.
 - Host allow-list: the loopback names plus each private IPv4 address of the machine (`os.networkInterfaces()`) and `os.hostname()`, each with the port. Origin follows the same set. A request naming another host gets `403` (DNS rebinding protection stays).

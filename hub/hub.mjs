@@ -205,7 +205,7 @@ export function startHub(opts = {}) {
     switch (route) {
       case 'GET /pair':                             // the only route a client reaches without the cookie: it sets it
         if (!lanToken || !tokenMatches(url.searchParams.get('t') ?? undefined, lanToken)) return text(res, 401, 'unauthorized');
-        res.writeHead(302, { Location: '/phone', 'Set-Cookie': `${COOKIE}=${lanToken}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000` });
+        res.writeHead(302, { Location: '/phone', 'Set-Cookie': `${COOKIE}=${lanToken}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000` });
         return res.end();
       case 'GET /pair-info': {                      // loopback only (a remote client is stopped above)
         const ip = privateAddresses()[0];
