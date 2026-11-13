@@ -119,9 +119,9 @@ function fit(t) {
   const dpr = window.devicePixelRatio || 1;
   const bw = t.box.clientWidth, bh = t.box.clientHeight;
   if (!bw || !bh) return 0;
-  const k = Math.min(bw / FRAME.w, bh / FRAME.h, maxScale());            // one scale for both axes: text keeps its shape
-  const fw = Math.min(bw / k, FRAME.w * STRETCH);                       // a wider cell gets a wider frame (more room in the panels) up to STRETCH
-  const fh = Math.min(bh / k, FRAME.h * STRETCH_H);                     // a taller cell gets a taller frame (more lines for the prompt and the command), up to STRETCH_H
+  const k = Math.min(bw / FRAME.w, bh / FRAME.h, MAX_SCALE);             // one scale for both axes: text keeps its shape (a full-screen session uses the same text size: the extra room holds more text)
+  const fw = focus ? bw / k : Math.min(bw / k, FRAME.w * STRETCH);      // a wider cell gets a wider frame (more room in the panels) up to STRETCH; full screen: no limit
+  const fh = focus ? bh / k : Math.min(bh / k, FRAME.h * STRETCH_H);                   // a taller cell gets a taller frame (more lines for the prompt and the command), up to STRETCH_H
   const w = Math.max(1, Math.round(fw * k * dpr)), h = Math.max(1, Math.round(fh * k * dpr));
   if (t.canvas.width !== w || t.canvas.height !== h) { t.canvas.width = w; t.canvas.height = h; }
   t.canvas.style.width = `${w / dpr}px`;               // one canvas pixel per device pixel: no resampling, the frame stays even on every side
