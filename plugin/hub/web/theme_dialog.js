@@ -2,8 +2,8 @@
 // marketplace themes, with search, tags and a status filter; Apply, Install, Update, Preview and Delete on each card; the marketplace
 // settings behind a button. The choice is the `theme` setting of the hub, so every page follows (see themes.js).
 import { listThemes, themeColor, activeAccent } from './themes.js';
-import { iconPackFor, onIconsLoaded, clearIconCache, setAccent } from './icon_packs.js';
-import { resolvePalette } from './theme_schema.js';
+import { iconPackFor, onIconsLoaded, clearIconCache, setAccent, setLooks, currentLooks } from './icon_packs.js';
+import { resolvePalette, activeLooks } from './theme_schema.js';
 import { createThemeEditor } from './theme_editor.js';
 import { postSettings } from './settings.js';
 import { icon } from './icons.js';
@@ -22,7 +22,7 @@ async function call(path, body = {}) {
 }
 
 /** The eight agents of a theme, on its panel color, drawn at `k` pixels per unit. */
-function drawPreview(canvas, theme, accent = '') {
+function drawPreview(canvas, theme, accent = '', looks) {
   const k = 1.1, ratio = window.devicePixelRatio || 1;
   const w = 8 * ICON_W + 9 * GAP, h = ICON_H + 2 * GAP;
   canvas.width = Math.round(w * k * ratio); canvas.height = Math.round(h * k * ratio);
@@ -31,8 +31,11 @@ function drawPreview(canvas, theme, accent = '') {
   ctx.setTransform(k * ratio, 0, 0, k * ratio, 0, 0);
   ctx.fillStyle = themeColor(theme, 'PANEL'); ctx.beginPath(); ctx.roundRect(0, 0, w, h, 6); ctx.fill();
   const pack = iconPackFor(theme.iconPack);
-  setAccent(accent);                                         // this card's accent for the time of the drawing, then the applied theme's again
-  for (let role = 0; role < 8; role++) { ctx.save(); ctx.translate(GAP + role * (ICON_W + GAP), GAP); pack.draw(ctx, role, false); ctx.restore(); }
+  setAccent(accent);                                         // this card's accent and looks for the time of the drawing, then the applied theme's again
+  const applied = currentLooks();
+  if (looks) setLooks(looks);
+  for (let role = 0; role < 8; role++) { ctx.save(); ctx.translate(GAP + role * (ICON_W + GAP), GAP); pack.draw(ctx, role, false, `p${role}`); ctx.restore(); }   // made-up agent ids spread the agents over the looks
+  setLooks(applied);
   setAccent(activeAccent());
 }
 
@@ -58,7 +61,7 @@ export function createThemeMenu({ onPreview } = {}) {
   const busy = new Map();                                      // card name -> what is running on it ("Installing…")
   const tags = new Set();
   let previews = [];                                           // [{canvas, theme, accent}] of the cards on screen
-  let savedVariant = '', overrides = {}, editing = false;
+  let savedVariant = '', overrides = {}, savedLooks = {}, editing = false;
   const picked = new Map();                                    // card name -> variant key chosen on the card ('' is the base)
   let catalogKey = '';
 
@@ -164,7 +167,7 @@ export function createThemeMenu({ onPreview } = {}) {
     if (theme) {
       const canvas = el('canvas', 'tpreview');
       root.append(canvas);
-      previews.push({ canvas, theme: { ...theme, colors: look.colors }, accent: look.accent });
+      previews.push({ canvas, theme: { ...theme, colors: look.colors }, accent: look.accent, looks: activeLooks(theme, savedLooks[c.name]) });
     } else if (c.preview) {
       const img = el('img', 'mprev'); img.src = c.preview; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
       root.append(img);
@@ -181,6 +184,20 @@ export function createThemeMenu({ onPreview } = {}) {
         sw.style.background = themeColor({ colors: pal }, 'PANEL'); sw.style.color = themeColor({ colors: pal }, 'TEXT'); sw.style.borderColor = themeColor({ colors: pal }, 'FRAME');
         sw.onclick = () => { picked.set(c.name, v.key); if (c.active) postSettings({ themeVariant: v.key }); render(); };
         row.append(sw);
+      }
+      body.append(row);
+    }
+    if (c.looks.length > 1) {                                  // the looks agents are drawn with: tick several, each agent takes one by hash
+      const row = el('div', 'tvariants');
+      row.append(el('span', 'shint', 'Looks'));
+      for (const l of c.looks) {
+        const on = c.activeLooks.includes(l.key), chip = el('button', `kw tag${on ? ' on' : ''}`, l.label);
+        chip.title = on ? 'Active: click to turn it off' : 'Click to turn it on';
+        chip.onclick = () => {
+          const next = on ? c.activeLooks.filter((k) => k !== l.key) : [...c.activeLooks, l.key];
+          if (next.length) postSettings({ themeLooks: { ...savedLooks, [c.name]: next } });         // at least one look stays active
+        };
+        row.append(chip);
       }
       body.append(row);
     }
@@ -231,7 +248,7 @@ export function createThemeMenu({ onPreview } = {}) {
   function render() {
     if (!panel.isConnected) { catalogKey = ''; return; }
     previews = [];
-    const cards = mergeCards({ catalog: listThemes(), market, active });
+    const cards = mergeCards({ catalog: listThemes(), market, active, looks: savedLooks });
     const counts = { all: cards.length, installed: cards.filter((c) => c.installed).length, available: cards.filter((c) => !c.installed).length, updates: cards.filter((c) => c.updatable).length };
     statusRow.replaceChildren(...STATUSES.map((s) => {
       const b = el('button', `chip${status === s ? ' on' : ''}`, `${STATUS_LABEL[s]} ${counts[s]}`);
@@ -256,7 +273,7 @@ export function createThemeMenu({ onPreview } = {}) {
     toast.hidden = !notice;
     toast.className = `toast ${notice?.ok ? 'ok' : 'err'}`;
     toast.textContent = notice?.text ?? '';
-    for (const p of previews) drawPreview(p.canvas, p.theme, p.accent);
+    for (const p of previews) drawPreview(p.canvas, p.theme, p.accent, p.looks);
 
     sourcesRow.replaceChildren(...(market?.sources ?? []).map((s) => {
       const chip = el('span', 'kw', s);
@@ -288,17 +305,17 @@ export function createThemeMenu({ onPreview } = {}) {
     if (r.updated.length) setNotice(true, `Updated ${r.updated.join(', ')}`); else if (r.errors.length) setNotice(false, r.errors.join(' · ')); else setNotice(true, 'Everything is up to date.');
   });
   auto.onclick = () => act(auto, async () => { await postSettings({ themeAutoUpdate: !(market?.autoUpdate ?? true) }); await load(); });
-  onIconsLoaded(() => { for (const p of previews) drawPreview(p.canvas, p.theme, p.accent); editor.redraw(); });
+  onIconsLoaded(() => { for (const p of previews) drawPreview(p.canvas, p.theme, p.accent, p.looks); editor.redraw(); });
 
   return {
     button, panel,
     onOpen() { inSettings = false; editing = false; render(); load(); },        // the hub answers from its 24 hour cache, or fetches when it is older
-    update(name, variant = '', edits = {}) {                   // the saved theme, variant or edits, or the catalog, changed
-      const key = `${name}|${variant}|${JSON.stringify(edits)}|${listThemes().map((t) => `${t.name}${t.version}${t.iconPack}${Object.keys(t.variants ?? {})}`).join()}`;
+    update(name, variant = '', edits = {}, looks = {}) {                   // the saved theme, variant or edits, or the catalog, changed
+      const key = `${name}|${variant}|${JSON.stringify(edits)}|${JSON.stringify(looks)}|${listThemes().map((t) => `${t.name}${t.version}${t.iconPack}${Object.keys(t.variants ?? {})}`).join()}`;
       if (key === catalogKey) return;
       catalogKey = key;
       active = name && listThemes().some((t) => t.name === name) ? name : 'default';
-      savedVariant = variant; overrides = edits;
+      savedVariant = variant; overrides = edits; savedLooks = looks;
       picked.clear();
       render();
     },
