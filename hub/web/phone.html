@@ -24,7 +24,13 @@ addEventListener('unhandledrejection', (e) => { const p = document.getElementByI
 </script>
 </head>
 <body>
-<div id="fs-hint" hidden>Tap anywhere for full screen</div>
+<section id="onboard" hidden>
+<h1>Use it as a dedicated screen</h1>
+<button id="onboard-full" class="primary" hidden>Full screen</button>
+<p id="onboard-steps"></p>
+<button id="onboard-ok">Got it</button>
+</section>
+<button id="fs-button" aria-label="Full screen" title="Full screen" hidden>&#9974;</button>
 <div id="hub-down" hidden>Hub unreachable, retrying</div>
 <div id="stage">
 <main id="tiles"></main>
