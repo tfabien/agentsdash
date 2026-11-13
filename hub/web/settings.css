@@ -120,3 +120,5 @@ button.kw:hover { background: #26334a; }
 .tfield input[type=color] { width: 42px; height: 24px; padding: 0; border: 1px solid #1f2a3a; background: none; cursor: pointer; }
 .twarn:not(:empty) { color: #ffb23e; }
 .tedit[hidden] { display: none; }
+.sphone .sqr svg { width: 200px; height: 200px; display: block; border-radius: 6px; }
+.sphone .surl { font-size: 11px; color: #8b98a8; word-break: break-all; user-select: all; }

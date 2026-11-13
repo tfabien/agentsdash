@@ -80,3 +80,16 @@ test('tui_follows_the_hub_over_sse', async () => {
     assert.ok(writes.some((w) => strip(w).includes('tuiproj')), 'the session shows up in the terminal view');
   } finally { tui.stop(); await hub.close(); }
 });
+
+test('tui_prints_the_pairing_address_only_when_there_is_one', async () => {
+  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const withUrl = [], without = [];
+  const a = runTui({ host: `127.0.0.1:${hub.port}`, write: (s) => withUrl.push(s), columns: 80, alternateScreen: false, pairUrl: 'http://192.168.1.5:8765/pair?t=abc' });
+  const b = runTui({ host: `127.0.0.1:${hub.port}`, write: (s) => without.push(s), columns: 80, alternateScreen: false, pairUrl: null });
+  try {
+    const end = Date.now() + 3000;
+    while (Date.now() < end && !(withUrl.length && without.length)) await sleep(20);
+    assert.ok(withUrl.some((w) => strip(w).includes('Phone: http://192.168.1.5:8765/pair?t=abc')));
+    assert.ok(!without.some((w) => strip(w).includes('Phone:')));
+  } finally { a.stop(); b.stop(); await hub.close(); }
+});
