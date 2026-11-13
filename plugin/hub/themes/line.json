@@ -1,0 +1,49 @@
+{
+  "name": "line",
+  "label": "Line",
+  "author": "standup-bot",
+  "version": "1",
+  "iconPack": "line",
+  "description": "Minimal line-art robots tinted by the accent color. Example of a pack with pack.json.",
+  "keywords": [
+    "minimal",
+    "line",
+    "accent"
+  ],
+  "accent": "#6e7bf2",
+  "colors": {
+    "SCREEN": "#0d1117",
+    "BAR": "#161b22",
+    "PANEL": "#161b22",
+    "ROW": "#1c2230",
+    "FRAME": "#30363d",
+    "CHIP": "#2a3140"
+  },
+  "variants": {
+    "amber": {
+      "label": "Amber",
+      "colors": {},
+      "accent": "#f2cc60"
+    },
+    "mint": {
+      "label": "Mint",
+      "colors": {},
+      "accent": "#2fb5a5"
+    },
+    "paper": {
+      "label": "Paper",
+      "colors": {
+        "SCREEN": "#f6f8fa",
+        "BAR": "#e6eaef",
+        "PANEL": "#ffffff",
+        "ROW": "#eef1f5",
+        "FRAME": "#c9d1d9",
+        "CHIP": "#dfe4ea",
+        "TEXT": "#1f2328",
+        "LIGHT": "#424a53",
+        "FAINT": "#6e7781"
+      },
+      "accent": "#3b6fd4"
+    }
+  }
+}

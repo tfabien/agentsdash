@@ -319,8 +319,12 @@ export function svgPack(name, roles, { tint = 'none', hue = 0 } = {}) {
           const frame = animatedFrame(u);
           if (frame && frame !== 'loading') { paint(frame); tick(); return; }
         }
-        const colored = tint === 'svg' && accent && /\.svg$/i.test(u) ? tintedImage(u, accent) : null;     // not loaded yet: the plain file stands in
-        const img = colored ?? imageFor(u);
+        if (tint === 'svg' && accent && /\.svg$/i.test(u)) {              // not tinted yet: draw nothing (the untinted file would be black), the page redraws when it loads
+          const colored = tintedImage(u, accent);
+          if (ready(colored)) { paint(colored); return; }
+          continue;
+        }
+        const img = imageFor(u);
         if (ready(img)) { paint(img); return; }
       }
       // Nothing is loaded yet: draw nothing, the page redraws when the image arrives.
