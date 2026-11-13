@@ -300,9 +300,11 @@ export function renderScreen(screen, state, ui) {
     const wide = p.w > 200, ringW = wide ? 160 : 0;          // wide panel: the ring sits at the right end of the header
     // A hub tile has no title bar: the session title takes the name line and the project goes in a colored chip (wide: above the context
     // ring, model and size on one line under it; narrow: under the state line, in the model's place).
-    line(tx, p.y + 4, tw - ringW, S20, COLOR.TEXT, COLOR.PANEL, ui.bare ? s.title || s.project : s.project);
-    line(tx, p.y + 26, tw - ringW, S16, stateColor(lead.state), COLOR.PANEL, `${STATE_LABEL[lead.state]} ${ageOf(lead)}`);
     const chip = ui.bare && s.title ? s.project : '';
+    // Wide: the title stops where the chip starts (ring 57 units from the right edge, then the chip's real width, then a gap).
+    const titleW = wide && chip ? tw - 61 - Math.min(140, screen.measure(chip, S16) + 14) : tw - ringW;
+    line(tx, p.y + 4, titleW, S20, COLOR.TEXT, COLOR.PANEL, ui.bare ? s.title || s.project : s.project);
+    line(tx, p.y + 26, tw - ringW, S16, stateColor(lead.state), COLOR.PANEL, `${STATE_LABEL[lead.state]} ${ageOf(lead)}`);
     drawCtxRing(p, wide, tx, tw, s.ctx_pct, s.ctx_k, chip && !wide ? '' : lead.model, chip);
     if (chip && !wide) drawProjectChip(chip, tx, p.y + 44, tw - 30);
     if (s.ask) { drawQuestion(s.ask, x, p.y + 68, w, p); return; }
