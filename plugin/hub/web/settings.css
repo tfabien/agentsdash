@@ -92,8 +92,6 @@ button.kw:hover { background: #26334a; }
 .kw.on { background: #3b6fd4; color: #fff; }
 .kw.upd { background: #f78a3b; color: #1a1208; }
 .tcard .tpreview { max-width: 100%; }
-#previewbar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: #121a26ee; border: 1px solid #3b6fd4; border-radius: 10px; color: #e6edf3; font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
-#previewbar[hidden] { display: none; }
 .mcard:has(canvas) { flex-direction: column; }
 .mcard .tpreview { max-width: 100%; height: auto !important; }
 
@@ -104,3 +102,8 @@ button.kw:hover { background: #26334a; }
 .spin { width: 14px; height: 14px; border: 2px solid #3b6fd4; border-right-color: transparent; border-radius: 50%; animation: turn .7s linear infinite; }
 @keyframes turn { to { transform: rotate(360deg); } }
 @keyframes sweep { to { background-position: -200% 0; } }
+
+.previewbar { display: flex; align-items: center; gap: 12px; }
+.previewbar[hidden] { display: none; }
+.ptext.err { color: #ff9b9b; }
+#bar.previewing .quotas { display: none; }

@@ -2,6 +2,7 @@
 import { compareVersions } from './web/theme_schema.js';
 
 const CACHE_MS = 24 * 3600 * 1000;
+const CACHE_FORMAT = 2;                                            // raise it when a listing gains fields: older cached listings are fetched again
 const SIX_HOURS = 6 * 3600 * 1000;
 
 /** Adds `installed`, `installedVersion` and `updatable` to each listed theme. `installed` is the content of market.json. */
@@ -26,9 +27,9 @@ export function createUpdater({ store = { read: () => ({}), write: () => {} }, g
   const entry = (source) => cache.get(source) ?? store.read()[source];
   async function listCached(source) {
     const hit = entry(source);
-    if (hit && now() - hit.at < CACHE_MS) { cache.set(source, hit); return hit.result; }
+    if (hit && hit.v === CACHE_FORMAT && now() - hit.at < CACHE_MS) { cache.set(source, hit); return hit.result; }
     const result = await list(source);
-    if (!result.errors.length) { const fresh = { at: now(), result }; cache.set(source, fresh); store.write({ ...store.read(), [source]: fresh }); }
+    if (!result.errors.length) { const fresh = { v: CACHE_FORMAT, at: now(), result }; cache.set(source, fresh); store.write({ ...store.read(), [source]: fresh }); }
     return result;
   }
   function forget() { cache.clear(); store.write({}); }

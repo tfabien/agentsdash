@@ -1,6 +1,7 @@
 // Lists the themes of a GitHub repository: one folder per theme, `<name>/theme.json` plus `<name>/icons/` and an optional preview.
 // Two API calls (default branch, recursive tree) and one raw download per theme.json. `fetchFn` is injected for the tests.
 import { validateTheme } from './web/theme_schema.js';
+import { ICON_TYPES, ICON_NAME } from './themes_loader.mjs';
 
 export const SOURCE_RE = /^[\w.-]+\/[\w.-]+$/;
 const NAME = /^[a-z0-9-]{1,32}$/;
@@ -17,6 +18,23 @@ export function parseSource(text) {
 /** True for a path made of plain segments: no backslash, no leading slash, no `.` or `..` segment. */
 export const safePath = (p) => !p.includes('\\') && !p.startsWith('/') && !p.split('/').some((s) => s === '..' || s === '.' || s === '');
 
+const EXT_ORDER = Object.keys(ICON_TYPES);
+/** `icons/<role>[-N][-blink].<ext>` files as { file name without extension: URL }, the first extension of the loader order winning. */
+function iconUrls(files, base) {
+  const best = {};
+  for (const f of files) {
+    const m = /^icons\/([^/]+)$/.exec(f);
+    if (!m) continue;
+    const ext = path_ext(m[1]);
+    const stem = m[1].slice(0, -ext.length);
+    if (!(ext in ICON_TYPES) || !ICON_NAME.test(stem)) continue;
+    if (best[stem] && EXT_ORDER.indexOf(best[stem].ext) <= EXT_ORDER.indexOf(ext)) continue;
+    best[stem] = { ext, url: `${base}/${f}` };
+  }
+  return Object.fromEntries(Object.entries(best).map(([k, v]) => [k, v.url]));
+}
+const path_ext = (name) => { const i = name.lastIndexOf('.'); return i < 0 ? '' : name.slice(i).toLowerCase(); };
+
 async function getJson(fetchFn, url) {
   const res = await fetchFn(url, { headers: GITHUB_HEADERS });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -24,8 +42,9 @@ async function getJson(fetchFn, url) {
 }
 
 /**
- * @returns {Promise<{ themes: object[], errors: string[] }>} each theme: { source, name, label, description, keywords, author, version, branch,
- *   preview: string | null, files: string[] } with `files` relative to the theme folder (theme.json left out).
+ * @returns {Promise<{ themes: object[], errors: string[] }>} each theme: { source, name, label, description, keywords, author, version, branch, colors,
+ *   roles, preview: string | null, files: string[] } with `files` relative to the theme folder (theme.json left out). `roles` maps an icon file name
+ *   (`lead`, `lead-blink`, `explore-2`...) to its raw GitHub URL, the best extension per name: the page previews a theme from them.
  */
 export async function listSource(source, fetchFn = fetch) {
   try {
@@ -48,8 +67,8 @@ export async function listSource(source, fetchFn = fetch) {
         if (v.theme.name !== folder) throw new Error(`folder ${folder} holds the theme ${v.theme.name}`);
         const files = blobs.filter((p) => p.startsWith(`${folder}/`) && p !== `${folder}/theme.json`).map((p) => p.slice(folder.length + 1)).filter(safePath);
         const preview = files.find((f) => PREVIEW.test(f));
-        const { name, label, description, keywords, author, version } = v.theme;
-        themes.push({ source, name, label, description, keywords, author, version, branch, preview: preview ? `${base}/${preview}` : null, files });
+        const { name, label, description, keywords, author, version, colors } = v.theme;
+        themes.push({ source, name, label, description, keywords, author, version, branch, colors, roles: iconUrls(files, base), preview: preview ? `${base}/${preview}` : null, files });
       } catch (err) { errors.push(`${source}/${folder}: ${err.message}`); }
     }
     return { themes, errors };

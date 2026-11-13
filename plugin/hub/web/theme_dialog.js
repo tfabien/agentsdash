@@ -33,7 +33,7 @@ function drawPreview(canvas, theme) {
 }
 
 /**
- * @param {{onPreview?: (name: string) => void}} [opts] `onPreview`: the page shows the theme on the agents without saving it
+ * @param {{onPreview?: (spec: object) => void}} [opts] `onPreview`: the page shows the theme on made-up agents without saving it
  * @returns {{button: HTMLButtonElement, panel: HTMLElement, onOpen: () => void, update: (name: string|undefined) => void}}
  */
 export function createThemeMenu({ onPreview } = {}) {
@@ -156,11 +156,11 @@ export function createThemeMenu({ onPreview } = {}) {
         b.onclick = () => { if (o.confirm && !confirm(o.confirm)) return; run(c.name, o.busy, o.done, fn); };
         actions.append(b);
       };
+      if (onPreview) { const p = el('button', 'chip', 'Preview'); p.title = 'Show the theme on made-up agents without saving it'; p.onclick = () => onPreview(previewSpec(c)); actions.append(p); }
       if (!c.installed) btn('Install', { busy: 'Installing…', done: `Installed ${c.label} and applied it`, title: 'Install and apply' }, async () => { await call('/market/install', { source: c.source, name: c.name }); active = c.name; await load(); });
       else {
         if (!c.active) btn('Apply', { busy: 'Applying…', done: `Applied ${c.label}` }, async () => { active = c.name; await postSettings({ theme: c.name }); });
         if (c.updatable) btn(`Update to ${c.availableVersion}`, { busy: 'Updating…', done: `Updated ${c.label} to ${c.availableVersion}` }, async () => { await call('/market/update', { name: c.name }); await load(); });
-        if (onPreview) { const p = el('button', 'chip', 'Preview'); p.title = 'Show the theme on the agents without saving it'; p.onclick = () => onPreview(c.name); actions.append(p); }
         if (c.deletable) btn('Delete', { busy: 'Deleting…', done: `Deleted ${c.label}`, confirm: `Delete the theme ${c.label}? Its files are removed.` }, async () => { await call('/market/remove', { name: c.name }); await load(); });
       }
     }
@@ -168,6 +168,10 @@ export function createThemeMenu({ onPreview } = {}) {
     root.append(body);
     return root;
   }
+
+  /** What the page needs to preview a card: the name for an installed theme, the colors and icon URLs for one that is not. */
+  const previewSpec = (c) => (c.installed ? { name: c.name, label: c.label, installed: true }
+    : { name: c.name, label: c.label, installed: false, source: c.source, roles: c.roles, theme: { name: c.name, label: c.label, description: c.description, keywords: c.keywords, author: c.author, version: c.version, iconPack: c.name, colors: c.colors } });
 
   function group(title, cards) {
     const g = el('div', 'tgroup');

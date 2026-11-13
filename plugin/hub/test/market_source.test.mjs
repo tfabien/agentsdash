@@ -88,3 +88,13 @@ test('parseSource_accepts_owner_repo_and_github_urls', () => {
   assert.equal(parseSource('a b/c'), null);
   assert.equal(parseSource(''), null);
 });
+
+test('a_listed_theme_carries_its_colors_and_the_best_icon_url_per_role', async () => {
+  const f = fakeGitHub({
+    tree: ['cat/', 'cat/theme.json', 'cat/icons/lead.svg', 'cat/icons/lead.png', 'cat/icons/lead-blink.webp', 'cat/icons/explore-2.gif', 'cat/icons/readme.txt'],
+    raw: { 'cat/theme.json': themeJson('cat') },
+  });
+  const t = (await listSource('o/r', f)).themes[0];
+  assert.deepEqual(t.colors, { FRAME: '#112233' });
+  assert.deepEqual(t.roles, { lead: `${RAW}/cat/icons/lead.png`, 'lead-blink': `${RAW}/cat/icons/lead-blink.webp`, 'explore-2': `${RAW}/cat/icons/explore-2.gif` });
+});
