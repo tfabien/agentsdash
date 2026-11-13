@@ -28,6 +28,9 @@ const OVERRIDE_KEY = /^[a-z0-9-]{1,32}(\/[a-z0-9-]{1,32})?$/;
 /** `{ "<theme>" | "<theme>/<variant>": { colors?, accent? } }`: the user's color edits. The whole value is refused when any entry is invalid. */
 const validOverrides = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 64
   && Object.entries(v).every(([k, o]) => OVERRIDE_KEY.test(k) && o && typeof o === 'object' && !Array.isArray(o) && validatePalettePart(o).ignored.length === 0);
+/** `{ "<theme>": ["lookKey", ...] }`: the looks the user ticked per theme. The whole value is refused when any entry is invalid. */
+const validLooks = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 64
+  && Object.entries(v).every(([k, l]) => /^[a-z0-9-]{1,32}$/.test(k) && Array.isArray(l) && l.length <= 12 && l.every((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)));
 // Settings shared by every page, with what each accepts. Anything else in a POST is ignored.
 const SETTING_RULES = {
   sound: (v) => SOUNDS.includes(v),
@@ -39,11 +42,12 @@ const SETTING_RULES = {
   marketSources: (v) => Array.isArray(v) && v.length <= MAX_SOURCES && v.every((x) => typeof x === 'string' && SOURCE_RE.test(x)) && new Set(v).size === v.length,
   done_excerpt: (v) => ['first', 'last', 'off'].includes(v),          // what a session waiting for you shows: first or last paragraph of its reply, or the fixed text
   themeVariant: (v) => v === '' || (typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v)),   // variant of the theme, '' for the base
+  themeLooks: validLooks,                                             // the looks ticked per theme (see activeLooks in theme_schema.js)
   themeOverrides: validOverrides,                                     // the user's color edits per theme or theme/variant
   themeAutoUpdate: (v) => typeof v === 'boolean',                     // install newer versions of marketplace themes (every 6 hours)
 };
 const MAX_SOURCES = 10;
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, rules: [], marketSources: ['tfabien/standup-bot-themes'], themeAutoUpdate: true };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, themeLooks: {}, rules: [], marketSources: ['tfabien/standup-bot-themes'], themeAutoUpdate: true };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -243,6 +247,7 @@ export function startHub(opts = {}) {
         if (settings.theme === name) saveSettings({ theme: 'default', themeVariant: '' });
         const kept = Object.fromEntries(Object.entries(settings.themeOverrides).filter(([k]) => k !== name && !k.startsWith(`${name}/`)));
         if (Object.keys(kept).length !== Object.keys(settings.themeOverrides).length) saveSettings({ themeOverrides: kept });
+        if (name in settings.themeLooks) saveSettings({ themeLooks: Object.fromEntries(Object.entries(settings.themeLooks).filter(([k]) => k !== name)) });
         reloadCatalog();
         publish();
         return text(res, 200, 'ok');
@@ -254,7 +259,7 @@ export function startHub(opts = {}) {
         if (!base) return text(res, 400, 'unknown theme');
         const override = validatePalettePart(body.override);
         try {
-          saveUserTheme({ name: String(body.name ?? ''), label: typeof body.label === 'string' ? body.label : undefined, theme: base, variant: typeof body.variant === 'string' ? body.variant : '', override, userDir: catalogDirs.userDir, builtinNames: builtinNames(), overwrite: body.overwrite === true });
+          saveUserTheme({ name: String(body.name ?? ''), label: typeof body.label === 'string' ? body.label : undefined, theme: base, variant: typeof body.variant === 'string' ? body.variant : '', override, looks: Array.isArray(body.looks) ? body.looks : undefined, userDir: catalogDirs.userDir, builtinNames: builtinNames(), overwrite: body.overwrite === true });
         } catch (err) { return text(res, /exists$/.test(err.message) ? 409 : 400, err.message); }
         reloadCatalog();
         saveSettings({ theme: String(body.name), themeVariant: '' });
