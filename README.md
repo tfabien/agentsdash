@@ -8,42 +8,31 @@ It works with **Claude Code** and **Codex**, in your browser, with nothing to bu
 
 ## Install
 
-**Claude Code**: paste this in any session.
+You install an adapter, never this repository: the adapter downloads the hub by itself on first use.
+
+### Claude Code
+
+Paste this in any session:
 
 ```text
 Install agentsdash by following https://raw.githubusercontent.com/tfabien/agentsdash-claude/main/INSTALL.md
 ```
 
-Or by hand (Node.js 18 or later):
+Details and manual install: [agentsdash-claude](https://github.com/tfabien/agentsdash-claude).
 
-```bash
-claude plugin marketplace add tfabien/agentsdash-claude
-claude plugin install agentsdash@agentsdash --scope user
-```
+### Codex
 
-**Codex**: paste this in a Codex session.
+Paste this in a Codex session:
 
 ```text
 Install agentsdash for Codex by following https://raw.githubusercontent.com/tfabien/agentsdash-codex/main/INSTALL.md
 ```
 
-Or by hand:
+Details and manual install: [agentsdash-codex](https://github.com/tfabien/agentsdash-codex) (first version: states, tools, questions, plan; no tokens yet).
 
-```bash
-git clone https://github.com/tfabien/agentsdash-codex
-node agentsdash-codex/scripts/install_codex_hooks.mjs --write
-```
+### Then
 
-Then run `/hooks` in Codex once and trust the new hooks.
-
-**Then**: start a new session (hooks load when a session starts) and open **<http://127.0.0.1:8765/>**.
-
-You install an adapter, never this repository: the adapter downloads the hub by itself on first use (a release of this repository, sha256 checked, into `~/.agentsdash/core/<version>/`).
-
-| Agent | Adapter |
-|---|---|
-| Claude Code | [tfabien/agentsdash-claude](https://github.com/tfabien/agentsdash-claude) |
-| Codex | [tfabien/agentsdash-codex](https://github.com/tfabien/agentsdash-codex) (first version: states, tools, questions, plan; no tokens yet) |
+Start a new session (hooks load when a session starts) and open **<http://127.0.0.1:8765/>**. Node.js 18 or later is needed.
 
 Running the hub alone, updates and troubleshooting: [INSTALL.md](INSTALL.md).
 
