@@ -35,3 +35,22 @@ test('core_accepts_the_recorded_events', async () => {
     assert.equal((await (await fetch(`${base}/state`)).json()).usage.h5_pct, 12);
   } finally { await hub.close(); }
 });
+
+// The Codex adapter (agentsdash-codex, test/fixtures/events.jsonl there) sends the same wire format from Codex payloads.
+test('core_accepts_the_recorded_codex_events', async () => {
+  const codexFile = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'events-codex.jsonl');
+  const codex = fs.readFileSync(codexFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' } }, userDir: fs.mkdtempSync(path.join(os.tmpdir(), 'contract-codex-')) });
+  const base = `http://127.0.0.1:${hub.port}`;
+  try {
+    for (const ev of codex) {
+      const res = await fetch(`${base}/event`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+      assert.equal(res.status, 200, `${ev.evt} of ${ev.session}`);
+    }
+    const state = await (await fetch(`${base}/state`)).json();
+    assert.equal(state.sessions.length, 1);
+    const [s] = state.sessions;
+    assert.equal(s.project, 'codex-demo');
+    assert.equal(s.agents.find((a) => a.id === 'lead').state, 'done', 'SessionEnd ends the session');
+  } finally { await hub.close(); }
+});

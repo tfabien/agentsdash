@@ -1,6 +1,6 @@
 # agentsdash (core)
 
-Goal: an agent dashboard. **The browser page is the main product**: adapters (one repository each, `agentsdash-claude` for Claude Code) send events to this local Node.js hub,
+Goal: an agent dashboard. **The browser page is the main product**: adapters (one repository each: `agentsdash-claude` for Claude Code, `agentsdash-codex` for Codex) send events to this local Node.js hub,
 which draws the screen in a web page. External devices (an ESP32 with the screen of an Artillery X3 printer, others later) are an optional bonus fed by the same hub.
 (Formerly called standup-bot; split into several repositories, see `docs/superpowers/specs/2026-11-13-multi-repo-split-and-rename-design.md`.)
 
@@ -24,7 +24,7 @@ Tests (no hardware): `node --test hub/test/*.test.mjs` (a directory argument fai
 - Wire protocol 2 (`POST /event`, `/usage`, `/dismiss`, `/settings`...): `docs/protocol.md`; a test fails when a route or event field is missing there. `GET /health` reports `core` (from `hub/package.json`) and `protocol` (`PROTOCOL_VERSION` in `model.mjs`, equal to `package.json` `protocol`).
   Raise `version` in `hub/package.json` before tagging a release; the release workflow checks the tag against it.
 - Adapters pick a core by protocol and minimum version (`docs/protocol.md`, "How an adapter picks a core"). The hub never polls quotas: adapters post `/usage`.
-- `hub/test/fixtures/events.jsonl` is a copy of the events recorded from the Claude adapter's hooks; `contract.test.mjs` replays it. Refresh it when the adapter's file changes.
+- `hub/test/fixtures/events.jsonl` and `events-codex.jsonl` are copies of the events recorded from the Claude and Codex adapters' hooks; `contract.test.mjs` replays both. Refresh them when the adapters' files change.
 - The plugin and the hub keep text whole (full Unicode, no length limit). Text sent to a device goes through `forDevice` in `hub/ascii.mjs`: accents stripped, typographic quotes mapped, other characters become `?`, each field cut to the firmware buffer (`DEVICE_LIMITS`).
 - Names: variables `AGENTSDASH_*` (old `CLAUDE_GADGET_*` as fallback), config `~/.agentsdash/config.json` (old `~/.claude/agent-gadget.json` as fallback), user folder `~/.agentsdash/` (the old `~/.claude/standup-bot/` is copied once), state folder `<temp>/agentsdash`.
 - Themes and packs are read from `hub/` and `~/.agentsdash/` (the user folder wins), published as `catalog` in the state; `POST /reload` rescans; `POST /themes` saves a look as a user theme. Format: `docs/format.md` of the agentsdash-themes repository; hub side: `docs/hub-themes.md`.

@@ -11,7 +11,7 @@ each plan has come, and which agent waits for you. It makes the daily work with 
 
 ![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question, an error, a session is done](docs/images/tour.gif)
 
-It is a small Node.js server (the hub, this repository) that draws the screen **in your browser**, fed by adapters that watch your agents (Claude Code today, Codex next). Nothing to buy, nothing to flash.
+It is a small Node.js server (the hub, this repository) that draws the screen **in your browser**, fed by adapters that watch your agents (Claude Code and Codex). Nothing to buy, nothing to flash.
 An external screen (an ESP32 gadget, a USB display) is a bonus, see [Devices](#devices-optional).
 
 ## Install
@@ -21,6 +21,7 @@ You install an adapter; it downloads this hub by itself on first use (a release 
 | Agent | Adapter |
 |---|---|
 | Claude Code | [tfabien/agentsdash-claude](https://github.com/tfabien/agentsdash-claude) |
+| Codex | [tfabien/agentsdash-codex](https://github.com/tfabien/agentsdash-codex) (first version: states, tools, questions, plan; no tokens yet) |
 
 For Claude Code, paste this in any session:
 
@@ -126,7 +127,7 @@ devices/                   how to add an external screen (each device has its ow
 docs/                      protocol and device protocol ([protocol.md](docs/protocol.md), [device-protocol.md](docs/device-protocol.md)), theme notes, specs, plans, README images
 INSTALL.md                 running the hub, updates, troubleshooting
 
-Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-themes` (themes and icon packs), `agentsdash-device-artillery-x3` (ESP32 gadget).
+Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-codex` (Codex adapter), `agentsdash-themes` (themes and icon packs), `agentsdash-device-artillery-x3` (ESP32 gadget).
 ```
 
 Tests (no hardware): `node --test hub/test/*.test.mjs`. Docs: [hub/README.md](hub/README.md) (hub, configuration, API, relays).
