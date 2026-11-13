@@ -115,6 +115,15 @@ test('select_holds_30s_then_auto', () => {
   assert.equal(m.select('nope', 'lead', 100, 1000), false);
 });
 
+test('reply_excerpts_of_a_stop_are_in_the_state_until_the_next_event', () => {
+  const m = createModel();
+  m.applyEvent(ev({ session: 'a', state: 'your_turn', evt: 'Stop', cmd: 'Done, waiting for you', reply_first: 'First para', reply_last: 'Last para' }), 1000);
+  const lead = () => m.toState(1100).sessions[0].agents[0];
+  assert.deepEqual([lead().reply_first, lead().reply_last], ['First para', 'Last para']);
+  m.applyEvent(ev({ session: 'a', state: 'working', evt: 'UserPromptSubmit', cmd: 'Prompt' }), 1200);
+  assert.equal(lead().reply_first, undefined, 'a new event clears them');
+});
+
 test('view_prefers_a_working_session_over_a_your_turn_one_but_not_over_needs_you', () => {
   const m = createModel();
   m.applyEvent(ev({ session: 'work', state: 'working', cmd: 'Edit a' }), 1000);

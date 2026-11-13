@@ -31,10 +31,11 @@ const SETTING_RULES = {
   dim_idle: (v) => typeof v === 'boolean',
   rules: validRules,                                                  // per-project icon pack and badge color
   marketSources: (v) => Array.isArray(v) && v.length <= MAX_SOURCES && v.every((x) => typeof x === 'string' && SOURCE_RE.test(x)) && new Set(v).size === v.length,
+  done_excerpt: (v) => ['first', 'last', 'off'].includes(v),          // what a session waiting for you shows: first or last paragraph of its reply, or the fixed text
   themeAutoUpdate: (v) => typeof v === 'boolean',                     // install newer versions of marketplace themes (every 6 hours)
 };
 const MAX_SOURCES = 10;
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, rules: [], marketSources: ['tfabien/standup-bot-themes'], themeAutoUpdate: true };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, done_excerpt: 'first', rules: [], marketSources: ['tfabien/standup-bot-themes'], themeAutoUpdate: true };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -277,7 +278,7 @@ export function startHub(opts = {}) {
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
-          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle, rules (a list of {match, iconPack?, badgeColor?}), marketSources (a list of owner/repo), themeAutoUpdate (true or false)');
+          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle, done_excerpt (first, last, off), rules (a list of {match, iconPack?, badgeColor?}), marketSources (a list of owner/repo), themeAutoUpdate (true or false)');
           saveSettings(next);
         } else if (route === 'POST /select') {
           if (!body || !model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');
