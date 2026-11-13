@@ -205,20 +205,24 @@ export function createSettingsMenu() {
   const rulesSection = createRulesSection();
   const device = createDeviceSection();
   const phoneNote = el('div', 'shint', 'Phone: the QR button of the bottom bar pairs a phone with this hub.');
-  const TABS = [['general', 'General', general], ['projects', 'Projects', [rulesSection.node]], ['devices', 'Devices', [device.node, phoneNote]]];
-  const bar = el('div', 'stabs');
+  const TABS = [['general', 'General', 'sliders', general], ['projects', 'Projects', 'folder', [rulesSection.node]], ['devices', 'Devices', 'plug', [device.node, phoneNote]]];
+  const nav = el('nav', 'snav');                        // tabs stacked on the left, an icon and a label each
+  const body = el('div', 'sbody');
   const panes = new Map();
   let tab = 'general';
   const showTab = (id) => { tab = id; for (const [k, [b, p]] of panes) { b.classList.toggle('on', k === id); p.hidden = k !== id; } };
-  for (const [id, label, nodes] of TABS) {
-    const b = el('button', 'seg', label);
+  for (const [id, label, ico, nodes] of TABS) {
+    const b = el('button', 'snavbtn');
+    b.append(icon(ico), el('span', '', label));
     b.onclick = () => showTab(id);
     const p = el('div', 'spane');
     p.append(...nodes);
     panes.set(id, [b, p]);
-    bar.append(b);
+    nav.append(b);
+    body.append(p);
   }
-  panel.append(bar, ...[...panes.values()].map(([, p]) => p));
+  panel.classList.add('ssplit');
+  panel.append(nav, body);
   showTab(tab);
 
   function show() { for (const opt of OPTIONS) if (current[opt.key] !== undefined) rows.get(opt.key)(current[opt.key]); }
