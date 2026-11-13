@@ -82,7 +82,7 @@ async function main() {
   const browser = findBrowser();
   if (!browser) throw new Error('no Edge or Chrome found: set SCREENSHOT_BROWSER to its path');
   fs.mkdirSync(out, { recursive: true });
-  const demo = await startDemoHub({ themes: (process.env.DEMO_THEMES ?? '').split(',').filter(Boolean) });
+  const demo = await startDemoHub({ themes: (process.env.DEMO_THEMES ?? 'office').split(',').filter(Boolean) });
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'pshot-'));
   const port = 9300 + Math.floor(Math.random() * 500);
   const child = spawn(browser, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,

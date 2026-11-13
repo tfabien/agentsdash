@@ -36,7 +36,7 @@ async function main() {
   if (!browser) throw new Error('no Edge or Chrome found: set SCREENSHOT_BROWSER to its path');
   const frames = fs.mkdtempSync(path.join(os.tmpdir(), 'tour-'));
   const list = [];
-  const demo = await startDemoHub();
+  const demo = await startDemoHub({ themes: (process.env.DEMO_THEMES ?? 'office').split(',').filter(Boolean) });   // a marketplace theme (needs network); DEMO_THEMES= for the built-in one
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'pshot-'));
   const port = 9300 + Math.floor(Math.random() * 500);
   const child = spawn(browser, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
