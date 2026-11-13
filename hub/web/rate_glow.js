@@ -4,19 +4,12 @@ const tokLabel = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k/min` : `${Math.ro
 
 /**
  * @param session  a session of the state (`dot`, `rate: {tok_min}|null`)
- * @param usage    `state.usage` (`tok_per_pct`), may be absent
- * @param settings `rate_mode` ('off'|'tokens'|'quota'), `rate_orange_k`, `rate_red_k`, `rate_orange_pct`, `rate_red_pct`
+ * @param settings `rate_alert_k`: 0 (off) or the thousands of tokens per minute where the readout turns orange; red from 3 times that
  * @returns {{level: 0|1|2, label: string}|null} null: no readout
  */
-export function rateLevel(session, usage, settings) {
-  const mode = settings?.rate_mode ?? 'tokens';
-  if (mode === 'off' || !session || session.dot !== 'working' || !session.rate) return null;
+export function rateLevel(session, settings) {
+  const k = settings?.rate_alert_k ?? 20;
+  if (!k || !session || session.dot !== 'working' || !session.rate) return null;
   const tpm = session.rate.tok_min;
-  const perPct = usage?.tok_per_pct;
-  const grade = (v, orange, red) => (v >= red ? 2 : v >= orange ? 1 : 0);
-  if (mode === 'quota' && perPct > 0) {
-    const pct = tpm / perPct;
-    return { level: grade(pct, settings.rate_orange_pct ?? 0.5, settings.rate_red_pct ?? 1.5), label: `${pct.toFixed(1)}%/min` };
-  }
-  return { level: grade(tpm, (settings?.rate_orange_k ?? 20) * 1000, (settings?.rate_red_k ?? 60) * 1000), label: tokLabel(tpm) };
+  return { level: tpm >= 3 * k * 1000 ? 2 : tpm >= k * 1000 ? 1 : 0, label: tokLabel(tpm) };
 }

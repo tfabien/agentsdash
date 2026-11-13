@@ -298,15 +298,3 @@ test('rate_samples_older_than_five_minutes_are_dropped', () => {
   assert.ok(m.toState(710000).sessions[0].rate.tok_min <= 6);
 });
 
-test('usage_tok_per_pct_is_calibrated_from_burned_tokens', () => {
-  const m = createModel();
-  m.applyEvent(ev({ session: 'a001', stok: 0 }), 0);
-  m.applyEvent(ev({ session: 'b001', stok: 0 }), 0);
-  m.applyUsage({ v: 1, h5_pct: 10, h5_reset_s: 100 }, 10);
-  m.applyEvent(ev({ session: 'a001', stok: 20000 }), 1000);
-  m.applyEvent(ev({ session: 'b001', stok: 10000 }), 1000);
-  m.applyUsage({ v: 1, h5_pct: 12, h5_reset_s: 100 }, 2000);
-  assert.equal(m.toState(2000).usage.tok_per_pct, 15000);
-  m.applyUsage({ v: 1, h5_pct: 1, h5_reset_s: 100 }, 3000);
-  assert.equal(m.toState(3000).usage.tok_per_pct, null);
-});

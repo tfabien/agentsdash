@@ -104,7 +104,7 @@ function tileFor(s, part = 'lead') {
   }
   t.box.classList.toggle('stale', !!s.stale);
   t.box.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false);
-  const rate = part === 'lead' ? rateLevel(s, state.usage, state.settings) : null;      // the readout shows the token rate of the session
+  const rate = part === 'lead' ? rateLevel(s, state.settings) : null;      // the readout shows the token rate of the session
   t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
   const tag = t.box.querySelector('.rate-tag');
   if (tag) { tag.textContent = rate ? rate.label : ''; tag.hidden = !rate; tag.className = `rate-tag${rate ? ` rate-${rate.level}` : ''}`; }      // only the readout is colored: the pulse keeps meaning an event or an alert

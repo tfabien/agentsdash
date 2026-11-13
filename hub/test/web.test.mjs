@@ -49,5 +49,5 @@ test('main_address_and_hub_alias_serve_the_one_page', async () => {
 
 test('settings_panel_offers_the_rate_glow_options', () => {
   const keys = OPTIONS.map((o) => o.key);
-  for (const k of ['rate_mode', 'rate_orange_k', 'rate_red_k', 'rate_orange_pct', 'rate_red_pct']) assert.ok(keys.includes(k), k);
+  assert.ok(keys.includes('rate_alert_k'));
 });

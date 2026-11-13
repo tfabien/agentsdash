@@ -69,8 +69,6 @@ export function createModel(opts = {}) {
   let dismissed = [];                                  // sessions the user hid: they come back only with real activity
   let manual = null;                                   // {session, agent, until}
   let quotas = { h5: emptyWindow(), d7: emptyWindow(), receivedAt: 0, rev: 0 };
-  let burned = 0;                                      // tokens seen growing in every session since the hub started
-  let calib = null;                                    // {burned0, pct0, last}: `burned` and the 5 hour quota percent when the current window was first seen
 
   const used = (s) => s.subs.filter(Boolean);
   const kidsRunning = (s) => used(s).some((a) => a.state === ST.WORKING || a.state === ST.NEEDS_YOU);
@@ -156,7 +154,7 @@ export function createModel(opts = {}) {
     const last = s.samples[s.samples.length - 1];
     if (!last) s.samples.push({ t: now, stok: v });
     else if (v < last.stok) s.samples = [{ t: now, stok: v }];
-    else if (v > last.stok) { burned += v - last.stok; s.samples.push({ t: now, stok: v }); }
+    else if (v > last.stok) s.samples.push({ t: now, stok: v });
     while (s.samples.length > 1 && now - s.samples[0].t > RATE_WINDOW_MS) s.samples.shift();
   }
 
@@ -223,8 +221,6 @@ export function createModel(opts = {}) {
       setWindow(quotas.h5, f('h5_pct'), f('h5_reset_s'), f('h5_rate10'), f('h5_proj'), f('h5_empty_s'));
       setWindow(quotas.d7, f('d7_pct'), f('d7_reset_s'), f('d7_rate10'), f('d7_proj'), f('d7_empty_s'));
       quotas.receivedAt = now;
-      if (quotas.h5.known && (!calib || quotas.h5.pct < calib.last)) calib = { burned0: burned, pct0: quotas.h5.pct, last: quotas.h5.pct };
-      else if (calib && quotas.h5.known) calib.last = quotas.h5.pct;
       // rev moves only when what is shown changes (resets count down on their own)
       const same = (a, b) => a.known === b.known && a.pct === b.pct && a.proj === b.proj && a.rate10 === b.rate10;
       if (!same(h5, quotas.h5) || !same(d7, quotas.d7)) quotas.rev = ++rev;
@@ -477,7 +473,6 @@ export function createModel(opts = {}) {
     };
     if (quotas.h5.known || quotas.d7.known) {
       out.usage = { age_s: Math.floor((now - quotas.receivedAt) / 1000) };
-      out.usage.tok_per_pct = calib && quotas.h5.known && quotas.h5.pct - calib.pct0 >= 1 ? Math.round((burned - calib.burned0) / (quotas.h5.pct - calib.pct0)) : null;
       if (quotas.h5.known) Object.assign(out.usage, windowJson('h5', quotas.h5, now));
       if (quotas.d7.known) Object.assign(out.usage, windowJson('d7', quotas.d7, now));
     }
