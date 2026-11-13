@@ -195,7 +195,7 @@ The core and the repositories:
 - **Core updates.** An adapter keeps the core it found and only replaces a hub older than its minimum version: nothing fetches a newer release by itself.
 - **Recorded events are copied by hand** between the adapters and `hub/test/fixtures/`. A check in CI would catch a stale copy.
 - **A GitHub organization** for the repositories, if third parties start to contribute (the topics `agentsdash` group them for now).
-- **A stub for the old `standup-bot` plugin** that tells its users to switch, planned and not made.
+- **A stub for the plugin under the project's first name** that tells its users to switch, planned and not made.
 
 Smaller items:
 
