@@ -29,6 +29,22 @@ function scanThemes(dir, errors) {
   return out;
 }
 
+const TINTS = ['svg', 'hue', 'none'];
+const MAX_PACK_JSON = 4096;
+
+/** The tint mode of a pack from its optional pack.json: { tint: 'svg'|'hue'|'none', hue: 0..359 }. A bad file keeps the defaults and is listed in `errors`. */
+function readPackJson(file, errors) {
+  const out = { tint: 'none', hue: 0 };
+  try {
+    if (!fs.existsSync(file)) return out;
+    if (fs.statSync(file).size > MAX_PACK_JSON) { errors.push(`${file}: over 4 KB`); return out; }
+    const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (TINTS.includes(j?.tint)) out.tint = j.tint;
+    if (Number.isFinite(j?.hue)) out.hue = ((Math.round(j.hue) % 360) + 360) % 360;
+  } catch (err) { errors.push(`${file}: ${err.message}`); }
+  return out;
+}
+
 function scanPacks(dir, errors) {
   const out = [];
   for (const d of list(path.join(dir, 'icons'))) {
@@ -49,7 +65,7 @@ function scanPacks(dir, errors) {
       rank[base] = order;
       roles[base] = `/icons/${d.name}/${e.name}`;
     }
-    if (Object.keys(roles).length) out.push({ name: d.name, roles });
+    if (Object.keys(roles).length) out.push({ name: d.name, roles, ...readPackJson(path.join(dir, 'icons', d.name, 'pack.json'), errors) });
   }
   return out;
 }

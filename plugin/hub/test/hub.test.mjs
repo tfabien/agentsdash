@@ -447,3 +447,56 @@ test('market_refresh_clears_the_listing_cache', async () => {
     assert.ok(m.refreshedAt[DEFAULT_SOURCE] > 0);
   }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: f });
 });
+
+// ---- theme variants ----
+const withBase = (userFiles = {}) => {
+  const d = catalogDirs();
+  fs.mkdirSync(path.join(d.builtinDir, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(d.builtinDir, 'themes', 'base.json'), JSON.stringify({ name: 'base', colors: { TEXT: '#ffffff' }, accent: '#ff0000', variants: { dark: { colors: { TEXT: '#000000' } } } }));
+  for (const [n, body] of Object.entries(userFiles)) fs.writeFileSync(path.join(d.userDir, 'themes', `${n}.json`), JSON.stringify(body));
+  return d;
+};
+
+test('settings_accept_theme_variant_and_overrides_and_refuse_invalid_ones', () => withHub(async (hub) => {
+  assert.equal((await postJson(hub, '/settings', { themeVariant: 'dark', themeOverrides: { 'cat/dark': { colors: { TEXT: '#112233' }, accent: '#00ff00' } } })).status, 200);
+  let st = (await (await get(hub, '/state')).json()).settings;
+  assert.equal(st.themeVariant, 'dark');
+  assert.equal(st.themeOverrides['cat/dark'].accent, '#00ff00');
+  await postJson(hub, '/settings', { themeOverrides: { 'Bad Key': {} }, themeVariant: 'Not Ok' });
+  st = (await (await get(hub, '/state')).json()).settings;
+  assert.deepEqual([st.themeVariant, Object.keys(st.themeOverrides)], ['dark', ['cat/dark']]);
+}));
+
+test('post_themes_writes_a_user_theme_and_applies_it', async () => {
+  const d = withBase();
+  await withHub(async (hub) => {
+    const r = await postJson(hub, '/themes', { name: 'mine', label: 'Mine', theme: 'base', variant: 'dark', override: { colors: { FRAME: '#123456' } } });
+    assert.equal(r.status, 200);
+    const saved = JSON.parse(fs.readFileSync(path.join(d.userDir, 'themes', 'mine.json'), 'utf8'));
+    assert.deepEqual([saved.colors, saved.accent, saved.variants], [{ TEXT: '#000000', FRAME: '#123456' }, '#ff0000', undefined]);
+    const st = await (await get(hub, '/state')).json();
+    assert.deepEqual([st.settings.theme, st.catalog.themes.some((t) => t.name === 'mine')], ['mine', true]);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('post_themes_refuses_builtin_and_marketplace_names_and_needs_overwrite_for_existing', async () => {
+  const d = withBase({ mine: { name: 'mine', colors: {} } });
+  fs.writeFileSync(path.join(d.userDir, 'market.json'), JSON.stringify({ cat: { source: 'x/y', version: '1' } }));
+  await withHub(async (hub) => {
+    assert.equal((await postJson(hub, '/themes', { name: 'base', theme: 'base' })).status, 400);
+    assert.equal((await postJson(hub, '/themes', { name: 'cat', theme: 'base' })).status, 400);
+    assert.equal((await postJson(hub, '/themes', { name: 'nope', theme: 'ghost' })).status, 400);
+    assert.equal((await postJson(hub, '/themes', { name: 'mine', theme: 'base' })).status, 409);
+    assert.equal((await postJson(hub, '/themes', { name: 'mine', theme: 'base', overwrite: true })).status, 200);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_remove_clears_overrides_of_that_theme', async () => {
+  const d = withBase({ mine: { name: 'mine', colors: {} } });
+  await withHub(async (hub) => {
+    await postJson(hub, '/settings', { themeOverrides: { mine: { accent: '#00ff00' }, 'mine/dark': { accent: '#00ff00' }, base: { accent: '#00ff00' } }, theme: 'mine', themeVariant: 'dark' });
+    assert.equal((await postJson(hub, '/market/remove', { name: 'mine' })).status, 200);
+    const st = (await (await get(hub, '/state')).json()).settings;
+    assert.deepEqual([Object.keys(st.themeOverrides), st.theme, st.themeVariant], [['base'], 'default', '']);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});

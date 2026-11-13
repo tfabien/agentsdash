@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ICON_TYPES, ICON_NAME, MAX_BYTES, MAX_RASTER_BYTES } from './themes_loader.mjs';
-import { validateTheme } from './web/theme_schema.js';
+import { validateTheme, resolvePalette } from './web/theme_schema.js';
 import { GITHUB_HEADERS } from './market_source.mjs';
 
 const MAX_FILES = 100;
@@ -22,6 +22,8 @@ function writeInstalled(userDir, data) {
   fs.mkdirSync(userDir, { recursive: true });
   fs.writeFileSync(path.join(userDir, LOG), `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 }
+
+const MAX_PACK_JSON = 4096;
 
 /** The icon files of a theme that the loader would accept: `icons/<role>[-N][-blink].<ext>`, no sub-folder. */
 function iconFiles(files) {
@@ -69,6 +71,9 @@ export function installTheme({ theme, userDir, builtinNames, fetchFn = fetch }) 
         if (total > MAX_TOTAL) throw new Error(`${name}: more than 20 MB`);
         fs.writeFileSync(path.join(tmp, f), data);
       }
+      if (icons.length && theme.files.includes('icons/pack.json')) {      // tint mode of the pack (see themes_loader.mjs), 4 KB at most
+        fs.writeFileSync(path.join(tmp, 'icons', 'pack.json'), await download(fetchFn, `${base}/icons/pack.json`, MAX_PACK_JSON));
+      }
       const themeFile = path.join(userDir, 'themes', `${name}.json`);
       const iconDir = path.join(userDir, 'icons', name);
       const old = `${iconDir}.old-${Date.now()}`;
@@ -114,4 +119,24 @@ export function removeTheme({ name, userDir, builtinNames = new Set() }) {
   const { [name]: _gone, ...rest } = readInstalled(userDir);
   writeInstalled(userDir, rest);
   return true;
+}
+
+/**
+ * Writes the look of `theme` under `variant` and the user's `override` as a user theme `<userDir>/themes/<name>.json` (resolved colors and accent, no variants).
+ * @returns {{path: string}} throws an Error: a built-in name, a name installed from the marketplace (its updates would revert it), an existing user theme without `overwrite`
+ */
+export function saveUserTheme({ name, label, theme, variant = '', override, userDir, builtinNames, overwrite = false }) {
+  if (!/^[a-z0-9-]{1,32}$/.test(name)) throw new Error('name: 1 to 32 characters among a-z, 0-9 and -');
+  if (builtinNames.has(name)) throw new Error(`${name} is a built-in theme and cannot be replaced`);
+  if (name in readInstalled(userDir)) throw new Error(`${name} comes from the marketplace, pick another name`);
+  const file = path.join(userDir, 'themes', `${name}.json`);
+  if (fs.existsSync(file) && !overwrite) throw new Error(`${name} exists`);
+  const { colors, accent } = resolvePalette(theme, variant, override);
+  const out = { name, label: label?.trim() ? label.trim().slice(0, 32) : name, description: theme.description || '', keywords: theme.keywords ?? [], author: 'user', version: '1', iconPack: theme.iconPack, ...(accent ? { accent } : {}), colors };
+  fs.mkdirSync(path.join(userDir, 'themes'), { recursive: true });
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(out, null, 2)}
+`, 'utf8');
+  fs.renameSync(tmp, file);
+  return { path: file };
 }

@@ -16,13 +16,14 @@ export function mergeCards({ catalog, market, active }) {
     return {
       name: t.name, label: t.label || t.name, description: t.description || fromMarket?.description || '', keywords: t.keywords?.length ? t.keywords : fromMarket?.keywords ?? [],
       author: t.author || '', version: t.version || '', source: fromMarket?.source ?? '', preview: fromMarket?.preview ?? null,
+      variants: Object.entries(t.variants ?? {}).map(([key, v]) => ({ key, label: v.label || key })),
       installed: true, active: t.name === active, updatable: Boolean(fromMarket?.updatable), availableVersion: fromMarket?.updatable ? fromMarket.version : '', deletable: user.has(t.name),
     };
   });
   const have = new Set(catalog.map((t) => t.name));
   const available = (market?.themes ?? []).filter((t) => !t.installed && !have.has(t.name)).map((t) => ({
     name: t.name, label: t.label || t.name, description: t.description || '', keywords: t.keywords ?? [], author: t.author || '', version: t.version || '', source: t.source,
-    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
+    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, variants: [], installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
   }));
   const byLabel = (a, b) => a.label.localeCompare(b.label);
   installed.sort((a, b) => (b.active - a.active) || byLabel(a, b));

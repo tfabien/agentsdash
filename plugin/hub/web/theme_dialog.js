@@ -1,8 +1,10 @@
 // The theme button of the bottom bar and its view (it opens in place of the agents, see views.js): one list of the installed themes and the
 // marketplace themes, with search, tags and a status filter; Apply, Install, Update, Preview and Delete on each card; the marketplace
 // settings behind a button. The choice is the `theme` setting of the hub, so every page follows (see themes.js).
-import { listThemes, themeColor } from './themes.js';
-import { iconPackFor, onIconsLoaded, clearIconCache } from './icon_packs.js';
+import { listThemes, themeColor, activeAccent } from './themes.js';
+import { iconPackFor, onIconsLoaded, clearIconCache, setAccent } from './icon_packs.js';
+import { resolvePalette } from './theme_schema.js';
+import { createThemeEditor } from './theme_editor.js';
 import { postSettings } from './settings.js';
 import { icon } from './icons.js';
 import { mergeCards, filterCards, tagCounts, STATUSES } from './theme_list.js';
@@ -20,7 +22,7 @@ async function call(path, body = {}) {
 }
 
 /** The eight agents of a theme, on its panel color, drawn at `k` pixels per unit. */
-function drawPreview(canvas, theme) {
+function drawPreview(canvas, theme, accent = '') {
   const k = 1.1, ratio = window.devicePixelRatio || 1;
   const w = 8 * ICON_W + 9 * GAP, h = ICON_H + 2 * GAP;
   canvas.width = Math.round(w * k * ratio); canvas.height = Math.round(h * k * ratio);
@@ -29,7 +31,9 @@ function drawPreview(canvas, theme) {
   ctx.setTransform(k * ratio, 0, 0, k * ratio, 0, 0);
   ctx.fillStyle = themeColor(theme, 'PANEL'); ctx.beginPath(); ctx.roundRect(0, 0, w, h, 6); ctx.fill();
   const pack = iconPackFor(theme.iconPack);
+  setAccent(accent);                                         // this card's accent for the time of the drawing, then the applied theme's again
   for (let role = 0; role < 8; role++) { ctx.save(); ctx.translate(GAP + role * (ICON_W + GAP), GAP); pack.draw(ctx, role, false); ctx.restore(); }
+  setAccent(activeAccent());
 }
 
 /**
@@ -53,7 +57,9 @@ export function createThemeMenu({ onPreview } = {}) {
   let notice = null, noticeTimer = null;                       // { ok, text }: the result of the last action, shown on top
   const busy = new Map();                                      // card name -> what is running on it ("Installing…")
   const tags = new Set();
-  let previews = [];                                           // [{canvas, theme}] of the cards on screen
+  let previews = [];                                           // [{canvas, theme, accent}] of the cards on screen
+  let savedVariant = '', overrides = {}, editing = false;
+  const picked = new Map();                                    // card name -> variant key chosen on the card ('' is the base)
   let catalogKey = '';
 
   // --- the list view
@@ -91,7 +97,34 @@ export function createThemeMenu({ onPreview } = {}) {
   const settingsStatus = el('div', 'mstatus shint');
   settingsBox.append(backBtn, el('div', 'tname', 'Marketplaces'), el('div', 'shint', 'GitHub repositories with one folder per theme. The listings are kept for 24 hours.'),
     sourcesRow, addRow, autoRow, actionRow, refreshed, settingsStatus);
-  panel.append(toast, main, settingsBox);
+  const overrideKey = () => (savedVariant ? `${active}/${savedVariant}` : active);
+  const editor = createThemeEditor({
+    draw: drawPreview, themeColor,
+    onChange: (draft) => postSettings({ themeOverrides: { ...overrides, [overrideKey()]: draft } }),
+    onReset: async () => {
+      const { [overrideKey()]: _gone, ...rest } = overrides;
+      await postSettings({ themeOverrides: rest });
+      overrides = rest;
+      openEditor();
+    },
+    onSave: async ({ name, label, override }) => {
+      const send = (overwrite) => fetch('/themes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, label, theme: active, variant: savedVariant, override, overwrite }) });
+      let res = await send(false);
+      if (res.status === 409 && confirm(`The theme ${name} exists. Replace it?`)) res = await send(true);
+      if (!res.ok) throw new Error(await res.text());
+      editing = false; setNotice(true, `Saved ${label} as a theme`); load();
+    },
+    onBack: () => { editing = false; render(); },
+  });
+  editor.element.hidden = true;
+  function openEditor() {
+    const theme = listThemes().find((t) => t.name === active);
+    if (!theme) return;
+    editor.open(theme, savedVariant, overrides[overrideKey()]);
+    editing = true;
+    render();
+  }
+  panel.append(toast, main, settingsBox, editor.element);
 
   // --- actions
   function setNotice(ok, text) {                               // a success fades after 5 seconds, an error stays until the next action
@@ -126,10 +159,12 @@ export function createThemeMenu({ onPreview } = {}) {
   function card(c) {
     const theme = c.installed ? listThemes().find((t) => t.name === c.name) : null;
     const root = el('div', `tcard mcard${c.active ? ' on' : ''}`);
+    const variantKey = c.variants.length ? (picked.get(c.name) ?? (c.active ? savedVariant : '')) : '';
+    const look = theme ? resolvePalette(theme, variantKey) : null;      // the card shows the variant picked on it, as authored
     if (theme) {
       const canvas = el('canvas', 'tpreview');
       root.append(canvas);
-      previews.push({ canvas, theme });
+      previews.push({ canvas, theme: { ...theme, colors: look.colors }, accent: look.accent });
     } else if (c.preview) {
       const img = el('img', 'mprev'); img.src = c.preview; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
       root.append(img);
@@ -139,6 +174,16 @@ export function createThemeMenu({ onPreview } = {}) {
     title.append(' ', badge(c));
     body.append(title, el('div', 'shint', [c.version && `v${c.version}`, c.author, c.source].filter(Boolean).join(' · ')));
     if (c.description) body.append(el('div', 'mdesc', c.description));
+    if (c.variants.length) {                                   // one swatch per variant, the base first
+      const row = el('div', 'tvariants');
+      for (const v of [{ key: '', label: 'Default' }, ...c.variants]) {
+        const pal = resolvePalette(theme, v.key).colors, sw = el('button', `tswatch${v.key === variantKey ? ' on' : ''}`, v.label);
+        sw.style.background = themeColor({ colors: pal }, 'PANEL'); sw.style.color = themeColor({ colors: pal }, 'TEXT'); sw.style.borderColor = themeColor({ colors: pal }, 'FRAME');
+        sw.onclick = () => { picked.set(c.name, v.key); if (c.active) postSettings({ themeVariant: v.key }); render(); };
+        row.append(sw);
+      }
+      body.append(row);
+    }
     if (c.keywords.length) {
       const kw = el('div', 'mkw');
       for (const k of c.keywords) { const chip = el('button', `kw tag${tags.has(k) ? ' on' : ''}`, k); chip.onclick = () => { tags.has(k) ? tags.delete(k) : tags.add(k); render(); }; kw.append(chip); }
@@ -156,10 +201,11 @@ export function createThemeMenu({ onPreview } = {}) {
         b.onclick = () => { if (o.confirm && !confirm(o.confirm)) return; run(c.name, o.busy, o.done, fn); };
         actions.append(b);
       };
-      if (onPreview) { const p = el('button', 'chip', 'Preview'); p.title = 'Show the theme on made-up agents without saving it'; p.onclick = () => onPreview(previewSpec(c)); actions.append(p); }
+      if (onPreview) { const p = el('button', 'chip', 'Preview'); p.title = 'Show the theme on made-up agents without saving it'; p.onclick = () => onPreview({ ...previewSpec(c), variant: variantKey }); actions.append(p); }
+      if (c.active) { const e = el('button', 'chip', 'Edit colors'); e.title = 'Change the colors and the icon accent, then save them as a theme'; e.onclick = openEditor; actions.append(e); }
       if (!c.installed) btn('Install', { busy: 'Installing…', done: `Installed ${c.label} and applied it`, title: 'Install and apply' }, async () => { await call('/market/install', { source: c.source, name: c.name }); active = c.name; await load(); });
       else {
-        if (!c.active) btn('Apply', { busy: 'Applying…', done: `Applied ${c.label}` }, async () => { active = c.name; await postSettings({ theme: c.name }); });
+        if (!c.active) btn('Apply', { busy: 'Applying…', done: `Applied ${c.label}` }, async () => { active = c.name; await postSettings({ theme: c.name, themeVariant: variantKey }); });
         if (c.updatable) btn(`Update to ${c.availableVersion}`, { busy: 'Updating…', done: `Updated ${c.label} to ${c.availableVersion}` }, async () => { await call('/market/update', { name: c.name }); await load(); });
         if (c.deletable) btn('Delete', { busy: 'Deleting…', done: `Deleted ${c.label}`, confirm: `Delete the theme ${c.label}? Its files are removed.` }, async () => { await call('/market/remove', { name: c.name }); await load(); });
       }
@@ -210,7 +256,7 @@ export function createThemeMenu({ onPreview } = {}) {
     toast.hidden = !notice;
     toast.className = `toast ${notice?.ok ? 'ok' : 'err'}`;
     toast.textContent = notice?.text ?? '';
-    for (const p of previews) drawPreview(p.canvas, p.theme);
+    for (const p of previews) drawPreview(p.canvas, p.theme, p.accent);
 
     sourcesRow.replaceChildren(...(market?.sources ?? []).map((s) => {
       const chip = el('span', 'kw', s);
@@ -224,7 +270,8 @@ export function createThemeMenu({ onPreview } = {}) {
     const stamps = Object.entries(market?.refreshedAt ?? {}).map(([s, t]) => `${s}: ${t ? new Date(t).toLocaleString() : 'not fetched'}`);
     refreshed.textContent = [...stamps, market?.lastCheck ? `Update check ${new Date(market.lastCheck).toLocaleTimeString()}` : 'No update check since the hub started'].join(' · ');
     settingsStatus.textContent = (market?.errors ?? []).join(' · ');
-    main.hidden = inSettings; settingsBox.hidden = !inSettings;
+    main.hidden = inSettings || editing; settingsBox.hidden = !inSettings; editor.element.hidden = !editing;
+    if (editing) editor.redraw();
   }
 
   // --- wiring
@@ -241,16 +288,18 @@ export function createThemeMenu({ onPreview } = {}) {
     if (r.updated.length) setNotice(true, `Updated ${r.updated.join(', ')}`); else if (r.errors.length) setNotice(false, r.errors.join(' · ')); else setNotice(true, 'Everything is up to date.');
   });
   auto.onclick = () => act(auto, async () => { await postSettings({ themeAutoUpdate: !(market?.autoUpdate ?? true) }); await load(); });
-  onIconsLoaded(() => { for (const p of previews) drawPreview(p.canvas, p.theme); });
+  onIconsLoaded(() => { for (const p of previews) drawPreview(p.canvas, p.theme, p.accent); editor.redraw(); });
 
   return {
     button, panel,
-    onOpen() { inSettings = false; render(); load(); },        // the hub answers from its 24 hour cache, or fetches when it is older
-    update(name) {                                             // the saved theme or the catalog changed
-      const key = `${name}|${listThemes().map((t) => `${t.name}${t.version}${t.iconPack}`).join()}`;
+    onOpen() { inSettings = false; editing = false; render(); load(); },        // the hub answers from its 24 hour cache, or fetches when it is older
+    update(name, variant = '', edits = {}) {                   // the saved theme, variant or edits, or the catalog, changed
+      const key = `${name}|${variant}|${JSON.stringify(edits)}|${listThemes().map((t) => `${t.name}${t.version}${t.iconPack}${Object.keys(t.variants ?? {})}`).join()}`;
       if (key === catalogKey) return;
       catalogKey = key;
       active = name && listThemes().some((t) => t.name === name) ? name : 'default';
+      savedVariant = variant; overrides = edits;
+      picked.clear();
       render();
     },
   };

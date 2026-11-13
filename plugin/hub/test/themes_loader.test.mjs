@@ -99,3 +99,24 @@ test('role_variants_and_their_blink_files_are_listed', () => {
   const c = loadCatalog({ builtinDir: b, userDir: null });
   assert.deepEqual(Object.keys(c.packs[0].roles).sort(), ['explore', 'explore-12', 'explore-2', 'explore-2-blink']);
 });
+
+test('loader_reads_pack_json_tint_and_hue', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'standup-pj-'));
+  fs.mkdirSync(path.join(dir, 'icons', 'line'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'icons', 'line', 'lead.svg'), '<svg/>');
+  fs.writeFileSync(path.join(dir, 'icons', 'line', 'pack.json'), '{"tint":"hue","hue":-30}');
+  const { packs, errors } = loadCatalog({ builtinDir: dir });
+  assert.deepEqual([packs[0].tint, packs[0].hue, errors], ['hue', 330, []]);
+});
+
+test('loader_defaults_to_tint_none_and_reports_a_bad_pack_json', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'standup-pj-'));
+  fs.mkdirSync(path.join(dir, 'icons', 'a'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'icons', 'b'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'icons', 'a', 'lead.svg'), '<svg/>');
+  fs.writeFileSync(path.join(dir, 'icons', 'b', 'lead.svg'), '<svg/>');
+  fs.writeFileSync(path.join(dir, 'icons', 'b', 'pack.json'), '{nope');
+  const { packs, errors } = loadCatalog({ builtinDir: dir });
+  assert.deepEqual(packs.map((p) => [p.tint, p.hue]), [['none', 0], ['none', 0]]);
+  assert.equal(errors.length, 1);
+});

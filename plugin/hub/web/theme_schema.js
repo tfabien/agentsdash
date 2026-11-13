@@ -11,6 +11,7 @@ export const ROLE_FILES = ['lead', 'general', 'explore', 'plan', 'review', 'test
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const NAME = /^[a-z0-9-]{1,32}$/;
 const DEFAULT_PACK = 'robot';
+const MAX_VARIANTS = 12;
 
 /**
  * Checks a theme loaded from outside (a file, a POST).
@@ -21,17 +22,73 @@ export function validateTheme(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'a theme is an object' };
   if (typeof raw.name !== 'string' || !NAME.test(raw.name)) return { ok: false, error: 'name: 1 to 32 characters among a-z, 0-9 and -' };
   if (!raw.colors || typeof raw.colors !== 'object' || Array.isArray(raw.colors)) return { ok: false, error: 'colors: an object of KEY: "#rrggbb"' };
-  const ignored = [];
-  const colors = {};
-  for (const key of COLOR_KEYS) {
-    const v = raw.colors[key];
-    if (v === undefined) continue;
-    if (typeof v === 'string' && HEX.test(v)) colors[key] = v.toLowerCase(); else ignored.push(key);
+  const part = validatePalettePart(raw);
+  const ignored = part.ignored;
+  const variants = {};
+  if (raw.variants && typeof raw.variants === 'object' && !Array.isArray(raw.variants)) {
+    for (const [vname, v] of Object.entries(raw.variants)) {
+      if (!NAME.test(vname) || !v || typeof v !== 'object' || Object.keys(variants).length >= MAX_VARIANTS) { ignored.push(`variants.${vname}`); continue; }
+      const vp = validatePalettePart(v);
+      for (const k of vp.ignored) ignored.push(`variants.${vname}.${k}`);
+      variants[vname] = { label: typeof v.label === 'string' && v.label.trim() ? v.label.trim().slice(0, 32) : vname, colors: vp.colors, accent: vp.accent ?? '' };
+    }
   }
   const pack = typeof raw.iconPack === 'string' && NAME.test(raw.iconPack) ? raw.iconPack : DEFAULT_PACK;
   const description = typeof raw.description === 'string' ? raw.description.trim().slice(0, 200) : '';
   const keywords = Array.isArray(raw.keywords) ? raw.keywords.filter((k) => typeof k === 'string' && k.trim()).map((k) => k.trim().slice(0, 24)).slice(0, 8) : [];
-  return { ok: true, ignored, theme: { name: raw.name, label: typeof raw.label === 'string' ? raw.label : raw.name, description, keywords, author: String(raw.author ?? ''), version: String(raw.version ?? ''), iconPack: pack, colors } };
+  return { ok: true, ignored, theme: { name: raw.name, label: typeof raw.label === 'string' ? raw.label : raw.name, description, keywords, author: String(raw.author ?? ''), version: String(raw.version ?? ''), iconPack: pack, colors: part.colors, accent: part.accent ?? '', variants } };
+}
+
+/**
+ * Keeps the valid parts of a palette fragment ({ colors, accent }): a theme, a variant or an override.
+ * @returns {{colors: Record<string,string>, accent: string|undefined, ignored: string[]}}
+ */
+export function validatePalettePart(raw) {
+  const ignored = [];
+  const colors = {};
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const c = src.colors && typeof src.colors === 'object' && !Array.isArray(src.colors) ? src.colors : {};
+  for (const key of COLOR_KEYS) {
+    const v = c[key];
+    if (v === undefined) continue;
+    if (typeof v === 'string' && HEX.test(v)) colors[key] = v.toLowerCase(); else ignored.push(key);
+  }
+  let accent;
+  if (src.accent !== undefined) { if (typeof src.accent === 'string' && HEX.test(src.accent)) accent = src.accent.toLowerCase(); else ignored.push('accent'); }
+  return { colors, accent, ignored };
+}
+
+/**
+ * The colors and the icon accent of a theme under a variant and a user override. Order: theme, variant, override. An unknown variant is the base.
+ * @returns {{colors: Record<string,string>, accent: string}}
+ */
+export function resolvePalette(theme, variantKey, override) {
+  const v = variantKey && theme.variants ? theme.variants[variantKey] : undefined;
+  const colors = { ...theme.colors, ...(v?.colors ?? {}), ...(override?.colors ?? {}) };
+  const accent = override?.accent || v?.accent || theme.accent || '';
+  return { colors, accent };
+}
+
+/** Hue of a `#rrggbb` color in degrees (0..359), 0 for greys. */
+export function hueOf(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (!d) return 0;
+  let h;
+  if (max === r) h = ((g - b) / d) % 6; else if (max === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+  return Math.round((h * 60 + 360) % 360);
+}
+
+const lum = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  const w = [0.2126, 0.7152, 0.0722];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].reduce((sum, c, i) => { const x = c / 255; return sum + w[i] * (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4); }, 0);
+};
+/** WCAG contrast ratio of two `#rrggbb` colors, 1 to 21. */
+export function contrastRatio(a, b) {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
 }
 
 const DOTTED = /^\d+(\.\d+)*$/;

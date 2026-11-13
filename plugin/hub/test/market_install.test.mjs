@@ -98,3 +98,10 @@ test('readInstalled_gives_an_empty_object_for_a_missing_or_corrupt_file', () => 
   fs.writeFileSync(path.join(userDir, 'market.json'), '{oops');
   assert.deepEqual(readInstalled(userDir), {});
 });
+
+test('install_copies_pack_json_of_a_theme', async () => {
+  const userDir = tmp();
+  const f = fakeRaw({ 'cat/theme.json': themeJson('cat'), 'cat/icons/lead.svg': '<svg/>', 'cat/icons/pack.json': '{"tint":"svg"}' });
+  await installTheme({ theme: entry('cat', ['icons/lead.svg', 'icons/pack.json']), userDir, builtinNames: none, fetchFn: f });
+  assert.equal(fs.readFileSync(path.join(userDir, 'icons', 'cat', 'pack.json'), 'utf8'), '{"tint":"svg"}');
+});

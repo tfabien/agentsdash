@@ -1,6 +1,7 @@
 // Icon packs: one drawing per role (lead, general, explore, plan, review, test, code, generic), in the 36x42 box of the gadget robots.
 // `draw(ctx, role, blink)` paints in that box (the caller translates and scales), so size and blink stay the same for every pack.
 // The built-in `robot` pack is the fallback for a missing pack name.
+import { hueOf } from './theme_schema.js';
 
 function tools(ctx) {
   return {
@@ -216,8 +217,28 @@ function imageFor(url) {
   }
   return img;
 }
+let accent = '';                                             // `#rrggbb` icon tint of the applied theme, '' for none
+/** Sets the icon accent (see themes.js). Packs with tint mode `svg` or `hue` draw with it; `none` packs ignore it. */
+export function setAccent(hex) { accent = typeof hex === 'string' ? hex : ''; }
+
+// Tint mode `svg`: the file text is fetched once, `currentColor` becomes the accent, and the result is drawn from a blob URL.
+const tinted = new Map();                                    // url + accent -> Image | 'loading'
+function tintedImage(url, color) {
+  const key = `${url}|${color}`;
+  const hit = tinted.get(key);
+  if (hit === 'loading') return null;
+  if (hit) return hit;
+  tinted.set(key, 'loading');
+  fetch(url).then((r) => r.text()).then((svg) => {
+    const img = new Image();
+    img.onload = () => { tinted.set(key, img); for (const cb of [...loadedListeners]) cb(); };
+    img.src = URL.createObjectURL(new Blob([svg.replace(/currentColor/gi, color)], { type: 'image/svg+xml' }));
+  }).catch(() => tinted.delete(key));
+  return null;
+}
+
 /** Forgets the loaded images so the next draw fetches every SVG again (after the hub rescanned the icon folders). */
-export function clearIconCache() { images.clear(); animations.clear(); }
+export function clearIconCache() { images.clear(); animations.clear(); tinted.clear(); }
 
 // Animated GIF and WebP: a canvas draws only the first frame of an <img>, so the frames are decoded once with ImageDecoder (Chrome and Edge)
 // and the one that matches the clock is drawn. Without ImageDecoder the first frame stands in.
@@ -278,7 +299,7 @@ export function variantKey(roles, key, agentId) {
 }
 
 /** A pack drawn from SVG (or png, gif...) files: `roles` maps 'lead'..'generic' (and '<role>-blink') to URLs. A role without a file, or whose image is not loaded yet, draws the robot. */
-export function svgPack(name, roles) {
+export function svgPack(name, roles, { tint = 'none', hue = 0 } = {}) {
   return {
     label: name.charAt(0).toUpperCase() + name.slice(1),
     draw(ctx, role, blink, agentId) {
@@ -289,13 +310,22 @@ export function svgPack(name, roles) {
       if (!url) { drawRobot(ctx, role, blink); return; }            // the pack has no file for this role
       if (!blink && blinkUrl && !ANIMATED.test(blinkUrl)) imageFor(blinkUrl);   // load the blink frame early: no gap when the eyes close
       // The blink frame or the animation not ready yet: show the plain icon, never another character (no flash of the robot).
+      const shift = tint === 'hue' && accent ? (hueOf(accent) - hue + 360) % 360 : 0;
+      const paint = (image) => {                                      // hue mode: the whole picture, every animation frame included, goes through a hue rotation
+        if (shift) { ctx.save(); ctx.filter = `hue-rotate(${shift}deg)`; ctx.drawImage(image, 0, 0, ICON_W, ICON_H); ctx.restore(); } else ctx.drawImage(image, 0, 0, ICON_W, ICON_H);
+      };
       for (const u of url === plain ? [url] : [url, plain]) {
         if (ANIMATED.test(u)) {
           const frame = animatedFrame(u);
-          if (frame && frame !== 'loading') { ctx.drawImage(frame, 0, 0, ICON_W, ICON_H); tick(); return; }
+          if (frame && frame !== 'loading') { paint(frame); tick(); return; }
+        }
+        if (tint === 'svg' && accent && /\.svg$/i.test(u)) {              // not tinted yet: draw nothing (the untinted file would be black), the page redraws when it loads
+          const colored = tintedImage(u, accent);
+          if (ready(colored)) { paint(colored); return; }
+          continue;
         }
         const img = imageFor(u);
-        if (ready(img)) { ctx.drawImage(img, 0, 0, ICON_W, ICON_H); return; }
+        if (ready(img)) { paint(img); return; }
       }
       // Nothing is loaded yet: draw nothing, the page redraws when the image arrives.
     },
@@ -318,6 +348,6 @@ export function iconPackFor(name) {
   const p = catalogPacks.get(name);
   if (!p) return ICON_PACKS[DEFAULT_PACK];
   let pack = svgPacks.get(name);
-  if (!pack) { pack = svgPack(name, p.roles); svgPacks.set(name, pack); }
+  if (!pack) { pack = svgPack(name, p.roles, { tint: p.tint, hue: p.hue }); svgPacks.set(name, pack); }
   return pack;
 }

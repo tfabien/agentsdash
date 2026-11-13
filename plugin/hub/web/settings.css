@@ -109,3 +109,14 @@ button.kw:hover { background: #26334a; }
 #bar.previewing .quotas { display: none; }
 .ptext.ok { color: #8fe0a6; }
 .previewbar .spin { flex: none; }
+
+/* theme variants and the color editor */
+.tvariants { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.tswatch { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 2px solid; cursor: pointer; }
+.tswatch.on { outline: 2px solid #3b6fd4; outline-offset: 2px; }
+.tedit { display: grid; gap: 10px; justify-items: start; }
+.tfields { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 14px; width: 100%; }
+.tfield { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.tfield input[type=color] { width: 42px; height: 24px; padding: 0; border: 1px solid #1f2a3a; background: none; cursor: pointer; }
+.twarn:not(:empty) { color: #ffb23e; }
+.tedit[hidden] { display: none; }
