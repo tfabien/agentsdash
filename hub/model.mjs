@@ -1,5 +1,5 @@
 // Agent state: sessions, agents (a lead and its sub-agents), derived states, selection, usage.
-// Port of devices/artillery-x3-esp32/firmware/model.cpp. Knows nothing about HTTP, the browser or the gadget.
+// Port of firmware/model.cpp of the device repository agentsdash-device-artillery-x3. Knows nothing about HTTP, the browser or the gadget.
 // Time is a plain number of milliseconds passed in by the caller (`now`), so tests control it.
 
 /** Version of the wire protocol (docs/protocol.md): the `v` of an event, reported by GET /health as `protocol`. */

@@ -114,7 +114,7 @@ thing, with its own buzzer. The hub forwards every event to it (`relay` in `~/.a
 
 | Device | State | Link |
 |---|---|---|
-| ESP32 + the touchscreen of an Artillery X3 3D printer (TJC 4.3", 480x272) | works, Wi-Fi relay tested, USB relay written | [devices/artillery-x3-esp32/](devices/artillery-x3-esp32/README.md) |
+| ESP32 + the touchscreen of an Artillery X3 3D printer (TJC 4.3", 480x272) | works, Wi-Fi relay tested, USB relay written | [agentsdash-device-artillery-x3](https://github.com/tfabien/agentsdash-device-artillery-x3) |
 
 More devices are welcome: [devices/README.md](devices/README.md) says what a device receives and how to add one.
 
@@ -122,12 +122,11 @@ More devices are welcome: [devices/README.md](devices/README.md) says what a dev
 
 ```text
 hub/                       the core: server, model, web page, relays, terminal view (runs alone, released as a tarball)
-devices/                   optional external screens
-  artillery-x3-esp32/      ESP32 firmware, screen project, hardware notes, tests
+devices/                   how to add an external screen (each device has its own repository)
 docs/                      protocol and device protocol ([protocol.md](docs/protocol.md), [device-protocol.md](docs/device-protocol.md)), theme notes, specs, plans, README images
 INSTALL.md                 running the hub, updates, troubleshooting
 
-Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-themes` (themes and icon packs).
+Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-themes` (themes and icon packs), `agentsdash-device-artillery-x3` (ESP32 gadget).
 ```
 
 Tests (no hardware): `node --test hub/test/*.test.mjs`. Docs: [hub/README.md](hub/README.md) (hub, configuration, API, relays).
@@ -145,4 +144,4 @@ Tests (no hardware): `node --test hub/test/*.test.mjs`. Docs: [hub/README.md](hu
 - Show the context fill as a circle with the percentage in the middle; show the tokens of each agent in its row.
 - Minor items of the hub review, postponed: `"constructor"` accepted as a state, 400 ms per hook when the hub cannot start (no backoff), the plan file lock can wait 2 s, the hub does not replay its state to a device that rebooted.
 
-The TODO of the ESP32 gadget (USB relay test on hardware, clock settings, other boards) is in [devices/artillery-x3-esp32/README.md](devices/artillery-x3-esp32/README.md#todo).
+The TODO of the ESP32 gadget (USB relay test on hardware, clock settings, other boards) is in its repository: [agentsdash-device-artillery-x3](https://github.com/tfabien/agentsdash-device-artillery-x3#todo).

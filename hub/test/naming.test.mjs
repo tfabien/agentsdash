@@ -25,8 +25,8 @@ function walk(dir, out = []) {
 }
 
 test('old_name_is_gone', () => {
-  const files = [...walk(path.join(ROOT, 'hub')), ...walk(path.join(ROOT, 'devices'))].filter((f) => CODE.test(f));
-  assert.ok(files.length > 40, `scanned ${files.length} files`);
+  const files = walk(path.join(ROOT, 'hub')).filter((f) => CODE.test(f));
+  assert.ok(files.length > 30, `scanned ${files.length} files`);
   const hits = [];
   for (const f of files) {
     fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
@@ -37,7 +37,7 @@ test('old_name_is_gone', () => {
 });
 
 test('docs_use_the_new_name', () => {
-  const docs = ['README.md', 'INSTALL.md', 'CLAUDE.md', 'hub/README.md', 'docs/hub-themes.md', 'devices/README.md', 'devices/artillery-x3-esp32/README.md'];
+  const docs = ['README.md', 'INSTALL.md', 'CLAUDE.md', 'hub/README.md', 'docs/hub-themes.md', 'devices/README.md'];
   const allowed = /agent-gadget|CLAUDE_GADGET|\.claude\/standup-bot|formerly|renamed/i;
   const old = /standup-bot|agent standup|STANDUP_BOT/i;
   const hits = [];

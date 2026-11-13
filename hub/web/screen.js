@@ -1,4 +1,4 @@
-// The gadget screen (480x272) drawn from the hub state. A port of devices/artillery-x3-esp32/firmware/display_hmi.cpp,
+// The gadget screen (480x272) drawn from the hub state. A port of firmware/display_hmi.cpp (repository agentsdash-device-artillery-x3),
 // layout.cpp, ui_state.cpp and ui_theme.h: same geometry, palette, pictures and wording, so the page looks like the screen.
 // Drawing goes through a small `screen` object (pic, erase, fill, rect, circle, line, text, measure): the page gives it a
 // canvas (canvas_screen.js), the tests give it a recorder. Nothing here touches the DOM.

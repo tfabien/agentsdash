@@ -8,11 +8,11 @@ Language: chat with the user in French. **Code comments, documentation and on-sc
 
 ## Layout
 
-- `hub/` the hub, released as a tarball: `hub.mjs` (HTTP + SSE), `model.mjs` (port of `devices/artillery-x3-esp32/firmware/model.cpp`), `config.mjs`, `paths.mjs` (names, folders, old-name fallback),
+- `hub/` the hub, released as a tarball: `hub.mjs` (HTTP + SSE), `model.mjs` (port of `firmware/model.cpp` of the device repository `agentsdash-device-artillery-x3`), `config.mjs`, `paths.mjs` (names, folders, old-name fallback),
   `web/` (the page: `screen.js` decides, `vector_screen.js` draws, `hub_page.js` wires the one page, `scenes.js`), `relay_http.mjs`, `relay_serial.mjs`, `tui.mjs`, `rules.mjs`,
   themes and packs as files (`themes/*.json`, `icons/<pack>/*.svg`, `themes_loader.mjs`, `tools/export_builtin.mjs`), the theme marketplace client (`market_*.mjs`, routes `/market*`, tab `web/market.js`),
   `tools/` (screenshots, GIF), `test/`. Node >= 18, standard library only; `serialport` is optional.
-- `devices/` optional external screens, one folder each with its own README; `devices/artillery-x3-esp32/` has its own `CLAUDE.md` with the hardware and screen protocol notes.
+- `devices/README.md` how to add a device. Each device is its own repository (`agentsdash-device-artillery-x3`: firmware, screen project, tests, hardware notes).
 - `docs/` `protocol.md` and `device-protocol.md` (the contract, checked by tests), `hub-themes.md`, `superpowers/` specs and plans, `images/` (README screenshots).
 - `.github/workflows/` `test.yml` (Ubuntu and Windows, Node 20 and 24), `release.yml` (tag `vX.Y.Z` packs `hub/` as `agentsdash-core-X.Y.Z-p<protocol>.tar.gz` + `.sha256`).
 
