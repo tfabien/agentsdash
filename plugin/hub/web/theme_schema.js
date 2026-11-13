@@ -29,5 +29,23 @@ export function validateTheme(raw) {
     if (typeof v === 'string' && HEX.test(v)) colors[key] = v.toLowerCase(); else ignored.push(key);
   }
   const pack = typeof raw.iconPack === 'string' && NAME.test(raw.iconPack) ? raw.iconPack : DEFAULT_PACK;
-  return { ok: true, ignored, theme: { name: raw.name, label: typeof raw.label === 'string' ? raw.label : raw.name, author: String(raw.author ?? ''), version: String(raw.version ?? ''), iconPack: pack, colors } };
+  const description = typeof raw.description === 'string' ? raw.description.trim().slice(0, 200) : '';
+  const keywords = Array.isArray(raw.keywords) ? raw.keywords.filter((k) => typeof k === 'string' && k.trim()).map((k) => k.trim().slice(0, 24)).slice(0, 8) : [];
+  return { ok: true, ignored, theme: { name: raw.name, label: typeof raw.label === 'string' ? raw.label : raw.name, description, keywords, author: String(raw.author ?? ''), version: String(raw.version ?? ''), iconPack: pack, colors } };
+}
+
+const DOTTED = /^\d+(\.\d+)*$/;
+/** Orders two versions: dotted numbers part by part (missing parts are 0). Any other text is equal when identical and different (1) otherwise. */
+export function compareVersions(a, b) {
+  const x = String(a ?? ''), y = String(b ?? '');
+  if (!x && !y) return 0;
+  if (!x) return -1;
+  if (!y) return 1;
+  if (!DOTTED.test(x) || !DOTTED.test(y)) return x === y ? 0 : 1;
+  const p = x.split('.').map(Number), q = y.split('.').map(Number);
+  for (let i = 0; i < Math.max(p.length, q.length); i++) {
+    const d = (p[i] ?? 0) - (q[i] ?? 0);
+    if (d) return d > 0 ? 1 : -1;
+  }
+  return 0;
 }

@@ -179,3 +179,24 @@ test('svg_pack_draws_the_variant_and_the_blink_of_that_variant', () => {
   assert.equal(r.calls[0].args[0].src, '/l2b.svg');
   stubImage(false);
 });
+
+// ---- marketplace metadata ----
+import { compareVersions } from '../web/theme_schema.js';
+
+test('validateTheme_keeps_and_cuts_description_and_keywords', () => {
+  const ok = (extra) => validateTheme({ name: 'x', colors: {}, ...extra }).theme;
+  assert.equal(ok({ description: 'a'.repeat(201) }).description.length, 200);
+  assert.deepEqual(ok({ keywords: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'] }).keywords.length, 8);
+  assert.deepEqual(ok({ keywords: ['ok', 7, 'x'.repeat(30)] }).keywords, ['ok', 'x'.repeat(24)]);
+  assert.equal(ok({}).description, '');
+  assert.deepEqual(ok({}).keywords, []);
+});
+
+test('compareVersions_orders_dotted_numbers', () => {
+  assert.equal(compareVersions('1.10.0', '1.2.0'), 1);
+  assert.equal(compareVersions('1.0', '1.0.0'), 0);
+  assert.equal(compareVersions('1', '2'), -1);
+  assert.equal(compareVersions('beta', 'beta'), 0);
+  assert.equal(compareVersions('beta', 'rc'), 1);
+  assert.equal(compareVersions('', '1'), -1);
+});
