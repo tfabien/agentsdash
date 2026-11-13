@@ -23,6 +23,21 @@ export function loadOrCreateToken(file) {
   return token;
 }
 
+/** Sets `lan.enabled` in the config file, keeping every other key. @returns {boolean} true when the file changed. */
+export function setLan(file, enabled) {
+  let data = {};
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;
+  } catch { /* a missing or broken file starts from nothing */ }
+  if ((data.lan?.enabled === true) === enabled) return false;
+  data.lan = { ...(data.lan && typeof data.lan === 'object' ? data.lan : {}), enabled };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}
+`);
+  return true;
+}
+
 /** Constant-time comparison; false when either side is missing or the lengths differ. */
 export function tokenMatches(given, token) {
   if (typeof given !== 'string' || typeof token !== 'string') return false;

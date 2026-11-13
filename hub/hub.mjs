@@ -19,7 +19,7 @@ import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
 import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
 import { stateDir, userDir, migrateUserDir } from './paths.mjs';
-import { COOKIE, isLoopback, loadOrCreateToken, tokenMatches, lanHosts, privateAddresses, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
+import { COOKIE, setLan, isLoopback, loadOrCreateToken, tokenMatches, lanHosts, privateAddresses, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
@@ -83,7 +83,7 @@ export function startHub(opts = {}) {
   const now = opts.now ?? (() => Date.now());
   // LAN access for a phone is opt-in (config `lan`); `treatAllAsRemote` and `hosts` exist for tests, whose client connects from loopback.
   const lan = { enabled: false, bind: '0.0.0.0', ...(config.lan ?? {}), ...(opts.lan ?? {}) };
-  const host = opts.host ?? (lan.enabled ? lan.bind : '127.0.0.1');
+  let host = opts.host ?? (lan.enabled ? lan.bind : '127.0.0.1');
   const wantedPort = opts.port ?? (Number(String(config.host).split(':')[1]) || 8765);
   const model = createModel({ maxSessions: config.max_sessions });
   const startedAt = Date.now();
@@ -106,7 +106,8 @@ export function startHub(opts = {}) {
   const relayInfo = () => (relay ? { mode: relayConf.mode, ...(serial ? { port: relayConf.port } : { host: relayConf.host }), ...relay.status() } : null);
   // Themes and icon packs from the built-in and user folders. `iconFiles` maps a served URL to its file: no path comes from a request.
   const catalogDirs = { builtinDir: opts.builtinDir ?? HUB_DIR, userDir: opts.userDir ?? userDir() };
-  const lanToken = lan.enabled ? loadOrCreateToken(lan.tokenFile ?? path.join(catalogDirs.userDir, 'lan-token')) : null;
+  const tokenFile = lan.tokenFile ?? path.join(catalogDirs.userDir, 'lan-token');
+  let lanToken = lan.enabled ? loadOrCreateToken(tokenFile) : null;
   let catalog = { themes: [], packs: [], errors: [] };
   let iconFiles = new Map();
   function reloadCatalog() {
@@ -214,7 +215,14 @@ export function startHub(opts = {}) {
         return res.end();
       case 'GET /pair-info': {                      // loopback only (a remote client is stopped above)
         const ip = privateAddresses()[0];
-        return json(res, { url: lanToken && ip ? `http://${ip}:${port}/pair?t=${lanToken}` : null });
+        return json(res, { enabled: lan.enabled, url: lanToken && ip ? `http://${ip}:${port}/pair?t=${lanToken}` : null });
+      }
+      case 'POST /lan': {                           // loopback only: the page and pair.mjs turn phone access on or off while the hub runs
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        if (typeof body.enabled !== 'boolean') return text(res, 400, 'enabled must be true or false');
+        setLanEnabled(body.enabled);
+        return json(res, { ok: true, enabled: lan.enabled });
       }
       case 'GET /health': return json(res, { ok: true, version: pluginVersion, core: pluginVersion, protocol: PROTOCOL_VERSION, script: realScript, startedAt });
       case 'POST /shutdown':                       // a newer plugin asks the old hub to leave (it starts a fresh one itself)
@@ -427,9 +435,32 @@ export function startHub(opts = {}) {
 
   serial?.start();
 
+  let started = false;
+  let boundPort = wantedPort;
+  /** Phone access on or off: the config file, the token, and the listening address (open connections stay, new ones use the new address). */
+  function setLanEnabled(enabled) {
+    lan.enabled = enabled;
+    lanToken = enabled ? (lanToken ?? loadOrCreateToken(tokenFile)) : null;
+    if (opts.configFile) { try { setLan(opts.configFile, enabled); } catch { /* it still holds until the hub stops */ } }
+    if (opts.host) return;                                   // an explicit host (tests) is never moved
+    const next = enabled ? lan.bind : '127.0.0.1';
+    if (next === host || !started) return;
+    host = next;
+    server.close();
+    server.listen(boundPort, host);
+  }
+
   return new Promise((resolve, reject) => {
-    server.once('error', (e) => { clearInterval(timer); clearInterval(firstThemeTimer); updater.stop(); reject(e); });
+    server.on('error', (e) => {
+      if (!started) { clearInterval(timer); clearInterval(firstThemeTimer); updater.stop(); reject(e); return; }
+      process.stderr.write(`agentsdash hub: cannot listen on ${host} (${e.code ?? e.message}), back to 127.0.0.1
+`);   // a rebind that failed
+      lan.enabled = false; lanToken = null; host = '127.0.0.1';
+      try { server.listen(boundPort, host); } catch { /* the hub keeps running without a listener */ }
+    });
     server.listen(wantedPort, host, () => {
+      started = true;
+      boundPort = server.address().port;
       resolve({
         port: server.address().port, host, model,
         onEvent: (fn) => eventTaps.push(fn),

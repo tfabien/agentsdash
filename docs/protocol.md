@@ -126,7 +126,11 @@ It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/h
 
 ### GET /pair-info
 
-Loopback only. Answers `{ "url": "http://<private ip>:<port>/pair?t=<token>" }`, or `{ "url": null }` when LAN access is off.
+Loopback only. Answers `{ "enabled": <bool>, "url": "http://<private ip>:<port>/pair?t=<token>" }`; `url` is `null` when phone access is off or the machine has no private address.
+
+### POST /lan
+
+Loopback only. Body `{ "enabled": true|false }` (else 400). Turns phone access on or off while the hub runs: the hub writes `lan.enabled` to the config file, creates the token when needed and moves its listener to `lan.bind` (on) or `127.0.0.1` (off); open connections stay. Answers `{ "ok": true, "enabled": <bool> }`.
 
 ## Hub management routes
 
