@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findBrowser } from './screenshots.mjs';
-import { startDemoHub } from './demo_seed.mjs';
+import { startDemoHub, applyScene } from './demo_seed.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -38,13 +38,22 @@ async function connect(port) {
 // What to show, in order. A step is a page expression (`js`), a real mouse click (`click: [x, y]`), a click on the button with that text
 // (`text`), or a pause (`wait`, ms). The page is reloaded before each shot.
 const BUTTON = (label) => `document.querySelector('button[aria-label="${label}"], button[title="${label}"]').click()`;
+// `clip` crops to the tile area when one session is shown (the page is dark around it).
+const ONE = { x: 0, y: 215, width: 1280, height: 310 };
 export const SHOTS = {
-  grid: [],
-  fullscreen: [{ click: [330, 280] }, { wait: 700 }],
-  themes: [{ js: BUTTON('Theme') }, { wait: 1500 }],
-  editor: [{ js: BUTTON('Theme') }, { wait: 1500 }, { text: 'Edit colors' }, { wait: 1000 }],
-  settings: [{ js: BUTTON('Settings') }, { wait: 600 }],
+  grid: { scene: 'grid' },                                                    // 4 tiles, a second page, quotas
+  plan: { scene: 'plan', clip: ONE },                                         // plan bar, context ring
+  question: { scene: 'question', clip: { x: 0, y: 195, width: 1280, height: 345 } },
+  subs3: { scene: 'subs3', clip: ONE },
+  compact: { scene: 'subs7', clip: ONE },                                     // 5 or more sub-agents: compact rows
+  detail: { scene: 'detail', clip: ONE, steps: [{ click: [850, 308] }, { wait: 600 }] },   // a tap on a sub-agent row
+  empty: { scene: 'empty' },
+  themes: { scene: 'grid', steps: [{ js: BUTTON('Theme') }, { wait: 1500 }] },
+  editor: { scene: 'grid', steps: [{ js: BUTTON('Theme') }, { wait: 1500 }, { text: 'Edit colors' }, { wait: 1000 }] },
+  settings: { scene: 'grid', steps: [{ js: BUTTON('Settings') }, { wait: 600 }] },
 };
+// What the README uses (the default run): everything but `empty`.
+const DEFAULT_SHOTS = Object.keys(SHOTS).filter((n) => n !== 'empty');
 
 async function runStep(cdp, step) {
   if (step.js) await cdp.evaluate(step.js);
@@ -61,11 +70,11 @@ async function main() {
   const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : dflt; };
   const out = path.resolve(opt('--out', path.join(HERE, '..', '..', '..', 'docs', 'images')));
   const width = Number(opt('--width', 1280)), height = Number(opt('--height', 800));
-  const names = args.length ? args : Object.keys(SHOTS);
+  const names = args.length ? args : DEFAULT_SHOTS;
   const browser = findBrowser();
   if (!browser) throw new Error('no Edge or Chrome found: set SCREENSHOT_BROWSER to its path');
   fs.mkdirSync(out, { recursive: true });
-  const demo = await startDemoHub({ themes: (process.env.DEMO_THEMES ?? 'robot').split(',') });
+  const demo = await startDemoHub({ themes: (process.env.DEMO_THEMES ?? 'robot-line').split(',') });
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'pshot-'));
   const port = 9300 + Math.floor(Math.random() * 500);
   const child = spawn(browser, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
@@ -76,10 +85,11 @@ async function main() {
     for (const name of names) {
       const shot = SHOTS[name];
       if (!shot) throw new Error(`unknown shot ${name}: ${Object.keys(SHOTS).join(', ')}`);
+      await applyScene(demo.hub, shot.scene);
       await cdp.send('Page.navigate', { url: `http://127.0.0.1:${demo.hub.port}/` });
       await sleep(2500);                                          // the page connects, loads the theme images and draws
-      for (const step of shot) await runStep(cdp, step);
-      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      for (const step of shot.steps ?? []) await runStep(cdp, step);
+      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', ...(shot.clip ? { clip: { ...shot.clip, scale: 1 } } : {}) });
       const file = path.join(out, `page-${name}.png`);
       fs.writeFileSync(file, Buffer.from(data, 'base64'));
       console.log('wrote', file);
