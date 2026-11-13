@@ -35,7 +35,7 @@ Under the screen a line shows whether the relay reaches the gadget.
 - `needs_you` tiles are orange, `error` tiles red. The beeps follow the shared beeps setting (the bell chip cycles it).
 - Quotas and clock: once, in the bottom bar, with the pace colors of the screen. Tiles show the context fill, not the quotas.
 - Small tiles drop details through container queries: plan text first, then the command.
-- The hub keeps 12 sessions. `max_sessions` in the config file (or env `CLAUDE_GADGET_MAX_SESSIONS`, 1 to 32) raises it; the relayed device keeps its own limit.
+- The hub keeps 12 sessions. `max_sessions` in the config file (or env `AGENTSDASH_MAX_SESSIONS`, 1 to 32) raises it; the relayed device keeps its own limit.
 
 The hub binds to `127.0.0.1` only and has no authentication.
 
@@ -50,28 +50,28 @@ and sub-agents, then the quotas. It follows `GET /events` and reconnects when th
 
 ## Configuration
 
-`~/.claude/agent-gadget.json` (all keys optional) and environment variables:
+`~/.agentsdash/config.json` (all keys optional) and environment variables. The old `~/.claude/agent-gadget.json` and `CLAUDE_GADGET_*` names still work as a fallback for one major version. Other variables: `AGENTSDASH_CONFIG` (another file), `AGENTSDASH_HOME` (the `~/.agentsdash` folder), `AGENTSDASH_STATE_DIR` (settings, markers, quota history; default `<temp>/agentsdash`), `AGENTSDASH_THEME` (first theme to download).
 
 | Key | Default | Meaning |
 |---|---|---|
-| `host` | `127.0.0.1:8765` | Where the plugin sends events and where the hub listens (env `CLAUDE_GADGET_HOST`). |
+| `host` | `127.0.0.1:8765` | Where the plugin sends events and where the hub listens (env `AGENTSDASH_HOST`). |
 | `relay` | `{"mode":"none"}` | `{"mode":"http","host":"<gadget ip>"}` forwards events to a gadget over Wi-Fi; `{"mode":"serial","port":"COM3"}` over USB. |
-| `quotas` | `true` | Poll the 5-hour and weekly plan quotas (env `CLAUDE_GADGET_QUOTAS=0` turns it off). |
+| `quotas` | `true` | Read by the Claude plugin, not by the hub: poll the 5-hour and weekly plan quotas (env `AGENTSDASH_QUOTAS=0` turns it off). |
 | `context_window` | `1000000` | Context window used for the context estimate (tokens). |
-| `max_sessions` | `12` | Sessions the hub keeps (1 to 32, env `CLAUDE_GADGET_MAX_SESSIONS`). More than 5 only helps the `/hub` page. |
+| `max_sessions` | `12` | Sessions the hub keeps (1 to 32, env `AGENTSDASH_MAX_SESSIONS`). More than 5 only helps the `/hub` page. |
 
 ## Relay to a gadget (Wi-Fi)
 
 With `"relay": {"mode": "http", "host": "192.168.1.100"}` every event and usage report the hub accepts is forwarded
 unchanged to the gadget (`POST /event`, `POST /usage`). `GET /relay` shows the state (`ok`, `lastError`, `queued`).
 If the gadget is down, the hub keeps working and retries after 3 seconds (only the latest event per agent is kept).
-The gadget aborts a screen upload (`/tft`) on any other request: create the file `agent-gadget-tft.lock` in the temp
+The gadget aborts a screen upload (`/tft`) on any other request: create the file `agent-gadget-tft.lock` (old name, kept for the firmware tools) in the temp
 folder before uploading and delete it afterwards, and the relay sends nothing meanwhile.
 
 ## Choosing the device from the page
 
 The gear menu has a **Device** section: relay state, the choice (None, Wi-Fi host, USB port from a list), **Apply** and **Test**.
-Apply swaps the relay while the hub runs and writes the `relay` key of `~/.claude/agent-gadget.json` (the other keys stay).
+Apply swaps the relay while the hub runs and writes the `relay` key of the config file (the other keys stay).
 Test sends `GET /state` to the gadget (Wi-Fi) or reports the state of the open port (USB); it waits while a screen upload holds the lock file.
 
 - `POST /relay {"mode":"none"|"http"|"serial","host","port"}` validates and applies the choice; answers `{"ok":true,"saved":bool}`.
@@ -110,7 +110,9 @@ change and every second), `GET /health` and `GET /` (the page).
 - `model.mjs` state rules, a port of `model.cpp` (5 sessions, 12 sub-agents each, "needs you" first, TTLs, selection).
 - `relay_http.mjs`, `relay_serial.mjs` forward events to a gadget (Wi-Fi, USB); `relay_config.mjs` validates a relay chosen from the page.
 - `tui.mjs` terminal view.
-- `quotas.mjs` plan quota poller (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed).
+- `paths.mjs` names and folders: `AGENTSDASH_*` variables with the old names as fallback, config file, state folder, user folder.
+- The hub does not poll quotas: `plugin/scripts/quota_poller.mjs` (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed) posts them to `/usage`.
+- Release: a `v*` tag packs this folder (without `test/` and `tools/`) as `agentsdash-core-<version>.tar.gz` with a `.sha256` file; run it with `node hub.mjs` or point the hooks at it with `AGENTSDASH_CORE_DIR`.
 - `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `hub_page.js` wires SSE, taps, pages and beeps.
 
 ## Tests

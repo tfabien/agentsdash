@@ -53,6 +53,21 @@ test('docs_use_the_new_name', () => {
   }
 });
 
+test('docs_new_config_names', () => {
+  const read = (d) => fs.readFileSync(path.join(ROOT, d), 'utf8');
+  for (const d of ['README.md', 'plugin/hub/README.md']) {
+    assert.match(read(d), /~\/\.agentsdash\/config\.json/, `${d} names the new config file`);
+    assert.match(read(d), /AGENTSDASH_HOST/, `${d} names the new variables`);
+  }
+  // The old names may appear only on a line that says they are the old ones.
+  const OLD_NAMES = /CLAUDE_GADGET_|agent-gadget|\.claude\/standup-bot/;
+  const SAYS_OLD = /\b(old|fallback|formerly|legacy|renamed)\b/i;
+  const docs = ['README.md', 'INSTALL.md', 'CLAUDE.md', 'plugin/README.md', 'plugin/hub/README.md', 'docs/hub-themes.md', 'devices/README.md'];
+  const hits = [];
+  for (const d of docs) read(d).split('\n').forEach((line, i) => { if (OLD_NAMES.test(line) && !SAYS_OLD.test(line)) hits.push(`${d}:${i + 1}`); });
+  assert.deepEqual(hits, []);
+});
+
 test('saved_old_source_still_wins', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentsdash-name-'));
   const settingsFile = path.join(dir, 'hub-settings.json');

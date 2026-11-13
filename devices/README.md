@@ -10,7 +10,7 @@ the keyboard. Each device lives in its own folder here, with its firmware, its t
 ## What a device receives
 
 The hub (`plugin/hub/`) forwards what it receives from the plugin. Two links exist today, chosen with `relay` in
-`~/.claude/agent-gadget.json`:
+`~/.agentsdash/config.json`:
 
 | `relay` | Link | Device side |
 |---|---|---|
