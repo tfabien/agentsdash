@@ -49,9 +49,23 @@ Running the hub alone, updates and troubleshooting: [INSTALL.md](INSTALL.md).
 
 ## Goals
 
-1. **Follow my plans**: see at a glance how far each session is in its plan, and which step runs now.
-2. **Follow my agents**: see every session, its sub-agents and what each one is doing, like a stand-up meeting of the agents.
-3. **Know what needs my attention**: when an agent asks a question or waits for a permission, the screen turns orange and beeps, so I can work on something else without watching the terminal.
+Run several agents at once and stay productive, without watching every terminal.
+
+1. **Keep your focus**: start your agents, work on something else, and let the page tell you when one needs you.
+
+   A question or a permission prompt turns its tile orange and beeps, so no agent sits blocked for an hour without you noticing.
+
+2. **Know where every task stands**: one glance gives, for each session, the step that runs now, the steps done and the ones left.
+
+   No more scrolling a terminal to find out whether a plan is at step 2 or step 7.
+
+3. **Follow your agents at work**: every session, its sub-agents, what each one is doing, how much context it has used and how much of your quota is left.
+
+   Like a stand-up meeting of your agents, on one screen.
+
+4. **Get your answers faster**: the last reply of each agent is on its tile, and a finished session says so.
+
+   You come back to the right session at the right moment.
 
 ![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question, an error, a session is done](docs/images/tour.gif)
 
