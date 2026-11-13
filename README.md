@@ -124,6 +124,14 @@ The palette button of the bar opens the theme dialog: install themes from the ma
 
 Project rules (settings menu) give the sessions of some folders their own badge color or icon pack, for example a red badge on `prod-*` folders.
 
+A few of the themes of [agentsdash-themes](https://github.com/tfabien/agentsdash-themes), on the same four sessions:
+
+| robot | cat-minimal |
+|---|---|
+| ![The robot theme](docs/images/theme-robot.png) | ![The cat-minimal theme](docs/images/theme-cat-minimal.png) |
+| **fantasy-rpg** | **office-retro** |
+| ![The fantasy-rpg theme](docs/images/theme-fantasy-rpg.png) | ![The office-retro theme](docs/images/theme-office-retro.png) |
+
 agentsdash ships no theme: the hub downloads one at its first launch from [tfabien/agentsdash-themes](https://github.com/tfabien/agentsdash-themes), which holds the themes (robot, cat, lemmings, office, pirates, spelunky, yokai...), how to install them and the format to create your own.
 
 Hub side (folders, project rules, marketplace): [docs/hub-themes.md](docs/hub-themes.md).
@@ -158,6 +166,7 @@ The hub forwards every event to it (`relay` in `~/.agentsdash/config.json`), so 
 | Device | State | Link |
 |---|---|---|
 | ESP32 + the touchscreen of an Artillery X3 3D printer (TJC 4.3", 480x272) | works, Wi-Fi relay tested, USB relay written | [agentsdash-device-artillery-x3](https://github.com/tfabien/agentsdash-device-artillery-x3) |
+| A phone (iPhone or Android) as a PWA | idea, nothing built yet | [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) |
 
 More devices are welcome: [devices/README.md](devices/README.md) says what a device receives and how to add one.
 
@@ -169,7 +178,7 @@ devices/                   how to add an external screen (each device has its ow
 docs/                      protocol and device protocol ([protocol.md](docs/protocol.md), [device-protocol.md](docs/device-protocol.md)), theme notes, specs, plans, README images
 INSTALL.md                 running the hub, updates, troubleshooting
 
-Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-codex` (Codex adapter), `agentsdash-themes` (themes and icon packs), `agentsdash-device-artillery-x3` (ESP32 gadget).
+Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-codex` (Codex adapter), `agentsdash-themes` (themes and icon packs), `agentsdash-device-artillery-x3` (ESP32 gadget), `agentsdash-device-phone` (phone PWA, idea).
 ```
 
 Tests (no hardware): `node --test hub/test/*.test.mjs`.
@@ -183,7 +192,7 @@ Tracked as issues:
 - **One screen component for the page and the device.** The sessions hub tiles are HTML (`hub_page.js`, logic in `hub_view.js`), the full page is still one canvas (`screen.js`) ([issue #3](https://github.com/tfabien/agentsdash/issues/3)).
 - **Allow or deny a permission request from the screen.** A `PermissionRequest` hook can allow or deny, so the hook would wait for the hub ([issue #4](https://github.com/tfabien/agentsdash/issues/4)). A free choice among options needs another channel: no hook can inject an answer into a running `AskUserQuestion`.
 - **Reliable usage and quotas.** The usage endpoint returns 429 (backoff 15 minutes), numbers can be stale, and the context estimate from transcripts assumes a 1M window ([issue #6](https://github.com/tfabien/agentsdash/issues/6)).
-- **Phone companion** (iPhone, Android) with hub discovery ([issue #1](https://github.com/tfabien/agentsdash/issues/1)).
+- **Phone as a device** (a PWA for iPhone and Android, with hub discovery): a project of its own, [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) (idea and open questions, [issue #1](https://github.com/tfabien/agentsdash-device-phone/issues/1)).
 
 Adapters:
 
