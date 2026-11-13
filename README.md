@@ -1,9 +1,53 @@
 # agentsdash
 
-(Formerly called standup-bot.)
+One page that shows what your coding agents are doing.
 
-An agent dashboard for Claude Code. One page shows every session, every sub-agent and what each one is doing, how far
-each plan has come, and which agent waits for you. It makes the daily work with Claude Code easier. It has three goals:
+Every session, every sub-agent, how far each plan has come, and which agent is waiting for you.
+
+It works with **Claude Code** and **Codex**, in your browser, with nothing to buy and nothing to flash.
+
+## Install
+
+**Claude Code**: paste this in any session.
+
+```text
+Install agentsdash by following https://raw.githubusercontent.com/tfabien/agentsdash-claude/main/INSTALL.md
+```
+
+Or by hand (Node.js 18 or later):
+
+```bash
+claude plugin marketplace add tfabien/agentsdash-claude
+claude plugin install agentsdash@agentsdash --scope user
+```
+
+**Codex**: paste this in a Codex session.
+
+```text
+Install agentsdash for Codex by following https://raw.githubusercontent.com/tfabien/agentsdash-codex/main/INSTALL.md
+```
+
+Or by hand:
+
+```bash
+git clone https://github.com/tfabien/agentsdash-codex
+node agentsdash-codex/scripts/install_codex_hooks.mjs --write
+```
+
+Then run `/hooks` in Codex once and trust the new hooks.
+
+**Then**: start a new session (hooks load when a session starts) and open **<http://127.0.0.1:8765/>**.
+
+You install an adapter, never this repository: the adapter downloads the hub by itself on first use (a release of this repository, sha256 checked, into `~/.agentsdash/core/<version>/`).
+
+| Agent | Adapter |
+|---|---|
+| Claude Code | [tfabien/agentsdash-claude](https://github.com/tfabien/agentsdash-claude) |
+| Codex | [tfabien/agentsdash-codex](https://github.com/tfabien/agentsdash-codex) (first version: states, tools, questions, plan; no tokens yet) |
+
+Running the hub alone, updates and troubleshooting: [INSTALL.md](INSTALL.md).
+
+## Goals
 
 1. **Follow my plans**: see at a glance how far each session is in its plan, and which step runs now.
 2. **Follow my agents**: see every session, its sub-agents and what each one is doing, like a stand-up meeting of the agents.
@@ -11,30 +55,15 @@ each plan has come, and which agent waits for you. It makes the daily work with 
 
 ![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question, an error, a session is done](docs/images/tour.gif)
 
-It is a small Node.js server (the hub, this repository) that draws the screen **in your browser**, fed by adapters that watch your agents (Claude Code and Codex). Nothing to buy, nothing to flash.
+The hub in this repository is a small Node.js server that draws the screen **in your browser**, fed by adapters that watch your agents.
+
 An external screen (an ESP32 gadget, a USB display) is a bonus, see [Devices](#devices-optional).
-
-## Install
-
-You install an adapter; it downloads this hub by itself on first use (a release of this repository, sha256 checked, into `~/.agentsdash/core/<version>/`).
-
-| Agent | Adapter |
-|---|---|
-| Claude Code | [tfabien/agentsdash-claude](https://github.com/tfabien/agentsdash-claude) |
-| Codex | [tfabien/agentsdash-codex](https://github.com/tfabien/agentsdash-codex) (first version: states, tools, questions, plan; no tokens yet) |
-
-For Claude Code, paste this in any session:
-
-```text
-Install agentsdash by following https://raw.githubusercontent.com/tfabien/agentsdash-claude/main/INSTALL.md
-```
-
-Then **start a new Claude Code session** (hooks load when a session starts) and open **<http://127.0.0.1:8765/>**. Node.js 18 or later is needed.
-Running the hub alone, updates and troubleshooting: [INSTALL.md](INSTALL.md).
 
 ## What you see
 
-The page is a grid with one tile per session. Each tile is drawn like the screen of the gadget, as vectors at the resolution of your display.
+The page is a grid with one tile per session.
+
+Each tile is drawn like the screen of the gadget, as vectors at the resolution of your display.
 The screenshots below are taken from the real page, fed with made-up sessions (`node hub/tools/page_screenshots.mjs`).
 
 ### Sessions hub: all sessions at once
@@ -88,9 +117,13 @@ Click a sub-agent row: the panel shows its state, tokens and full command. BACK 
 
 ### Themes
 
-The palette button of the bar opens the theme dialog: install themes from the marketplace, apply one, edit its colors, tick the looks agents are drawn with, or save your own theme. Project rules (settings menu) give the sessions of some folders their own badge color or icon pack, for example a red badge on `prod-*` folders.
+The palette button of the bar opens the theme dialog: install themes from the marketplace, apply one, edit its colors, tick the looks agents are drawn with, or save your own theme.
 
-agentsdash ships no theme: the hub downloads one at its first launch from [tfabien/agentsdash-themes](https://github.com/tfabien/agentsdash-themes), which holds the themes (robot, cat, lemmings, office, pirates, spelunky, yokai...), how to install them and the format to create your own. Hub side (folders, project rules, marketplace): [docs/hub-themes.md](docs/hub-themes.md).
+Project rules (settings menu) give the sessions of some folders their own badge color or icon pack, for example a red badge on `prod-*` folders.
+
+agentsdash ships no theme: the hub downloads one at its first launch from [tfabien/agentsdash-themes](https://github.com/tfabien/agentsdash-themes), which holds the themes (robot, cat, lemmings, office, pirates, spelunky, yokai...), how to install them and the format to create your own.
+
+Hub side (folders, project rules, marketplace): [docs/hub-themes.md](docs/hub-themes.md).
 
 ## How it works
 
@@ -104,14 +137,20 @@ adapter (status line, quota poller) --POST /usage-->  |
 - The **hub** (`hub/`) starts with your first session, keeps the state of all sessions and serves the page. It listens on `127.0.0.1` only. Adapters post the plan quotas to it.
 - A **device** (`devices/`) gets the same events from the hub and shows the same screen on real hardware.
 
-Privacy: prompts, commands and file paths are shown on the page, on your computer only. Set `AGENTSDASH_MASK=1` to send only tool names.
+Privacy: prompts, commands and file paths are shown on the page, on your computer only.
+
+Set `AGENTSDASH_MASK=1` to send only tool names.
 
 Options (host, sessions kept, relay) live in `~/.agentsdash/config.json` or in variables such as `AGENTSDASH_HOST`, see [hub/README.md](hub/README.md#configuration).
 
 ## Devices (optional)
 
-The browser is the main way to use agentsdash. A device is a bonus: a physical screen next to the keyboard that shows the same
-thing, with its own buzzer. The hub forwards every event to it (`relay` in `~/.agentsdash/config.json`), so page and device always agree.
+The browser is the main way to use agentsdash.
+
+A device is a bonus: a physical screen next to the keyboard that shows the same
+thing, with its own buzzer.
+
+The hub forwards every event to it (`relay` in `~/.agentsdash/config.json`), so page and device always agree.
 
 | Device | State | Link |
 |---|---|---|
@@ -130,7 +169,9 @@ INSTALL.md                 running the hub, updates, troubleshooting
 Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-codex` (Codex adapter), `agentsdash-themes` (themes and icon packs), `agentsdash-device-artillery-x3` (ESP32 gadget).
 ```
 
-Tests (no hardware): `node --test hub/test/*.test.mjs`. Docs: [hub/README.md](hub/README.md) (hub, configuration, API, relays).
+Tests (no hardware): `node --test hub/test/*.test.mjs`.
+
+Docs: [hub/README.md](hub/README.md) (hub, configuration, API, relays).
 
 ## TODO (known and not fixed)
 
