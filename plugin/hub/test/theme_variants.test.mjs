@@ -65,3 +65,48 @@ test('toHex_reads_hex_and_rgb_css_colors', () => {
   assert.equal(toHex('rgb(255,0,16)'), '#ff0010');
   assert.equal(toHex('nonsense'), '#000000');
 });
+
+import { activeLooks } from '../web/theme_schema.js';
+const withLooks = { name: 'lk', colors: {}, looks: { a: { label: 'A' }, b: { label: 'B', sprite: 2, accent: '#FF0000' }, c: { sprite: 3 } }, defaultLooks: ['a', 'b', 'ghost'] };
+
+test('validateTheme_keeps_looks_and_default_looks', () => {
+  const t = validateTheme(withLooks).theme;
+  assert.deepEqual(t.looks.b, { label: 'B', sprite: 2, accent: '#ff0000' });
+  assert.deepEqual(t.looks.a, { label: 'A', sprite: null, accent: '' });
+  assert.equal(t.looks.c.label, 'c');
+});
+
+test('validateTheme_default_looks_keep_only_existing_keys', () => {
+  assert.deepEqual(validateTheme(withLooks).theme.defaultLooks, ['a', 'b']);
+});
+
+test('validateTheme_drops_bad_look_fields_and_lists_them', () => {
+  const r = validateTheme({ name: 'lk', colors: {}, looks: { x: { sprite: 0, accent: 'red' }, y: { sprite: 100 }, z: { sprite: 1.5 }, w: { sprite: '2' }, 'Bad Key': {}, n: null } });
+  assert.ok(r.ok);
+  assert.deepEqual(Object.keys(r.theme.looks).sort(), ['w', 'x', 'y', 'z']);
+  assert.ok(Object.values(r.theme.looks).every((l) => l.sprite === null && l.accent === ''));
+  for (const k of ['looks.x.sprite', 'looks.x.accent', 'looks.y.sprite', 'looks.Bad Key', 'looks.n']) assert.ok(r.ignored.includes(k), k);
+});
+
+test('validateTheme_caps_looks_at_12', () => {
+  const looks = Object.fromEntries(Array.from({ length: 15 }, (_, i) => [`l${i}`, {}]));
+  assert.equal(Object.keys(validateTheme({ name: 'lk', colors: {}, looks }).theme.looks).length, 12);
+});
+
+test('activeLooks_prefers_chosen_then_default_then_all', () => {
+  const t = validateTheme(withLooks).theme;
+  assert.deepEqual(activeLooks(t, ['c']).map((l) => l.key), ['c']);
+  assert.deepEqual(activeLooks(t, ['b', 'a']).map((l) => l.key), ['a', 'b'], 'declaration order');
+  assert.deepEqual(activeLooks(t).map((l) => l.key), ['a', 'b']);
+  assert.deepEqual(activeLooks(validateTheme({ ...withLooks, defaultLooks: undefined }).theme).map((l) => l.key), ['a', 'b', 'c']);
+});
+
+test('activeLooks_ignores_unknown_chosen_keys', () => {
+  const t = validateTheme(withLooks).theme;
+  assert.deepEqual(activeLooks(t, ['ghost']).map((l) => l.key), ['a', 'b']);
+  assert.deepEqual(activeLooks(t, []).map((l) => l.key), ['a', 'b']);
+});
+
+test('activeLooks_is_empty_without_looks', () => {
+  assert.deepEqual(activeLooks(validateTheme({ name: 'x', colors: {} }).theme), []);
+});

@@ -12,6 +12,7 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 const NAME = /^[a-z0-9-]{1,32}$/;
 const DEFAULT_PACK = 'robot';
 const MAX_VARIANTS = 12;
+const MAX_LOOKS = 12;
 
 /**
  * Checks a theme loaded from outside (a file, a POST).
@@ -33,10 +34,22 @@ export function validateTheme(raw) {
       variants[vname] = { label: typeof v.label === 'string' && v.label.trim() ? v.label.trim().slice(0, 32) : vname, colors: vp.colors, accent: vp.accent ?? '' };
     }
   }
+  const looks = {};
+  if (raw.looks && typeof raw.looks === 'object' && !Array.isArray(raw.looks)) {
+    for (const [lname, l] of Object.entries(raw.looks)) {
+      if (!NAME.test(lname) || !l || typeof l !== 'object' || Array.isArray(l) || Object.keys(looks).length >= MAX_LOOKS) { ignored.push(`looks.${lname}`); continue; }
+      const sprite = Number.isInteger(l.sprite) && l.sprite >= 1 && l.sprite <= 99 ? l.sprite : null;
+      if (l.sprite !== undefined && sprite === null) ignored.push(`looks.${lname}.sprite`);
+      const accent = typeof l.accent === 'string' && HEX.test(l.accent) ? l.accent.toLowerCase() : '';
+      if (l.accent !== undefined && !accent) ignored.push(`looks.${lname}.accent`);
+      looks[lname] = { label: typeof l.label === 'string' && l.label.trim() ? l.label.trim().slice(0, 32) : lname, sprite, accent };
+    }
+  }
+  const defaultLooks = Array.isArray(raw.defaultLooks) ? raw.defaultLooks.filter((k) => typeof k === 'string' && k in looks) : [];
   const pack = typeof raw.iconPack === 'string' && NAME.test(raw.iconPack) ? raw.iconPack : DEFAULT_PACK;
   const description = typeof raw.description === 'string' ? raw.description.trim().slice(0, 200) : '';
   const keywords = Array.isArray(raw.keywords) ? raw.keywords.filter((k) => typeof k === 'string' && k.trim()).map((k) => k.trim().slice(0, 24)).slice(0, 8) : [];
-  return { ok: true, ignored, theme: { name: raw.name, label: typeof raw.label === 'string' ? raw.label : raw.name, description, keywords, author: String(raw.author ?? ''), version: String(raw.version ?? ''), iconPack: pack, colors: part.colors, accent: part.accent ?? '', variants } };
+  return { ok: true, ignored, theme: { name: raw.name, label: typeof raw.label === 'string' ? raw.label : raw.name, description, keywords, author: String(raw.author ?? ''), version: String(raw.version ?? ''), iconPack: pack, colors: part.colors, accent: part.accent ?? '', variants, looks, defaultLooks } };
 }
 
 /**
@@ -67,6 +80,18 @@ export function resolvePalette(theme, variantKey, override) {
   const colors = { ...theme.colors, ...(v?.colors ?? {}), ...(override?.colors ?? {}) };
   const accent = override?.accent || v?.accent || theme.accent || '';
   return { colors, accent };
+}
+
+/**
+ * The looks agents are drawn with, in declaration order: the `chosen` keys when they name an existing look, else the theme's `defaultLooks`, else all of them.
+ * @returns {{key: string, sprite: number|null, accent: string}[]} empty when the theme has no looks
+ */
+export function activeLooks(theme, chosen) {
+  const all = Object.entries(theme.looks ?? {});
+  if (!all.length) return [];
+  const pick = (keys) => (Array.isArray(keys) ? all.filter(([k]) => keys.includes(k)) : []);
+  const found = pick(chosen).length ? pick(chosen) : pick(theme.defaultLooks).length ? pick(theme.defaultLooks) : all;
+  return found.map(([key, l]) => ({ key, sprite: l.sprite, accent: l.accent }));
 }
 
 /** Hue of a `#rrggbb` color in degrees (0..359), 0 for greys. */
