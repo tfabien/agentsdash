@@ -126,6 +126,8 @@ node --test hub/test/*.test.mjs
 
 A phone on the same Wi-Fi can show the page full screen, read-only.
 
+Shortcut: `node pair.mjs` (in the hub folder, `~/.agentsdash/core/<version>/`) does steps 1 and 2: it turns LAN access on, restarts the hub and prints the address and a QR code in the terminal.
+
 1. Turn LAN access on: `"lan": {"enabled": true}` in `~/.agentsdash/config.json`, or start the hub with `AGENTSDASH_LAN=1`, then restart it. The hub then listens on `0.0.0.0` (`lan.bind` picks one address).
 2. Open the page on the PC, click the Device button (plug icon): the Phone section shows a QR code. The terminal view prints the same address.
 3. Scan it with the phone camera. The phone opens `/phone` and keeps a cookie.
