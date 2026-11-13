@@ -217,6 +217,16 @@ function imageFor(url) {
   }
   return img;
 }
+let looks = [];                                              // the active looks of the applied theme: [{ key, sprite, accent }]
+/** Sets the looks agents are drawn with (see activeLooks in theme_schema.js). An empty list clears them. */
+export function setLooks(list) { looks = Array.isArray(list) ? list : []; }
+/** The looks set by `setLooks`. */
+export const currentLooks = () => looks;
+/** The look of an agent: the same hash as `variantKey`, so one agent keeps its look. `null` without looks, the first look without an agent id. */
+export function lookFor(list, agentId) {
+  if (!list.length) return null;
+  return agentId ? list[hashOf(String(agentId)) % list.length] : list[0];
+}
 let accent = '';                                             // `#rrggbb` icon tint of the applied theme, '' for none
 /** Sets the icon accent (see themes.js). Packs with tint mode `svg` or `hue` draw with it; `none` packs ignore it. */
 export function setAccent(hex) { accent = typeof hex === 'string' ? hex : ''; }
@@ -291,7 +301,12 @@ const ready = (img) => !!img && img.complete !== false && (img.naturalWidth === 
 const hashOf = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
 
 /** The file key of a role for an agent: `lead`, `lead-2`... picked by the agent id among the variants the pack has (the first one without an id). */
-export function variantKey(roles, key, agentId) {
+export function variantKey(roles, key, agentId, sprite) {
+  if (sprite) {                                              // a look names the sprite: 1 is the unnumbered file, n is `<key>-n` (the unnumbered file when the role has no such number)
+    const named = sprite === 1 ? key : `${key}-${sprite}`;
+    if (roles[named]) return named;
+    if (roles[key]) return key;
+  }
   const keys = Object.keys(roles).filter((k) => k === key || (k.startsWith(`${key}-`) && /^\d+$/.test(k.slice(key.length + 1))));
   keys.sort((a, b) => (Number(a.slice(key.length + 1)) || 1) - (Number(b.slice(key.length + 1)) || 1));
   if (!keys.length) return key;
@@ -303,14 +318,16 @@ export function svgPack(name, roles, { tint = 'none', hue = 0 } = {}) {
   return {
     label: name.charAt(0).toUpperCase() + name.slice(1),
     draw(ctx, role, blink, agentId) {
-      const key = variantKey(roles, ROLE_KEYS[role], agentId);
+      const look = lookFor(looks, agentId);
+      const key = variantKey(roles, ROLE_KEYS[role], agentId, look?.sprite);
+      const tone = look?.accent || accent;                          // the look's accent, else the theme's
       const plain = roles[key];
       const blinkUrl = roles[`${key}-blink`];
       const url = (blink && blinkUrl) || plain;
       if (!url) { drawRobot(ctx, role, blink); return; }            // the pack has no file for this role
       if (!blink && blinkUrl && !ANIMATED.test(blinkUrl)) imageFor(blinkUrl);   // load the blink frame early: no gap when the eyes close
       // The blink frame or the animation not ready yet: show the plain icon, never another character (no flash of the robot).
-      const shift = tint === 'hue' && accent ? (hueOf(accent) - hue + 360) % 360 : 0;
+      const shift = tint === 'hue' && tone ? (hueOf(tone) - hue + 360) % 360 : 0;
       const paint = (image) => {                                      // hue mode: the whole picture, every animation frame included, goes through a hue rotation
         if (shift) { ctx.save(); ctx.filter = `hue-rotate(${shift}deg)`; ctx.drawImage(image, 0, 0, ICON_W, ICON_H); ctx.restore(); } else ctx.drawImage(image, 0, 0, ICON_W, ICON_H);
       };
@@ -319,8 +336,8 @@ export function svgPack(name, roles, { tint = 'none', hue = 0 } = {}) {
           const frame = animatedFrame(u);
           if (frame && frame !== 'loading') { paint(frame); tick(); return; }
         }
-        if (tint === 'svg' && accent && /\.svg$/i.test(u)) {              // not tinted yet: draw nothing (the untinted file would be black), the page redraws when it loads
-          const colored = tintedImage(u, accent);
+        if (tint === 'svg' && tone && /\.svg$/i.test(u)) {              // not tinted yet: draw nothing (the untinted file would be black), the page redraws when it loads
+          const colored = tintedImage(u, tone);
           if (ready(colored)) { paint(colored); return; }
           continue;
         }
