@@ -3,11 +3,11 @@
 import { bestLayout, orderSessions, paginate, autoCapacity, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
-import { TILES_MAX } from './settings.js';
+import { TILES_MAX, postSettings } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
-import { applyTheme, setCatalog } from './themes.js';
+import { applyTheme, setCatalog, listThemes } from './themes.js';
 import { onIconsLoaded } from './icon_packs.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -171,14 +171,34 @@ function draw() {
   }
 }
 
-const footer = mountFooter($('bar'), $('stage'));
+// Live preview of a theme: the agents take its colors and icons, nothing is saved. Apply saves it; Exit, Escape or another page changing the
+// saved theme ends the preview.
+let previewName = null;
+let savedTheme = 'default';
+const previewBar = $('previewbar');
+function setPreview(name) {
+  previewName = name;
+  applyTheme(name ?? savedTheme);
+  previewBar.hidden = !name;
+  if (name) {
+    const label = listThemes().find((t) => t.name === name)?.label ?? name;
+    const apply = el('button', 'chip', 'Apply');
+    apply.onclick = () => { postSettings({ theme: name }); setPreview(null); };
+    const exit = el('button', 'chip', 'Exit');
+    exit.onclick = () => setPreview(null);
+    previewBar.replaceChildren(el('span', '', `Previewing ${label}`), apply, exit);
+  }
+  render();
+}
+const footer = mountFooter($('bar'), $('stage'), { onPreview: setPreview });
 
 // Pages: the sessions run in order (first seen first, idle ones last) and are cut into pages of `capacity()` cells. Arrows, dots, swipes and the
 // left and right keys turn the page; a dot is orange or red when a session on that page needs you or failed.
 const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager');
 function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && focus && !e.defaultPrevented) { focus = null; render(); }
+  if (e.key === 'Escape' && previewName && !e.defaultPrevented) setPreview(null);
+  else if (e.key === 'Escape' && focus && !e.defaultPrevented) { focus = null; render(); }
 });
 prevBtn.onclick = () => goto(page - 1);
 nextBtn.onclick = () => goto(page + 1);
@@ -266,7 +286,9 @@ function render() {
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
   if (next.catalog) setCatalog(next.catalog);
-  applyTheme(next.settings?.theme);
+  if (previewName && next.settings?.theme !== savedTheme) { previewName = null; previewBar.hidden = true; }     // another page chose a theme
+  savedTheme = next.settings?.theme ?? 'default';
+  applyTheme(previewName ?? savedTheme);
   footer.settings.update(next.settings ?? {}, next.catalog);
   const now = countStates(next.sessions);
   const times = beepsFor(counts, now, sound);
