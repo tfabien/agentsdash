@@ -104,8 +104,8 @@ function tileFor(s, part = 'lead') {
   }
   t.box.classList.toggle('stale', !!s.stale);
   t.box.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false);
-  const rate = part === 'lead' ? rateLevel(s, state.usage, state.settings) : null;      // glow and readout follow the token rate of the session
-  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}${rate ? ` rate-${rate.level}` : ''}`;
+  const rate = part === 'lead' ? rateLevel(s, state.usage, state.settings) : null;      // the readout shows the token rate of the session
+  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
   const tag = t.box.querySelector('.rate-tag');
   if (tag) { tag.textContent = rate ? rate.label : ''; tag.hidden = !rate; }
   return t;
@@ -167,7 +167,9 @@ function drawTile(s, t) {
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
-  t.screen.begin(scale * (window.devicePixelRatio || 1), FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
+  const hot = rateLevel(s, state.usage, state.settings)?.level ?? 0;                  // a session that burns many tokens pulses in the theme's warning (orange) or error (red) color
+  const pulseRgb = hot === 2 ? rgb565(COLOR.ERROR) : hot === 1 ? rgb565(COLOR.NEEDS) : PULSE_RGB;
+  t.screen.begin(scale * (window.devicePixelRatio || 1), FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, pulseRgb, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
     bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, elapsedS: elapsed(), menu: false, back: Boolean(focus), detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
