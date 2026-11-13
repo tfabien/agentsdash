@@ -3,6 +3,7 @@
 import { relayLabel } from './format.js';
 import { icon } from './icons.js';
 import { validRules } from './rules.js';
+import { createPhoneSection } from './phone_section.js';
 
 export const TILES_MIN = 0, TILES_MAX = 12;          // tiles per page; 0 is Auto (what fits the window)
 
@@ -212,7 +213,9 @@ export function createDeviceMenu() {
   button.setAttribute('aria-label', 'Device');
   const panel = el('div', 'vpanel');
   const device = createDeviceSection();
-  panel.append(device.node);
+  const phone = createPhoneSection();
+  panel.append(device.node, phone.node);
+  button.addEventListener('click', () => phone.refresh());       // the address can change with the network
   let shown = '';
 
   return {

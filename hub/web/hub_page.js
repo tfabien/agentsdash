@@ -1,6 +1,6 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic (order, pages, grid shape) is in hub_view.js, the beep rule in alerts.js.
-import { bestLayout, orderSessions, paginate, autoCapacity, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
+import { bestLayout, fillLastRow, orderSessions, paginate, autoCapacity, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
 import { TILES_MAX, postSettings } from './settings.js';
@@ -19,7 +19,8 @@ const FRAME = { x: 6, y: 30, w: 472, h: 216 };      // the part of the 480x272 s
 const DETAIL_MS = 10000;                              // a tapped plan step stays open 10 s
 const FLASH_MS = 900;                                 // a tile's frame pulses once when something happens in its session
 const MAX_SCALE = 1.5;                                // a lone session on a big screen stops growing at 1.5x the gadget size (708 px wide)
-const STRETCH = 1.8;                                  // a tile frame may be up to 1.8 times wider than the gadget's: the panels grow, nothing is stretched
+const STRETCH = 2.2;                                  // a tile frame may be up to 2.2 times wider than the gadget's: the panels grow, nothing is stretched (a double width tile needs it)
+const STRETCH_H = 2;                                  // and up to 2 times taller: a lone session gets more lines for its prompt and command
 const FRAME_MS = 100;                                // redraw rate of the single page: the plan pulse runs on 100 ms phases
 
 const cache = createSessionCache(globalThis.localStorage);   // sessions survive a hub restart (stale until the hub confirms them)
@@ -31,6 +32,7 @@ let page = 0, pages = [], current = [];               // the page shown, all pag
 let focus = null;                                      // session id shown full screen (tap on a tile, BACK or Esc returns), null in the grid
 let expandable = false;                                // a tap can expand only when the grid shows several cells
 const FOCUS_SCALE = 3;                                 // a full-screen session may grow up to 3x the gadget size
+const PHONE = document.documentElement.dataset.mode === 'phone';   // phone page: one session per page, its team stacked under it
 const maxScale = () => (focus ? FOCUS_SCALE : MAX_SCALE);
 const SWIPE_PX = 50;                                  // a horizontal swipe of 50 px or more turns the page
 const seen = new Map();                               // session id -> rank of its first appearance, the order of the grid
@@ -56,6 +58,7 @@ function flashChanged(next) {
 
 /** Cells per page: the setting (1 to 12; 1 shows one session at a time), or, when it is 0 (Auto), what fits the window. */
 function capacity() {
+  if (PHONE) return 1;
   const n = maxParam || state.settings?.max_tiles || 0;
   if (n) return Math.min(TILES_MAX, Math.max(1, n));
   const grid = $('tiles');
@@ -103,7 +106,7 @@ function tileFor(s, part = 'lead') {
 }
 
 /** Which side a tile is welded on: the lead of a session with sub-agents touches its team on the right, the team touches its lead on the left. */
-const weldOf = (t) => (t.session && hasTeam(t.session) ? (t.part === 'team' ? 'left' : 'right') : '');
+const weldOf = (t) => (!PHONE && t.session && hasTeam(t.session) ? (t.part === 'team' ? 'left' : 'right') : '');
 
 /** The canvas takes the largest size of the frame's aspect ratio that fits its cell, at the pixel ratio of the display. */
 function fit(t) {
@@ -112,7 +115,8 @@ function fit(t) {
   if (!bw || !bh) return 0;
   const k = Math.min(bw / FRAME.w, bh / FRAME.h, maxScale());            // one scale for both axes: text keeps its shape
   const fw = Math.min(bw / k, FRAME.w * STRETCH);                       // a wider cell gets a wider frame (more room in the panels) up to STRETCH
-  const w = Math.max(1, Math.round(fw * k * dpr)), h = Math.max(1, Math.round(FRAME.h * k * dpr));
+  const fh = Math.min(bh / k, FRAME.h * STRETCH_H);                     // a taller cell gets a taller frame (more lines for the prompt and the command), up to STRETCH_H
+  const w = Math.max(1, Math.round(fw * k * dpr)), h = Math.max(1, Math.round(fh * k * dpr));
   if (t.canvas.width !== w || t.canvas.height !== h) { t.canvas.width = w; t.canvas.height = h; }
   t.canvas.style.width = `${w / dpr}px`;               // one canvas pixel per device pixel: no resampling, the frame stays even on every side
   t.canvas.style.height = `${h / dpr}px`;
@@ -122,6 +126,7 @@ function fit(t) {
   t.box.style.setProperty('--trash-y', `${(bh - h / dpr) / 2 + 10}px`);
   if (t.box.parentElement?.classList.contains('group')) t.box.parentElement.style.setProperty('--link-y', `${(bh - h / dpr) / 2 + 16}px`);   // the chip on the seam stays inside the frames, not at the bottom of the cell
   t.frameW = fw;
+  t.frameH = Math.max(FRAME.h, fh);
   return k;
 }
 
@@ -130,10 +135,10 @@ function tap(t, e) {
   const s = t.session;
   if (!s) return;
   const box = t.canvas.getBoundingClientRect();
-  const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * FRAME.h) / box.height;
+  const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * (t.frameH ?? FRAME.h)) / box.height;
   const lead0 = tiles.get(s.id) ?? t;
   const detailOpen = Boolean(lead0.detail && s.agents.some((a) => a.id === lead0.detail.agent));
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, detailOpen, back: Boolean(focus) });
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, back: Boolean(focus) });
   const until = Date.now() + DETAIL_MS;
   const lead = tiles.get(s.id) ?? t;                      // the agent opened from the team tile shows in the lead tile, which owns the detail
   if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
@@ -156,9 +161,9 @@ function drawTile(s, t) {
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
-  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t));
+  t.screen.begin(scale, FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
-    bare: true, part: t.part, frameW: t.frameW, elapsedS: elapsed(), menu: false, back: Boolean(focus), detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
+    bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, elapsedS: elapsed(), menu: false, back: Boolean(focus), detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
 }
 
@@ -278,11 +283,14 @@ function render() {
   if (!focused) page = Math.max(0, Math.min(page, pages.length - 1));                  // the grid page is kept while a session is full screen
   current = pages[focused ? 0 : page] ?? [];
   const grid = $('tiles');
-  const { cols, rows } = bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * maxScale(), STRETCH);   // a team is 2 columns wide
+  const { cols, rows } = PHONE ? { cols: 1, rows: Math.max(1, current.reduce((n, s) => n + cellsOf(s), 0)) }
+    : bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, FRAME.w / FRAME.h, 12, FRAME.w * maxScale(), STRETCH);   // a team is 2 columns wide
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);
-  const nodes = current.map((s) => {
+  const spans = PHONE ? [] : fillLastRow(current.map(cellsOf), cols);                 // the last tile fills the free columns of the last row
+  const nodes = current.map((s, i) => {
     const lead = tileFor(s, 'lead').box;
+    lead.style.gridColumn = !hasTeam(s) && spans[i] > 1 ? `span ${spans[i]}` : '';
     return hasTeam(s) ? groupFor(s, lead, tileFor(s, 'team').box) : lead;
   });
   for (const key of [...tiles.keys()]) {

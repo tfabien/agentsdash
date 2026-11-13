@@ -1,0 +1,11 @@
+/* Phone mode: the page is a read-only viewer. Controls stay in the DOM (hub_page.js expects them) but are hidden;
+   the hub also refuses every write from a LAN client. */
+html[data-mode="phone"] #bar, html[data-mode="phone"] .tile .trash { display: none !important; }
+html[data-mode="phone"] body { padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); gap: 8px; overflow-x: hidden; }
+#hub-down { position: fixed; top: 0; left: 0; right: 0; z-index: 10; padding: calc(6px + env(safe-area-inset-top)) 10px 6px; text-align: center;
+  font-size: 13px; color: #fff; background: var(--error); }
+#hub-down[hidden] { display: none; }
+/* A session and its team: one column, the team under the lead (the seam chip sits between them). */
+html[data-mode="phone"] .group { grid-column: span 1; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+html[data-mode="phone"] .group .tile[data-part] { justify-content: center; }
+html[data-mode="phone"] .group .link { top: 50%; bottom: auto; transform: translate(-50%, -50%); }

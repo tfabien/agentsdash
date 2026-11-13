@@ -20,7 +20,13 @@ export function loadConfig(file = defaultConfigPath(), env = process.env) {
   const window = Number.isInteger(data.context_window) && data.context_window > 0 ? data.context_window : 1000000;
   const wanted = Number(envVar('MAX_SESSIONS', env) ?? data.max_sessions);
   const maxSessions = Number.isInteger(wanted) && wanted >= 1 && wanted <= 32 ? wanted : 12;
+  const lanData = data.lan && typeof data.lan === 'object' && !Array.isArray(data.lan) ? data.lan : {};
+  const lan = {
+    enabled: ['1', 'true'].includes(envVar('LAN', env)) || lanData.enabled === true,
+    bind: typeof lanData.bind === 'string' && lanData.bind ? lanData.bind : '0.0.0.0',
+  };
   return {
+    lan,
     host: envVar('HOST', env) || (typeof data.host === 'string' && data.host) || DEFAULT_HOST,
     relay,
     context_window: window,

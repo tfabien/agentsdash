@@ -26,6 +26,7 @@ function drawRobot(ctx, role, x, y, k, blink, packName, agentId) {
 export function createVectorScreen(canvas, { bare = false } = {}) {
   const ctx = canvas.getContext('2d');
   let frameW = 472;                                    // width of a hub tile's frame in screen units: 472, or more when the cell is wide (the panels grow, nothing is stretched)
+  let frameH = 216;                                    // height of a hub tile's frame in units: 216, or more when the cell is tall (more lines of text)
   let join = '';                                       // 'right' or 'left': the tile is welded to its team or lead on that side, so that side's corners are square
   let frameRgb = null;                                 // [r, g, b] of the frame when a hub tile tints it (alert, pulse); null: the usual colour
 
@@ -37,10 +38,10 @@ export function createVectorScreen(canvas, { bare = false } = {}) {
 
   function drawBackground() {
     // A hub tile (bare) is the frame alone, as wide on the right as on the left, over a transparent canvas.
-    if (bare) { path(6, 30, frameW, 216, join === 'right' ? [7, 0, 0, 7] : join === 'left' ? [0, 7, 7, 0] : 7); ctx.fillStyle = frameCss(); ctx.fill(); }
+    if (bare) { path(6, 30, frameW, frameH, join === 'right' ? [7, 0, 0, 7] : join === 'left' ? [0, 7, 7, 0] : 7); ctx.fillStyle = frameCss(); ctx.fill(); }
     else { rect(0, 0, 480, 272, 0, css(COLOR.BAR)); rect(6, 30, 468, 216, 7, frameCss()); }
-    rect(12, 36, 150, 204, 6, css(COLOR.PANEL));
-    rect(170, 36, bare ? frameW - 170 : 302, 204, 6, css(COLOR.PANEL));
+    rect(12, 36, 150, frameH - 12, 6, css(COLOR.PANEL));
+    rect(170, 36, bare ? frameW - 170 : 302, frameH - 12, 6, css(COLOR.PANEL));
   }
 
   const font = (id) => { ctx.font = FONT[id]; };
@@ -49,10 +50,11 @@ export function createVectorScreen(canvas, { bare = false } = {}) {
 
   return {
     /** `origin`: top left corner of the part of the 480x272 screen the canvas shows (a tile shows the frame only). */
-    begin(scale, origin = { x: 0, y: 0 }, frame = null, width = 472, weld = '') {
+    begin(scale, origin = { x: 0, y: 0 }, frame = null, width = 472, weld = '', height = 216) {
       frameRgb = frame;
       join = weld;
       frameW = width;
+      frameH = height;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(scale, 0, 0, scale, -origin.x * scale, -origin.y * scale);

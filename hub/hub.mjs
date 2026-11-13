@@ -19,6 +19,7 @@ import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
 import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
 import { stateDir, userDir, migrateUserDir } from './paths.mjs';
+import { COOKIE, isLoopback, loadOrCreateToken, tokenMatches, lanHosts, privateAddresses, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
@@ -52,7 +53,7 @@ const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
 const pluginVersion = (() => { try { return JSON.parse(fs.readFileSync(path.join(HUB_DIR, 'package.json'), 'utf8')).version ?? ''; } catch { return ''; } })();
 const realScript = (() => { try { return fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return fileURLToPath(import.meta.url); } })();
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -75,7 +76,9 @@ function readBody(req) {
 export function startHub(opts = {}) {
   const config = opts.config ?? loadConfig();
   const now = opts.now ?? (() => Date.now());
-  const host = opts.host ?? '127.0.0.1';
+  // LAN access for a phone is opt-in (config `lan`); `treatAllAsRemote` and `hosts` exist for tests, whose client connects from loopback.
+  const lan = { enabled: false, bind: '0.0.0.0', ...(config.lan ?? {}), ...(opts.lan ?? {}) };
+  const host = opts.host ?? (lan.enabled ? lan.bind : '127.0.0.1');
   const wantedPort = opts.port ?? (Number(String(config.host).split(':')[1]) || 8765);
   const model = createModel({ maxSessions: config.max_sessions });
   const startedAt = Date.now();
@@ -98,6 +101,7 @@ export function startHub(opts = {}) {
   const relayInfo = () => (relay ? { mode: relayConf.mode, ...(serial ? { port: relayConf.port } : { host: relayConf.host }), ...relay.status() } : null);
   // Themes and icon packs from the built-in and user folders. `iconFiles` maps a served URL to its file: no path comes from a request.
   const catalogDirs = { builtinDir: opts.builtinDir ?? HUB_DIR, userDir: opts.userDir ?? userDir() };
+  const lanToken = lan.enabled ? loadOrCreateToken(lan.tokenFile ?? path.join(catalogDirs.userDir, 'lan-token')) : null;
   let catalog = { themes: [], packs: [], errors: [] };
   let iconFiles = new Map();
   function reloadCatalog() {
@@ -159,7 +163,7 @@ export function startHub(opts = {}) {
   const json = (res, obj) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
 
   function serveStatic(res, urlPath) {
-    const rel = urlPath === '/' || urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : decodeURIComponent(urlPath.slice(1));
+    const rel = urlPath === '/' || urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : urlPath === '/phone' ? 'phone.html' : decodeURIComponent(urlPath.slice(1));
     const file = path.join(WEB_DIR, rel);
     if (!file.startsWith(WEB_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return text(res, 404, 'not found');
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' });
@@ -186,12 +190,27 @@ export function startHub(opts = {}) {
   async function handle(req, res) {
     // No CORS: other web pages cannot read the state. A request must name this hub in Host (DNS rebinding) and, when it carries
     // an Origin (a browser POST from another page), that Origin must be the hub itself. The plugin sends no Origin.
-    const self = new Set(['127.0.0.1', 'localhost', '[::1]'].map((h) => `${h}:${server.address().port}`));
-    if (!self.has(req.headers.host)) return text(res, 403, 'forbidden host');
-    if (req.headers.origin !== undefined && !self.has(String(req.headers.origin).replace(/^http:\/\//, ''))) return text(res, 403, 'forbidden origin');
+    const port = server.address().port;
     const url = new URL(req.url, 'http://x');
     const route = `${req.method} ${url.pathname}`;
+    // A LAN client (phone): same Host and Origin rule over the LAN names, then the pairing cookie, then read-only routes (lan.mjs).
+    const remote = lan.enabled && (lan.treatAllAsRemote || !isLoopback(req.socket.remoteAddress));
+    const self = remote ? lanHosts(port, lan.hosts) : new Set(['127.0.0.1', 'localhost', '[::1]'].map((h) => `${h}:${port}`));
+    if (!self.has(req.headers.host)) return text(res, 403, 'forbidden host');
+    if (req.headers.origin !== undefined && !self.has(String(req.headers.origin).replace(/^http:\/\//, ''))) return text(res, 403, 'forbidden origin');
+    if (remote && route !== 'GET /pair') {
+      if (!tokenMatches(parseCookie(req.headers.cookie, COOKIE), lanToken)) return text(res, 401, 'unauthorized');
+      if (!REMOTE_ROUTES.has(route) && !(req.method === 'GET' && isRemoteStatic(url.pathname))) return text(res, 403, 'forbidden');
+    }
     switch (route) {
+      case 'GET /pair':                             // the only route a client reaches without the cookie: it sets it
+        if (!lanToken || !tokenMatches(url.searchParams.get('t') ?? undefined, lanToken)) return text(res, 401, 'unauthorized');
+        res.writeHead(302, { Location: '/phone', 'Set-Cookie': `${COOKIE}=${lanToken}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000` });
+        return res.end();
+      case 'GET /pair-info': {                      // loopback only (a remote client is stopped above)
+        const ip = privateAddresses()[0];
+        return json(res, { url: lanToken && ip ? `http://${ip}:${port}/pair?t=${lanToken}` : null });
+      }
       case 'GET /health': return json(res, { ok: true, version: pluginVersion, core: pluginVersion, protocol: PROTOCOL_VERSION, script: realScript, startedAt });
       case 'POST /shutdown':                       // a newer plugin asks the old hub to leave (it starts a fresh one itself)
         text(res, 200, 'bye');

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gridShape, bestGrid, packRows, bestLayout, isIdle, paginate, orderSessions, autoCapacity, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { gridShape, bestGrid, packRows, fillLastRow, bestLayout, isIdle, paginate, orderSessions, autoCapacity, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
 const agent = (over = {}) => ({ id: 'lead', role: 'lead', state: 'working', cmd: 'Edit app.js', age: 100, tok: 0, prev: '', prev_age: 0, ...over });
@@ -158,4 +158,10 @@ test('a_team_takes_two_columns_and_wraps_to_the_next_row_with_its_lead', () => {
   assert.deepEqual(bestLayout([2], 800, 300, 472 / 216, 12, 700, 1.8), { cols: 2, rows: 1 }, 'a lone team: lead and team side by side');
   assert.ok(bestLayout([1, 2, 1, 2], 1200, 500, 472 / 216, 12, 700, 1.8).cols >= 2, 'never narrower than a team');
   assert.deepEqual(bestLayout([], 800, 600, 2), { cols: 1, rows: 1 });
+  assert.deepEqual(fillLastRow([1, 1, 1], 2), [1, 1, 2], 'the third tile takes the free column');
+  assert.deepEqual(fillLastRow([1, 1, 1, 1], 2), [1, 1, 1, 1]);
+  assert.deepEqual(fillLastRow([1, 1, 1, 1, 1], 3), [1, 1, 1, 1, 2]);
+  assert.deepEqual(fillLastRow([1, 2, 1], 3), [1, 2, 3], 'a team keeps its width, a lone last tile takes its whole row');
+  assert.deepEqual(fillLastRow([2, 1], 3), [2, 1]);
+  assert.deepEqual(fillLastRow([1], 1), [1]);
 });

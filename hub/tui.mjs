@@ -80,12 +80,23 @@ export function renderAnsi(state, width = 80, clock = '') {
  * Follow the hub's /events stream and redraw on every message. Reconnects every second while the hub is away.
  * @returns {{stop: () => void}}
  */
-export function runTui({ host, write = (s) => process.stdout.write(s), columns, alternateScreen = true }) {
+export function runTui({ host, write = (s) => process.stdout.write(s), columns, alternateScreen = true, pairUrl }) {
   let stopped = false;
   let req = null;
   let retry = null;
   const width = () => columns ?? (process.stdout.columns || 80);
-  const draw = (text) => write(`\x1b[H\x1b[2J${text}\n`);
+  // The address that pairs a phone, when LAN access is on: given by the caller (tests) or asked from the hub once.
+  let pair = pairUrl ?? null;
+  const draw = (text) => write(`\x1b[H\x1b[2J${text}${pair ? `\n${paint(`Phone: ${pair}`, DIM)}` : ''}\n`);
+  if (pairUrl === undefined) {
+    const [hn, pt] = host.split(':');
+    http.get({ hostname: hn, port: Number(pt) || 80, path: '/pair-info', agent: false }, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => { try { pair = JSON.parse(body).url ?? null; } catch { /* no pairing line */ } });
+    }).on('error', () => {});
+  }
   if (alternateScreen) write('\x1b[?1049h\x1b[?25l');
 
   function connect() {

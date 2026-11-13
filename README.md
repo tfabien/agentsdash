@@ -166,7 +166,7 @@ The hub forwards every event to it (`relay` in `~/.agentsdash/config.json`), so 
 | Device | State | Link |
 |---|---|---|
 | ESP32 + the touchscreen of an Artillery X3 3D printer (TJC 4.3", 480x272) | works, Wi-Fi relay tested, USB relay written | [agentsdash-device-artillery-x3](https://github.com/tfabien/agentsdash-device-artillery-x3) |
-| A phone (iPhone or Android) as a PWA | idea, nothing built yet | [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) |
+| A phone (iPhone or Android) as a PWA | first version: pair with a QR code on the home Wi-Fi, read-only | [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) |
 
 More devices are welcome: [devices/README.md](devices/README.md) says what a device receives and how to add one.
 
@@ -178,7 +178,7 @@ devices/                   how to add an external screen (each device has its ow
 docs/                      protocol and device protocol ([protocol.md](docs/protocol.md), [device-protocol.md](docs/device-protocol.md)), theme notes, specs, plans, README images
 INSTALL.md                 running the hub, updates, troubleshooting
 
-Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-codex` (Codex adapter), `agentsdash-themes` (themes and icon packs), `agentsdash-device-artillery-x3` (ESP32 gadget), `agentsdash-device-phone` (phone PWA, idea).
+Other repositories: `agentsdash-claude` (Claude Code adapter), `agentsdash-codex` (Codex adapter), `agentsdash-themes` (themes and icon packs), `agentsdash-device-artillery-x3` (ESP32 gadget), `agentsdash-device-phone` (phone PWA).
 ```
 
 Tests (no hardware): `node --test hub/test/*.test.mjs`.
@@ -214,5 +214,5 @@ Claude Code adapter ([agentsdash-claude](https://github.com/tfabien/agentsdash-c
 
 Devices:
 
-- **Phone as a device** (a PWA for iPhone and Android): [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) ([#1](https://github.com/tfabien/agentsdash-device-phone/issues/1)).
+- **Phone as a device** (a PWA for iPhone and Android): the first version works on the home Wi-Fi over plain http; HTTPS, a service worker and use outside the home network are open in [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) ([#1](https://github.com/tfabien/agentsdash-device-phone/issues/1)).
 - **ESP32 gadget:** USB relay test on hardware ([#1](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/1)), a screen that is easy to buy ([#2](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/2)), clock settings ([#3](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/3)), the default OTA password ([#4](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/4)). More in its [TODO](https://github.com/tfabien/agentsdash-device-artillery-x3#todo).

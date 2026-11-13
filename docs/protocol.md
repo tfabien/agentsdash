@@ -114,6 +114,19 @@ Asks the hub to exit (a newer client starts a fresh one). Answers `bye`.
 
 Rescans the theme and icon folders.
 
+## LAN access (phone)
+
+Off by default. `lan.enabled` in the config file (or `AGENTSDASH_LAN=1`) binds the hub to `lan.bind` (default `0.0.0.0`). A client that does not connect from loopback must carry the cookie `agentsdash_token`, else 401.
+It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/health` and the static files and icons the page loads (anything else: 403), and its `Host` must be a private address or the name of the machine. The token lives in `~/.agentsdash/lan-token`.
+
+### GET /pair
+
+`?t=<token>`: a matching token answers `302` to `/phone` and sets the cookie (HttpOnly, SameSite=Lax); any other token answers 401.
+
+### GET /pair-info
+
+Loopback only. Answers `{ "url": "http://<private ip>:<port>/pair?t=<token>" }`, or `{ "url": null }` when LAN access is off.
+
 ## Hub management routes
 
 Used by the page. An adapter does not need them.
