@@ -29,5 +29,6 @@ export function loadConfig(file = defaultConfigPath(), env = process.env) {
     quotas: env.CLAUDE_GADGET_QUOTAS === '0' ? false : data.quotas !== false,
     context_window: window,
     max_sessions: maxSessions,
+    first_theme: [env.CLAUDE_GADGET_THEME, data.theme].find((t) => typeof t === 'string' && /^[a-z0-9-]{1,32}$/.test(t)) ?? 'robot',
   };
 }
