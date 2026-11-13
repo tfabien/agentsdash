@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agents Dash</title>
+<meta name="theme-color" content="#0a0a0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Agents">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/phone-180.png">
+<link rel="stylesheet" href="/settings.css">
+<link rel="stylesheet" href="/hub.css">
+<link rel="stylesheet" href="/phone.css">
+<script>document.documentElement.dataset.mode = 'phone';</script>
+</head>
+<body>
+<div id="hub-down" hidden>Hub unreachable, retrying</div>
+<div id="stage">
+<main id="tiles"></main>
+<button id="prev" class="nav" aria-label="Previous page" title="Previous page" hidden>&#8249;</button>
+<button id="next" class="nav" aria-label="Next page" title="Next page" hidden>&#8250;</button>
+<div id="pager" hidden></div></div>
+<footer id="bar"></footer>
+<script type="module" src="/hub_page.js"></script>
+<script type="module" src="/phone.js"></script>
+</body>
+</html>
