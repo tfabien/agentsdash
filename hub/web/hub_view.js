@@ -36,6 +36,16 @@ export function packRows(spans, cols) {
   return rows;
 }
 
+/** Spans with the last item widened to fill the free columns of the last row (3 tiles in 2 columns: the third one is double width). A team keeps its 2 columns. */
+export function fillLastRow(spans, cols) {
+  const out = [...spans];
+  if (!out.length) return out;
+  let used = cols;
+  for (const sp of out) { if (used + sp > cols) used = 0; used += sp; }
+  if (out[out.length - 1] === 1 && used < cols) out[out.length - 1] += cols - used;
+  return out;
+}
+
 /** Like bestGrid, for items that span 1 column (a session) or 2 (a session and its team, kept side by side): the columns and rows that give the biggest tiles. */
 export function bestLayout(spans, boxW, boxH, aspect, gap = 12, maxW = Infinity, stretch = 1) {
   if (!spans.length) return { cols: 1, rows: 1 };

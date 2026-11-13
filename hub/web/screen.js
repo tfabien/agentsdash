@@ -138,7 +138,9 @@ const planRunning = (p, i) => (planParallel(p) ? p.state[i] === 'r' : i === p.do
 
 // ---------- geometry (layout.cpp) ----------
 // `fw`: width of the frame (472 on the gadget; a hub tile in a wide cell is wider, its panels grow with it).
-const leadRect = (nSubs, fw = 472) => (nSubs === 0 ? { x: 12, y: 36, w: fw - 12, h: 204 } : { x: 12, y: 36, w: 150, h: 204 });
+// `fh`: height of the frame (216 on the gadget; a hub tile in a tall cell is taller, its text gets more lines).
+const leadRect = (nSubs, fw = 472, fh = 216) => (nSubs === 0 ? { x: 12, y: 36, w: fw - 12, h: fh - 12 } : { x: 12, y: 36, w: 150, h: fh - 12 });
+const extraLines = (p) => Math.floor((p.h - 204) / 36);                              // text lines a tall panel adds to the 2 of the command; the plan bar and BEFORE move down with them
 const menuRow = (i) => ({ x: 12, y: 38 + i * 40, w: 460, h: 36 });
 const MUTE = { x: 370, y: 250, w: 42, h: 22 };
 const backRect = (p) => ({ x: p.x + p.w - 76, y: p.y + 4, w: 70, h: 22 });          // the BACK button of a sub-agent shown as a tile: closes it, the team list returns
@@ -157,7 +159,7 @@ function layoutRows(nSubs, box = TEAM_BESIDE) {
 
 /** Segments of the plan bar inside the lead panel `p`. Past 16 steps the bar is continuous (seg = w / total). */
 export function planBar(p, total) {
-  const x = p.x + 6, w = p.w - 12, y = p.y + 130;
+  const x = p.x + 6, w = p.w - 12, y = p.y + 130 + extraLines(p) * 18;
   const seg = total <= 16 ? Math.trunc((w - 2 * (total - 1)) / total) : w / total;
   return { x, y, w, h: 6, seg, step: total <= 16 ? seg + 2 : seg };
 }
@@ -180,18 +182,18 @@ export function hitTest(x, y, ctx) {
   }
   const s = ctx.sessions[ctx.selected];
   if (ctx.part === 'team') {
-    if (ctx.detailOpen) return inside(backRect(leadRect(0, ctx.frameW)), x, y) ? { kind: 'back' } : { kind: 'none' };
+    if (ctx.detailOpen) return inside(backRect(leadRect(0, ctx.frameW, ctx.frameH)), x, y) ? { kind: 'back' } : { kind: 'none' };
     const n = s ? s.agents.length - 1 : 0, rows = layoutRows(n, teamFull(ctx.frameW));
     for (let i = 0; i < rows.length; i++) if (inside(rows[i], x, y)) return n >= 8 && i === 6 ? { kind: 'more' } : { kind: 'row', index: i };
     return { kind: 'none' };
   }
   const nSubs = ctx.part === 'lead' ? 0 : s && !s.ask ? s.agents.length - 1 : 0;
-  if (ctx.back && ctx.part === 'lead' && inside(backRectLow(leadRect(0, ctx.frameW)), x, y)) return { kind: 'back' };
+  if (ctx.back && ctx.part === 'lead' && inside(backRectLow(leadRect(0, ctx.frameW, ctx.frameH)), x, y)) return { kind: 'back' };
   if (s && !s.ask && s.plan) {                          // a step of the plan bar (a taller target than the bar itself)
-    const b = planBar(leadRect(nSubs, ctx.frameW), s.plan.total);
+    const b = planBar(leadRect(nSubs, ctx.frameW, ctx.frameH), s.plan.total);
     if (x >= b.x && x < b.x + b.w && y >= b.y - 8 && y < b.y + b.h + 8) return { kind: 'planStep', index: Math.min(s.plan.total - 1, Math.floor((x - b.x) / b.step)) };
   }
-  if (inside(leadRect(nSubs, ctx.frameW), x, y)) return { kind: 'lead' };
+  if (inside(leadRect(nSubs, ctx.frameW, ctx.frameH), x, y)) return { kind: 'lead' };
   const rows = layoutRows(nSubs);
   for (let i = 0; i < rows.length; i++) {
     if (inside(rows[i], x, y)) return nSubs >= 8 && i === 6 ? { kind: 'more' } : { kind: 'row', index: i };
@@ -232,7 +234,7 @@ export function renderScreen(screen, state, ui) {
     if (ui.part === 'team') { if (detailSlot) drawAgentTile(subs[detailSlot - 1]); else drawTeam(s, subs, 0, true); return; }
     drawLeadPanel(s, subs, panelSubs, detailSlot, sessions, sel);
     if (ui.back && ui.part === 'lead' && !ui.menu) {       // a session shown full screen: BACK returns to the grid
-      const r = backRectLow(leadRect(0, ui.frameW));
+      const r = backRectLow(leadRect(0, ui.frameW, ui.frameH));
       screen.fill(r.x, r.y, r.w, r.h, COLOR.CHIP);
       screen.text(r.x, r.y + 2, r.w, S16, COLOR.TEXT, COLOR.CHIP, 'BACK', 1);
     }
@@ -242,9 +244,9 @@ export function renderScreen(screen, state, ui) {
   function drawEmpty() {
     screen.fill(6, 2, 468, 28, COLOR.FRAME);
     screen.text(14, 5, 440, S20, COLOR.FAINT, COLOR.FRAME, 'NO SESSION');
-    const p = leadRect(0, ui.frameW);
+    const p = leadRect(0, ui.frameW, ui.frameH);
     screen.erase(p.x, p.y, p.w, p.h);
-    screen.fill(156, 36, 20, 204, COLOR.PANEL);
+    screen.fill(156, 36, 20, p.h, COLOR.PANEL);
     line(p.x + 6, p.y + 8, p.w - 12, S20, COLOR.TEXT, COLOR.PANEL, 'No agents yet');
     line(p.x + 6, p.y + 40, p.w - 12, S16, COLOR.LIGHT, COLOR.PANEL, 'Events go to');
     line(p.x + 6, p.y + 58, p.w - 12, S16, COLOR.TEXT, COLOR.PANEL, ui.eventsTo ?? '(unknown)');
@@ -287,8 +289,8 @@ export function renderScreen(screen, state, ui) {
   }
 
   function drawLeadPanel(s, subs, panelSubs, detailSlot, all, sel) {
-    const p = leadRect(panelSubs, ui.frameW);
-    if (panelSubs === 0) { screen.erase(p.x, p.y, p.w, p.h); screen.fill(156, 36, 20, 204, COLOR.PANEL); } else screen.erase(12, 36, 158, 204);
+    const p = leadRect(panelSubs, ui.frameW, ui.frameH);
+    if (panelSubs === 0) { screen.erase(p.x, p.y, p.w, p.h); screen.fill(156, 36, 20, p.h, COLOR.PANEL); } else screen.erase(12, 36, 158, p.h);
     if (ui.menu) { drawMenu(all, sel); return; }
     if (detailSlot) { drawDetail(subs[detailSlot - 1], p); return; }
     const lead = s.agents[0];
@@ -306,12 +308,14 @@ export function renderScreen(screen, state, ui) {
     if (s.ask) { drawQuestion(s.ask, x, p.y + 68, w, p); return; }
     const mode = state.settings?.done_excerpt ?? 'first';
     const reply = lead.state === 'your_turn' && mode !== 'off' ? lead[mode === 'last' ? 'reply_last' : 'reply_first'] : '';
-    wrapText(reply || lead.cmd, w, reply && !s.plan ? 5 : 2, m(S16)).forEach((l, i) => screen.text(x, p.y + 68 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
-    const y = p.y + 110;
+    const more = extraLines(p);                           // a tall tile shows more lines of the reply or command
+    const lines = reply && !s.plan ? 5 + Math.floor((p.h - 204) / 18) : 2 + more;
+    wrapText(reply || lead.cmd, w, lines, m(S16)).forEach((l, i) => screen.text(x, p.y + 68 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
+    const y = p.y + 110 + more * 18;
     if (s.plan) drawPlan(s.plan, x, y, w, p, s.id);
     else if (lead.prev && !reply) {
       screen.text(x, y, w, S16, COLOR.ACCENT, COLOR.PANEL, 'BEFORE');
-      wrapText(lead.prev, w, 2, m(S16)).forEach((l, i) => screen.text(x, y + 20 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
+      wrapText(lead.prev, w, 2 + more, m(S16)).forEach((l, i) => screen.text(x, y + 20 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     }
   }
 
@@ -400,9 +404,9 @@ export function renderScreen(screen, state, ui) {
 
   // A sub-agent opened from the team tile: the whole tile shows it like a lead, with a BACK button that returns to the list.
   function drawAgentTile(a) {
-    const p = leadRect(0, ui.frameW);
+    const p = leadRect(0, ui.frameW, ui.frameH);
     screen.erase(p.x, p.y, p.w, p.h);
-    screen.fill(156, 36, 20, 204, COLOR.PANEL);
+    screen.fill(156, 36, 20, p.h, COLOR.PANEL);
     drawDetail(a, p, true);
   }
 
@@ -417,10 +421,11 @@ export function renderScreen(screen, state, ui) {
     if (info) line(tx, p.y + 44, tw, S16, COLOR.LIGHT, COLOR.PANEL, info);
     screen.text(x, p.y + 66, w, S16, COLOR.ACCENT, COLOR.PANEL, 'COMMAND');
     const full = a.detail && !a.cmd.includes(a.detail) ? `${a.cmd} ${a.detail}` : a.cmd;
-    wrapText(full, w, 3, m(S16)).forEach((l, i) => screen.text(x, p.y + 84 + i * 18, w, S16, a.state === 'needs_you' ? COLOR.NEEDS : COLOR.TEXT, COLOR.PANEL, l));
+    const more = extraLines(p);
+    wrapText(full, w, 3 + more, m(S16)).forEach((l, i) => screen.text(x, p.y + 84 + i * 18, w, S16, a.state === 'needs_you' ? COLOR.NEEDS : COLOR.TEXT, COLOR.PANEL, l));
     if (a.prev) {
-      screen.text(x, p.y + 142, w, S16, COLOR.ACCENT, COLOR.PANEL, 'BEFORE');
-      line(x, p.y + 160, w, S16, COLOR.LIGHT, COLOR.PANEL, `${a.prev} (${formatAge(a.prev_age + ui.elapsedS)} ago)`);
+      screen.text(x, p.y + 142 + more * 18, w, S16, COLOR.ACCENT, COLOR.PANEL, 'BEFORE');
+      line(x, p.y + 160 + more * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, `${a.prev} (${formatAge(a.prev_age + ui.elapsedS)} ago)`);
     }
     if (back) {
       const r = backRect(p);
@@ -458,11 +463,11 @@ export function renderScreen(screen, state, ui) {
   // ----- team panel -----
   function drawTeam(s, subs, detailSlot, full = false) {
     const { order, more } = teamOrder(subs);
-    const fw = ui.frameW ?? 472;
+    const fw = ui.frameW ?? 472, ph = (ui.frameH ?? 216) - 12;
     const box = full ? teamFull(fw) : TEAM_BESIDE;
     const rows = layoutRows(subs.length, box);
     const compact = subs.length > 4;
-    if (full) { screen.erase(12, 36, fw - 12, 204); screen.fill(156, 36, 20, 204, COLOR.PANEL); } else screen.erase(170, 36, 302, 204);    // full: one panel over the gap between the two
+    if (full) { screen.erase(12, 36, fw - 12, ph); screen.fill(156, 36, 20, ph, COLOR.PANEL); } else screen.erase(170, 36, 302, 204);    // full: one panel over the gap between the two
     if (more > 0 && rows.length === TEAM_ROWS) {
       const r = rows[TEAM_ROWS - 1];
       screen.pic(PIC.ROW_COMPACT, r.x, r.y);
