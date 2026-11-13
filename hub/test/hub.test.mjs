@@ -561,3 +561,14 @@ test('market_remove_clears_theme_looks_of_that_theme', async () => {
     assert.deepEqual((await (await get(hub, '/state')).json()).settings.themeLooks, { lk: ['a'] });
   }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
 });
+
+test('rate_settings_validate_and_default', () => withHub(async (hub) => {
+  const s0 = (await (await get(hub, '/state')).json()).settings;
+  assert.deepEqual([s0.rate_mode, s0.rate_orange_k, s0.rate_red_k, s0.rate_orange_pct, s0.rate_red_pct], ['tokens', 20, 60, 0.5, 1.5]);
+  assert.equal((await post(hub, '/settings', { rate_mode: 'quota' })).status, 200);
+  assert.equal((await post(hub, '/settings', { rate_mode: 'x' })).status, 400);
+  assert.equal((await post(hub, '/settings', { rate_red_k: 0 })).status, 400);
+  assert.equal((await post(hub, '/settings', { rate_red_pct: 2.5 })).status, 200);
+  const s1 = (await (await get(hub, '/state')).json()).settings;
+  assert.deepEqual([s1.rate_mode, s1.rate_red_pct], ['quota', 2.5]);
+}));
