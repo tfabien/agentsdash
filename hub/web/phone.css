@@ -4,6 +4,7 @@ html[data-mode="phone"] #bar, html[data-mode="phone"] .tile .trash { display: no
 html[data-mode="phone"] body { padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); gap: 8px; overflow-x: hidden; }
 #hub-down { position: fixed; top: 0; left: 0; right: 0; z-index: 10; padding: calc(6px + env(safe-area-inset-top)) 10px 6px; text-align: center;
   font-size: 13px; color: #fff; background: var(--error); }
+#page-error { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; margin: 0; padding: 8px 10px; max-height: 40%; overflow: auto; font-size: 11px; white-space: pre-wrap; color: #fff; background: #7a1f1f; }
 #hub-down[hidden] { display: none; }
 /* A session and its team: one column, the team under the lead (the seam chip sits between them). */
 html[data-mode="phone"] .group { grid-column: span 1; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }

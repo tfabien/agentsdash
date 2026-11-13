@@ -166,7 +166,7 @@ export function startHub(opts = {}) {
     const rel = urlPath === '/' || urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : urlPath === '/phone' ? 'phone.html' : decodeURIComponent(urlPath.slice(1));
     const file = path.join(WEB_DIR, rel);
     if (!file.startsWith(WEB_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return text(res, 404, 'not found');
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-cache' });   // the page files change with the hub version
     fs.createReadStream(file).pipe(res);
   }
 
