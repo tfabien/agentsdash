@@ -12,18 +12,18 @@ const SOUND_LABEL = { all: 'all events', ask: 'questions only', off: 'off' };
 const NEXT_SOUND = { all: 'ask', ask: 'off', off: 'all' };
 
 /**
- * Fills `root` (a <footer>) with the bar. The theme, settings and device buttons open their menu inside `stage`, in place of the agents.
+ * Fills `root` (a <footer>) with the bar. `onPreview(name)`: the page shows a theme on the agents without saving it. The theme, settings and device buttons open their menu inside `stage`, in place of the agents.
  * @returns {{update: (state: object, elapsedS: number) => void, settings: ReturnType<typeof createSettingsMenu>, views: ReturnType<typeof createViewHost>}}
  */
-export function mountFooter(root, stage) {
+export function mountFooter(root, stage, { onPreview } = {}) {
   const quotas = el('span', 'quotas');
   const device = createDeviceMenu();
   const sound = el('button', 'chip sound');
   const gear = el('span', 'gearslot');
   const clock = el('span', 'clock');
   const settings = createSettingsMenu();
-  const themes = createThemeMenu();
   const views = createViewHost(stage);
+  const themes = createThemeMenu({ onPreview: (name) => { views.close(); onPreview?.(name); } });
   views.attach(themes.button, 'Theme', themes.panel, themes.onOpen);
   views.attach(settings.button, 'Settings', settings.panel);
   views.attach(device.button, 'Device', device.panel);
