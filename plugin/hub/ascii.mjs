@@ -32,7 +32,7 @@ export function asciiDeep(value) {
 }
 
 // Field lengths of the gadget firmware (buffer length minus the NUL). The hub keeps full text; the relays cut it here, per wire key.
-const DEVICE_LIMITS = { session: 4, agent: 4, project: 14, role: 23, evt: 23, cmd: 63, detail: 60, title: 30, model: 40, plan_cur: 47, plan_next: 47, plan_state: 16, question: 120, options: 100 };
+export const DEVICE_LIMITS = { session: 4, agent: 4, project: 14, role: 23, evt: 23, cmd: 63, detail: 60, title: 30, model: 40, plan_cur: 47, plan_next: 47, plan_state: 16, question: 120, options: 100 };
 
 /** What a gadget receives for `route`: ASCII only, and for /event every text field cut to the firmware's buffer. */
 export function forDevice(route, body) {

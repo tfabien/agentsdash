@@ -1,0 +1,130 @@
+# agentsdash protocol
+
+The wire contract between an adapter (the code that watches an agent: Claude Code hooks, a Codex client...), the hub, and the pages and devices that read the hub.
+An adapter or a device is correct when it follows this document. A test (`plugin/hub/test/protocol_doc.test.mjs`) fails when a route or an event field of the code is missing here, or when a route listed here no longer exists.
+
+The protocol version is **2**. `GET /health` reports it as `protocol` (see below). An adapter declares the protocol it speaks and refuses a hub that answers another one.
+
+## Transport rules
+
+- The hub listens on `127.0.0.1` (default port 8765). Bodies are JSON (`Content-Type: application/json`), at most 64 KiB (413 above).
+- A request must name the hub in `Host` (`127.0.0.1:<port>`, `localhost:<port>` or `[::1]:<port>`), else 403 `forbidden host`.
+- A request that carries an `Origin` header must carry the hub's own origin, else 403 `forbidden origin`. Adapters send no `Origin`. There is no CORS.
+- Text keeps its full Unicode and length on the hub. Only identifiers are cut (4 characters). Devices get text through `forDevice` (see `device-protocol.md`).
+- An adapter never blocks its agent: short timeouts (a hook gives up after 1.5 s), no output, no failure when the hub is down.
+
+## Event and usage routes
+
+### POST /event
+
+One agent reports its state. The body is a v2 event; the full state of that agent travels in every event, so a dropped event is repaired by the next one.
+Answers 200 `ok`, or 400 `session, agent and a valid state are required`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `v` | number | Always `2`. |
+| `session` | string | Session id, cut to 4 characters. Required. |
+| `agent` | string | `lead` for the main agent, else a sub-agent id (4 characters). Required. |
+| `state` | string | `needs_you`, `error`, `your_turn`, `working` or `done`. Required. |
+| `project` | string | Project name shown on the tile. |
+| `cwd` | string | Full working directory. Stays on the hub (per-project rules), never sent to a device. |
+| `role` | string | Role of a sub-agent (its type). |
+| `evt` | string | Name of the source event (`PreToolUse`, `Stop`, `SubagentStop`, `SessionStart`, `UserPromptSubmit`, `SessionEnd`...). The hub reacts to some of them. |
+| `cmd` | string | What the agent is doing, one line. |
+| `detail` | string | Extra line under `cmd`. |
+| `title` | string | Title of the session. |
+| `model` | string | Model name. |
+| `tok` | number | Tokens of this agent. Absent or not a number means unknown. |
+| `stok` | number | Tokens of the whole session (lead only). |
+| `ctx_pct` | number | Context used, percent (lead only). |
+| `ctx_k` | number | Context used, thousands of tokens (lead only). |
+| `plan_done` | number | Finished steps of the task list (lead only). |
+| `plan_total` | number | Steps of the task list. 0 means no list. |
+| `plan_items` | string[] | Up to 30 steps, each `<mark> <title>` where the first character is the step state. |
+| `plan_cur` | string | Title of the step in progress. Present even when empty (an empty string clears it). |
+| `plan_next` | string | Title of the next step. Present even when empty. |
+| `plan_state` | string | Short state of the list. |
+| `question` | string | A question waiting for the user (lead only). |
+| `options` | string | The answers offered, in one line. |
+| `reply_first` | string | First paragraph of the last reply, 300 characters. Only a `Stop` carries it; any later event clears it. |
+| `reply_last` | string | Last paragraph of the last reply, 300 characters. |
+
+An old v0.1 body `{ "agent": "<name>", "state": "working|waiting|done|error", "task": "..." }` is still accepted and becomes a session of its own.
+
+### POST /usage
+
+Quotas and context from a status line or a poller. The body must hold `v` (a number, currently `1`), else 400 `v is required`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `v` | number | Version of this body, `1`. |
+| `session` | string | Session id (4 characters). An unknown session creates no tile. |
+| `ctx_pct`, `ctx_k` | number | Context used of that session. |
+| `ctx_max_k` | number | Size of the context window, thousands of tokens. |
+| `h5_pct`, `d7_pct` | number | Quota used in the 5 hour and 7 day windows, percent. |
+| `h5_reset_s`, `d7_reset_s` | number | Seconds until the window resets. |
+| `h5_rate10`, `d7_rate10` | number | Pace over the last 10 minutes. |
+| `h5_proj`, `d7_proj` | number | Projected use at the reset, percent. |
+| `h5_empty_s`, `d7_empty_s` | number | Seconds until the quota is empty at the current pace. |
+
+### POST /dismiss
+
+Body `{ "session": "<id>" }`. Hides a session; it returns with its next working, error or needs-you event. 404 `unknown session`.
+
+### POST /settings
+
+Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 32), `theme`, `pulse`, `dim_idle`, `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`. Invalid entries are ignored; 400 when none is valid.
+
+### POST /select
+
+Body `{ "session": "<id>", "agent": "lead", "hold_ms": 30000 }`. Puts a session and agent in focus for `hold_ms`. 404 `unknown session or agent`.
+
+### POST /reset
+
+Forgets every session. The body may be empty.
+
+## Reading routes
+
+### GET /state
+
+The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `plan`, `ask`, `agents`), `more_sessions`, `view`, `usage` (when quotas are known), `agents` (flat v0.1 list), `boot`, `settings`, `catalog`, and `relay` (when a device relay is set).
+Each entry of `agents` holds `id`, `parent`, `role`, `state`, `cmd`, `detail`, `tok`, `model`, `prev`, `prev_age`, `age` and, after a `Stop`, `reply_first` and `reply_last`.
+
+### GET /events
+
+Server-sent events: the state above is sent on connect, then after every change.
+
+### GET /health
+
+`{ "ok": true, "version": "<plugin version>", "core": "<core version>", "protocol": 2, "script": "<path of hub.mjs>", "startedAt": <ms> }`.
+`core` and `protocol` are the compatibility check: an adapter keeps a running hub only when `protocol` matches the one it speaks and `core` is not older than the minimum it needs. A hub that predates this field answers without `core` and `protocol`; treat that as protocol 2 with an unknown core.
+
+### POST /shutdown
+
+Asks the hub to exit (a newer client starts a fresh one). Answers `bye`.
+
+### POST /reload
+
+Rescans the theme and icon folders.
+
+## Hub management routes
+
+Used by the page. An adapter does not need them.
+
+| Route | Meaning |
+|---|---|
+| GET /market | Theme marketplace: sources, installed themes, listings, errors. |
+| POST /market/refresh | Forget the cached listings. |
+| POST /market/sources | Body `{ "add": "owner/repo" }` or `{ "remove": "owner/repo" }`. |
+| POST /market/install | Body `{ "source": "owner/repo", "name": "<theme>" }`. Installs and applies a theme. |
+| POST /market/remove | Body `{ "name": "<theme>" }`. Removes a user theme. |
+| POST /market/update | Body `{ "name": "<theme>" }` or empty. Checks for newer versions. |
+| POST /themes | Saves the current look as a user theme. |
+| GET /relay | State of the device relay (`mode` is `none`, `http` or `serial`). |
+| GET /relay/ports | Serial ports found. |
+| POST /relay/test | Sends a probe through the relay. |
+| POST /relay | Sets the relay (see `device-protocol.md`). |
+| POST /serial/release | Frees the serial port (for a firmware upload). |
+| POST /serial/open | Opens the serial port again. |
+
+`GET /icons/<pack>/<file>` serves the icon files listed in the catalog only (sandboxed SVG or PNG). Any other `GET` serves a file of the page (`/` is the hub page).
