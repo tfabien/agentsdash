@@ -10,3 +10,4 @@ html[data-mode="phone"] body { padding: max(10px, env(safe-area-inset-top)) max(
 html[data-mode="phone"] .group { grid-column: span 1; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
 html[data-mode="phone"] .group .tile[data-part] { justify-content: center; }
 html[data-mode="phone"] .group .link { top: 50%; bottom: auto; transform: translate(-50%, -50%); }
+#page-debug { position: fixed; left: 0; right: 0; top: 0; z-index: 12; margin: 0; padding: 4px 8px; font-size: 10px; color: #0f0; background: rgba(0, 0, 0, .8); pointer-events: none; }
