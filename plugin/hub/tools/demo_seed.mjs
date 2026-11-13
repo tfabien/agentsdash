@@ -47,7 +47,7 @@ const MORE_PROJECTS = [
 /** One scene per feature: the events to send and the hub settings (`max_tiles`: sessions the page shows at once, 0 is Auto). */
 export const SCENES = {
   hub: { settings: { max_tiles: 4 }, events: [CHECKOUT[0], DOCS, MOBILE, PIPELINE, ...BILLING.slice(0, 1), ...MORE_PROJECTS] },   // 2x2 tiles, three pages
-  tour: { settings: { max_tiles: 4 }, events: [MORE_PROJECTS[4], MORE_PROJECTS[3], MORE_PROJECTS[1], MORE_PROJECTS[0], BILLING[0], { ...PIPELINE, state: 'working', evt: 'PreToolUse' }, { ...DOCS, state: 'working', evt: 'PreToolUse', cmd: 'Read docs/api.md', question: '', options: '' }, { ...CHECKOUT[0], plan_done: 2, plan_cur: 'Reproduce the timeout', plan_next: 'Design the retry' }] },   // the starting point of the guided tour (page_gif.mjs): the hub lists the most recent session first, so checkout, docs, the pipeline and billing fill page 1 as a 2x2
+  tour: { settings: { max_tiles: 4 }, events: [{ ...DOCS, state: 'working', evt: 'PreToolUse', cmd: 'Read docs/api.md', question: '', options: '' }, { ...CHECKOUT[0], plan_done: 2, plan_cur: 'Reproduce the timeout', plan_next: 'Design the retry' }] },   // the starting point of the guided tour (page_gif.mjs): two sessions, the rest arrives live
   grid: { settings: { max_tiles: 4 }, events: [...CHECKOUT, DOCS, MOBILE, PIPELINE, ...BILLING] },    // 4 tiles, two more sessions on a second page
   plan: { settings: { max_tiles: 1 }, events: CHECKOUT },
   question: { settings: { max_tiles: 1 }, events: [DOCS] },

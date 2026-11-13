@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// A guided tour of the page as an animated GIF for the top of the README: the real page, driven live through the DevTools protocol while a demo
-// hub receives made-up events (a question arrives, a plan moves, sub-agents join, a click opens the detail, pages turn, a theme variant is picked).
+// A guided tour of the page as an animated GIF for the top of the README: the real page, fed live by a demo hub (two sessions, a third one,
+// sub-agents, the plan moving, a question, an error, a session that finishes) with a caption bar that says what happens.
 //   node plugin/hub/tools/page_gif.mjs [--out docs/images/tour.gif] [--scale 0.6]
-// Frames are PNG files in a temp folder, assembled by frames_to_gif.py (Python and Pillow).
+// Frames are PNG files in a temp folder, assembled by frames_to_gif.py (Python and Pillow). The page is driven through the DevTools protocol.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,18 +10,28 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findBrowser } from './screenshots.mjs';
 import { connect, sleep } from './page_screenshots.mjs';
-import { startDemoHub, applyScene, CHECKOUT, DOCS, PIPELINE } from './demo_seed.mjs';
+import { startDemoHub, applyScene, CHECKOUT, DOCS, MOBILE } from './demo_seed.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const post = (hub, p, body) => fetch(`http://127.0.0.1:${hub.port}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-const BUTTON = (label) => `document.querySelector('button[aria-label="${label}"], button[title="${label}"]').click()`;
+
+const CAPTION_H = 48;
+const CAPTION = `
+  const bar = document.createElement('div');
+  bar.id = 'tour-caption';
+  bar.style.cssText = 'position:fixed;left:0;right:0;top:0;height:${CAPTION_H}px;display:flex;align-items:center;justify-content:center;gap:14px;background:#0d1626;border-bottom:1px solid #2a3b55;color:#e6edf3;font:600 21px system-ui,Segoe UI,sans-serif;z-index:9999';
+  document.body.append(bar);
+  document.body.style.paddingTop = '${CAPTION_H}px';
+  document.body.style.boxSizing = 'border-box';
+  window.__caption = (n, text) => { bar.innerHTML = '<span style="background:#2f6fed;border-radius:50%;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:17px">' + n + '</span><span>' + text + '</span>'; };
+`;
 
 async function main() {
   const args = process.argv.slice(2);
   const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : dflt; };
   const out = path.resolve(opt('--out', path.join(HERE, '..', '..', '..', 'docs', 'images', 'tour.gif')));
   const scale = Number(opt('--scale', 0.6));
-  const width = 1280, height = 680;
+  const width = 1280, height = 680 + CAPTION_H;                    // the page keeps the 680 px it fills the grid with, the caption bar comes on top
   const browser = findBrowser();
   if (!browser) throw new Error('no Edge or Chrome found: set SCREENSHOT_BROWSER to its path');
   const frames = fs.mkdtempSync(path.join(os.tmpdir(), 'tour-'));
@@ -43,50 +53,39 @@ async function main() {
       list.push({ file, ms: ms || Math.max(60, now - last) });
       last = Date.now();
     };
-    const PACE = 0.75;                                              // holds are 25 % shorter than written
-    const still = async (ms) => { await sleep(40); await grab(Math.round(ms * PACE)); };                         // a calm moment: one frame, held
+    const still = async (ms) => { await sleep(40); await grab(ms); };                         // a calm moment: one frame, held
     const anim = async (ms, every = 140) => { const end = Date.now() + ms; last = Date.now(); while (Date.now() < end) { await sleep(every); await grab(0); } };   // a change: many frames
-    const ev = async (e) => { try { return await cdp.evaluate(e); } catch (err) { throw new Error(`${err.message} in: ${e}`); } };   // names the failing step
-    const rect = (sel) => cdp.evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) throw new Error('no element for ' + ${JSON.stringify(sel)} + '; tiles: ' + [...document.querySelectorAll('#tiles .tile')].map((t) => t.dataset.session + '/' + t.dataset.part).join(' ')); const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`);
-    const click = async (x, y) => { for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await cdp.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 }); };
-    const clickIn = async (sel, fx, fy) => { const r = await rect(sel); await click(r.x + r.w * fx, r.y + r.h * fy); };
-    const clickText = (text) => ev(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)}).click()`);
-    const lead = (id) => `#tiles [data-session="${id}"][data-part="lead"] canvas`;
-    const team = (id) => `#tiles [data-session="${id}"][data-part="team"] canvas`;
+    const say = (n, text) => cdp.evaluate(`window.__caption(${n}, ${JSON.stringify(text)})`);
+    const send = (ev) => post(demo.hub, '/event', ev);
 
     await applyScene(demo.hub, 'tour');
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${demo.hub.port}/` });
     await sleep(2500);
+    await cdp.evaluate(CAPTION);
 
-    await still(2400);                                              // 1. the hub: 4 sessions of 4 projects, 3 pages
-    await post(demo.hub, '/event', DOCS);                           // 2. a session asks a question: orange, beep
-    await anim(1200); await still(2000);
-    await post(demo.hub, '/event', PIPELINE);                       //    another one fails: red
-    await anim(900); await still(1400);
+    await say(1, 'Two Claude Code sessions work in parallel: one tile each');
+    await still(3200);
+    await say(2, 'A third session starts: its tile joins the grid');
+    await send({ ...MOBILE, state: 'working', evt: 'PreToolUse', cmd: 'Edit LoginScreen.tsx', reply_first: '', reply_last: '' });
+    await anim(1200); await still(2200);
+    await say(3, 'A session spawns sub-agents: its tile grows a team');
+    for (const ev of CHECKOUT.slice(1)) { await send(ev); await sleep(300); }
+    await anim(1500); await still(2800);
     const plan = (done, cur, next) => ({ ...CHECKOUT[0], plan_done: done, plan_cur: cur, plan_next: next });
-    await post(demo.hub, '/event', plan(3, 'Design the retry', 'Write the failing tests'));   // 3. a plan moves on
+    await say(4, 'The plan moves on: the bar shows the current and the next step');
+    await send(plan(3, 'Design the retry', 'Write the failing tests'));
     await anim(900);
-    await post(demo.hub, '/event', plan(4, 'Write the failing tests', 'Implement retry with backoff'));
-    await anim(900); await still(1200);
-    for (const ev of CHECKOUT.slice(1)) { await post(demo.hub, '/event', ev); await sleep(250); }   // 4. sub-agents join
-    await anim(1400); await still(1600);
-    await clickIn(lead('a1b2'), 0.5, 0.5);                          // 5. a tap opens the session full screen
-    await anim(600); await still(2000);
-    await clickIn(team('a1b2'), 0.45, 0.22);                        // 6. a tap on a sub-agent shows its detail
-    await anim(500); await still(2200);
-    await clickIn(team('a1b2'), 0.93, 0.1);                         //    BACK from the detail, then BACK to the grid
-    await still(900);
-    await clickIn(lead('a1b2'), 0.1, 0.9);                         //    the BACK button of the lead tile returns to the grid
-    await anim(600); await still(1200);
-    for (let i = 0; i < 2; i++) { await ev(`document.getElementById('next').click()`); await anim(500); await still(1600); }   // 7. pages
-    await ev(`document.querySelector('#pager button').click()`);
-    await anim(500); await still(1000);
-    await ev(BUTTON('Theme')); await sleep(1500);        // 8. themes: pick a variant
-    await still(1600);
-    await clickText('Amber'); await anim(600);
-    await clickText('← Back'); await anim(600); await still(2200);
-    await ev(BUTTON('Theme')); await sleep(900);         // back to the default look, so the loop starts clean
-    await clickText('Default'); await clickText('← Back'); await anim(500); await still(800);
+    await send(plan(4, 'Write the failing tests', 'Implement retry with backoff'));
+    await anim(900); await still(2000);
+    await say(5, 'A session asks a question: orange tile, and the page beeps');
+    await send(DOCS);
+    await anim(1300); await still(2600);
+    await say(6, 'An error turns a tile red');
+    await send({ ...MOBILE, state: 'error', evt: 'PostToolUseFailure', cmd: 'npm test', reply_first: '', reply_last: '' });
+    await anim(1200); await still(2200);
+    await say(7, 'A session is done: it is your turn');
+    await send(MOBILE);
+    await anim(1200); await still(2800);
 
     fs.writeFileSync(path.join(frames, 'frames.json'), JSON.stringify(list));
     cdp.close();
