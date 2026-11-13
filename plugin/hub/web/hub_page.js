@@ -7,7 +7,8 @@ import { TILES_MAX, postSettings } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
-import { applyTheme, setCatalog, listThemes } from './themes.js';
+import { applyTheme, setCatalog } from './themes.js';
+import { previewSessions } from './preview_state.js';
 import { onIconsLoaded } from './icon_packs.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -171,25 +172,35 @@ function draw() {
   }
 }
 
-// Live preview of a theme: the agents take its colors and icons, nothing is saved. Apply saves it; Exit, Escape or another page changing the
-// saved theme ends the preview.
-let previewName = null;
+// Live preview of a theme on made-up sessions (preview_state.js): the tiles take its colors and icons, nothing is saved and the real sessions are
+// not shown. `spec`: { name, label, installed, source, theme?, roles? }; a theme that is not installed brings its colors and icon URLs, and is put
+// in the catalog of the page for the time of the preview. The Back button (or Escape) returns to the theme list; Apply saves the theme (and
+// installs it first when needed). Another page changing the saved theme ends the preview.
+let preview = null;
+let previewList = [];
 let savedTheme = 'default';
-const previewBar = $('previewbar');
-function setPreview(name) {
-  previewName = name;
-  applyTheme(name ?? savedTheme);
-  previewBar.hidden = !name;
-  if (name) {
-    const label = listThemes().find((t) => t.name === name)?.label ?? name;
-    const apply = el('button', 'chip', 'Apply');
-    apply.onclick = () => { postSettings({ theme: name }); setPreview(null); };
-    const exit = el('button', 'chip', 'Exit');
-    exit.onclick = () => setPreview(null);
-    previewBar.replaceChildren(el('span', '', `Previewing ${label}`), apply, exit);
-  }
+let realCatalog = { themes: [], packs: [], errors: [] };
+const pageCatalog = () => (preview && !preview.installed
+  ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: [...realCatalog.packs.filter((p) => p.name !== preview.theme.iconPack), { name: preview.theme.iconPack, roles: preview.roles }] }
+  : realCatalog);
+function setPreview(spec) {
+  preview = spec;
+  previewList = spec ? previewSessions() : [];
+  setCatalog(pageCatalog());
+  applyTheme(spec ? spec.name : savedTheme);
+  if (!spec) { footer.preview.hide(); render(); return; }
+  const apply = async () => {
+    if (spec.installed) await postSettings({ theme: spec.name });
+    else {
+      const res = await fetch('/market/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: spec.source, name: spec.name }) });
+      if (!res.ok) throw new Error(await res.text());
+    }
+    setPreview(null);
+  };
+  footer.preview.show(spec.label, spec.installed ? 'Apply' : 'Install and apply', apply, backToThemes);
   render();
 }
+function backToThemes() { setPreview(null); footer.views.openFor(footer.themeButton); }
 const footer = mountFooter($('bar'), $('stage'), { onPreview: setPreview });
 
 // Pages: the sessions run in order (first seen first, idle ones last) and are cut into pages of `capacity()` cells. Arrows, dots, swipes and the
@@ -197,7 +208,7 @@ const footer = mountFooter($('bar'), $('stage'), { onPreview: setPreview });
 const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager');
 function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && previewName && !e.defaultPrevented) setPreview(null);
+  if (e.key === 'Escape' && preview && !e.defaultPrevented) backToThemes();
   else if (e.key === 'Escape' && focus && !e.defaultPrevented) { focus = null; render(); }
 });
 prevBtn.onclick = () => goto(page - 1);
@@ -251,7 +262,7 @@ function groupFor(s, lead, team) {
 }
 
 function render() {
-  const sessions = state.sessions;
+  const sessions = preview ? previewList : state.sessions;
   for (const s of sessions) if (!seen.has(s.id)) seen.set(s.id, seen.size);
   const cap = capacity();
   expandable = cap > 1 && sessions.length > 1;
@@ -285,10 +296,11 @@ function render() {
 
 function showState(next) {
   sound = next.settings?.sound ?? 'ask';
-  if (next.catalog) setCatalog(next.catalog);
-  if (previewName && next.settings?.theme !== savedTheme) { previewName = null; previewBar.hidden = true; }     // another page chose a theme
+  if (next.catalog) realCatalog = next.catalog;
+  if (preview && next.settings?.theme !== savedTheme) { preview = null; previewList = []; footer.preview.hide(); }     // another page chose a theme
   savedTheme = next.settings?.theme ?? 'default';
-  applyTheme(previewName ?? savedTheme);
+  setCatalog(pageCatalog());
+  applyTheme(preview ? preview.name : savedTheme);
   footer.settings.update(next.settings ?? {}, next.catalog);
   const now = countStates(next.sessions);
   const times = beepsFor(counts, now, sound);

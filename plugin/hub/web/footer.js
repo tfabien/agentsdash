@@ -12,8 +12,9 @@ const SOUND_LABEL = { all: 'all events', ask: 'questions only', off: 'off' };
 const NEXT_SOUND = { all: 'ask', ask: 'off', off: 'all' };
 
 /**
- * Fills `root` (a <footer>) with the bar. `onPreview(name)`: the page shows a theme on the agents without saving it. The theme, settings and device buttons open their menu inside `stage`, in place of the agents.
- * @returns {{update: (state: object, elapsedS: number) => void, settings: ReturnType<typeof createSettingsMenu>, views: ReturnType<typeof createViewHost>}}
+ * Fills `root` (a <footer>) with the bar. `onPreview(spec)`: the page shows a theme on made-up agents without saving it; `preview.show()` fills the bar for it. The theme, settings and device buttons open their menu inside `stage`, in place of the agents.
+ * @returns {{update: (state: object, elapsedS: number) => void, settings: ReturnType<typeof createSettingsMenu>, views: ReturnType<typeof createViewHost>, themeButton: HTMLElement,
+ *   preview: {show: (label: string, applyLabel: string, onApply: () => Promise<unknown>|void, onBack: () => void) => void, hide: () => void}}}
  */
 export function mountFooter(root, stage, { onPreview } = {}) {
   const quotas = el('span', 'quotas');
@@ -23,19 +24,34 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   const clock = el('span', 'clock');
   const settings = createSettingsMenu();
   const views = createViewHost(stage);
-  const themes = createThemeMenu({ onPreview: (name) => { views.close(); onPreview?.(name); } });
+  const themes = createThemeMenu({ onPreview: (spec) => { views.close(); onPreview?.(spec); } });
   views.attach(themes.button, 'Theme', themes.panel, themes.onOpen);
   views.attach(settings.button, 'Settings', settings.panel);
   views.attach(device.button, 'Device', device.panel);
   gear.append(settings.button);
   const tools = el('span', 'tools');
   tools.append(sound, themes.button, device.button, gear);                   // icons close together; the clock stays apart
-  root.replaceChildren(quotas, el('span', 'spacer'), tools, clock);
+  const previewBar = el('span', 'previewbar');
+  previewBar.hidden = true;
+  root.replaceChildren(previewBar, quotas, el('span', 'spacer'), tools, clock);
   let mode = 'ask';
   sound.onclick = () => postSettings({ sound: NEXT_SOUND[mode] ?? 'ask' });
 
   return {
-    settings, views,
+    settings, views, themeButton: themes.button,
+    preview: {
+      show(label, applyLabel, onApply, onBack) {
+        const text = el('span', 'ptext', `Previewing ${label} on made-up agents`);
+        const apply = el('button', 'chip', applyLabel);
+        apply.onclick = async () => { apply.disabled = true; try { await onApply(); } catch (err) { text.textContent = String(err.message ?? err); text.classList.add('err'); apply.disabled = false; } };
+        const back = el('button', 'chip', '← Back');
+        back.onclick = onBack;
+        previewBar.replaceChildren(back, text, apply);
+        previewBar.hidden = false;
+        root.classList.add('previewing');
+      },
+      hide() { previewBar.hidden = true; root.classList.remove('previewing'); },
+    },
     update(state, elapsedS) {
       mode = state.settings?.sound ?? 'ask';
       themes.update(state.settings?.theme);

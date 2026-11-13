@@ -33,7 +33,7 @@ function drawPreview(canvas, theme) {
 }
 
 /**
- * @param {{onPreview?: (name: string) => void}} [opts] `onPreview`: the page shows the theme on the agents without saving it
+ * @param {{onPreview?: (spec: object) => void}} [opts] `onPreview`: the page shows the theme on made-up agents without saving it
  * @returns {{button: HTMLButtonElement, panel: HTMLElement, onOpen: () => void, update: (name: string|undefined) => void}}
  */
 export function createThemeMenu({ onPreview } = {}) {
@@ -42,11 +42,16 @@ export function createThemeMenu({ onPreview } = {}) {
   button.title = 'Theme';
   button.setAttribute('aria-label', 'Theme');
   const panel = el('div', 'vpanel vwide');
+  const toast = el('div', 'toast');
+  toast.setAttribute('role', 'status');
+  toast.hidden = true;
 
   // --- state
   let market = null;                                           // the last GET /market answer
   let active = 'default';
-  let query = '', status = 'all', showAllTags = false, inSettings = false, message = '';
+  let query = '', status = 'all', showAllTags = false, inSettings = false;
+  let notice = null, noticeTimer = null;                       // { ok, text }: the result of the last action, shown on top
+  const busy = new Map();                                      // card name -> what is running on it ("Installing…")
   const tags = new Set();
   let previews = [];                                           // [{canvas, theme}] of the cards on screen
   let catalogKey = '';
@@ -86,17 +91,29 @@ export function createThemeMenu({ onPreview } = {}) {
   const settingsStatus = el('div', 'mstatus shint');
   settingsBox.append(backBtn, el('div', 'tname', 'Marketplaces'), el('div', 'shint', 'GitHub repositories with one folder per theme. The listings are kept for 24 hours.'),
     sourcesRow, addRow, autoRow, actionRow, refreshed, settingsStatus);
-  panel.append(main, settingsBox);
+  panel.append(toast, main, settingsBox);
 
   // --- actions
-  async function act(btn, fn) {                                // one request at a time per button; a refusal shows as a message
+  function setNotice(ok, text) {                               // a success fades after 5 seconds, an error stays until the next action
+    clearTimeout(noticeTimer);
+    notice = text ? { ok, text } : null;
+    if (notice?.ok) noticeTimer = setTimeout(() => { notice = null; render(); }, 5000);
+    render();
+  }
+  async function act(btn, fn) {                                // one request at a time per button; a refusal shows as an error
     btn.disabled = true;
-    try { await fn(); message = ''; } catch (err) { message = String(err.message ?? err); }
+    try { await fn(); } catch (err) { setNotice(false, String(err.message ?? err)); }
     btn.disabled = false;
     render();
   }
+  /** An action on a card: the card shows `busyLabel` while it runs, then a notice says `done` or why it failed. */
+  async function run(name, busyLabel, done, fn) {
+    busy.set(name, busyLabel);
+    setNotice(true, '');
+    try { await fn(); busy.delete(name); setNotice(true, done); } catch (err) { busy.delete(name); setNotice(false, String(err.message ?? err)); }
+  }
   async function load() {
-    try { market = await (await fetch('/market')).json(); message = ''; } catch { message = 'The hub is unreachable.'; }
+    try { market = await (await fetch('/market')).json(); } catch { setNotice(false, 'The hub is unreachable.'); }
     render();
   }
 
@@ -128,22 +145,33 @@ export function createThemeMenu({ onPreview } = {}) {
       body.append(kw);
     }
     const actions = el('div', 'mtools');
-    const btn = (label, fn, title) => { const b = el('button', 'chip', label); if (title) b.title = title; b.onclick = () => act(b, fn); actions.append(b); };
-    if (!c.installed) btn('Install', async () => { await call('/market/install', { source: c.source, name: c.name }); active = c.name; await load(); }, 'Install and apply');
-    else {
-      if (!c.active) btn('Apply', async () => { active = c.name; await postSettings({ theme: c.name }); });
-      if (c.updatable) btn(`Update to ${c.availableVersion}`, async () => { await call('/market/update', { name: c.name }); await load(); });
-      if (onPreview) btn('Preview', async () => onPreview(c.name), 'Show the theme on the agents without saving it');
-      if (c.deletable) btn('Delete', async () => {
-        if (!confirm(`Delete the theme ${c.label}? Its files are removed.`)) return;
-        await call('/market/remove', { name: c.name });
-        await load();
-      });
+    const working = busy.get(c.name);
+    if (working) {                                             // a spinner replaces the buttons while the hub works
+      root.classList.add('busy');
+      actions.append(el('span', 'spin'), el('span', '', working));
+    } else {
+      const btn = (label, o, fn) => {
+        const b = el('button', 'chip', label);
+        if (o.title) b.title = o.title;
+        b.onclick = () => { if (o.confirm && !confirm(o.confirm)) return; run(c.name, o.busy, o.done, fn); };
+        actions.append(b);
+      };
+      if (onPreview) { const p = el('button', 'chip', 'Preview'); p.title = 'Show the theme on made-up agents without saving it'; p.onclick = () => onPreview(previewSpec(c)); actions.append(p); }
+      if (!c.installed) btn('Install', { busy: 'Installing…', done: `Installed ${c.label} and applied it`, title: 'Install and apply' }, async () => { await call('/market/install', { source: c.source, name: c.name }); active = c.name; await load(); });
+      else {
+        if (!c.active) btn('Apply', { busy: 'Applying…', done: `Applied ${c.label}` }, async () => { active = c.name; await postSettings({ theme: c.name }); });
+        if (c.updatable) btn(`Update to ${c.availableVersion}`, { busy: 'Updating…', done: `Updated ${c.label} to ${c.availableVersion}` }, async () => { await call('/market/update', { name: c.name }); await load(); });
+        if (c.deletable) btn('Delete', { busy: 'Deleting…', done: `Deleted ${c.label}`, confirm: `Delete the theme ${c.label}? Its files are removed.` }, async () => { await call('/market/remove', { name: c.name }); await load(); });
+      }
     }
     body.append(actions);
     root.append(body);
     return root;
   }
+
+  /** What the page needs to preview a card: the name for an installed theme, the colors and icon URLs for one that is not. */
+  const previewSpec = (c) => (c.installed ? { name: c.name, label: c.label, installed: true }
+    : { name: c.name, label: c.label, installed: false, source: c.source, roles: c.roles, theme: { name: c.name, label: c.label, description: c.description, keywords: c.keywords, author: c.author, version: c.version, iconPack: c.name, colors: c.colors } });
 
   function group(title, cards) {
     const g = el('div', 'tgroup');
@@ -178,7 +206,10 @@ export function createThemeMenu({ onPreview } = {}) {
       const mine = visible.filter((c) => c.installed), other = visible.filter((c) => !c.installed);
       list.replaceChildren(...[mine.length && group('Installed', mine), other.length && group('Marketplace', other)].filter(Boolean));
     } else list.replaceChildren(group('', visible));
-    status$.textContent = [...(market?.errors ?? []), message].filter(Boolean).join(' · ');
+    status$.textContent = (market?.errors ?? []).join(' · ');
+    toast.hidden = !notice;
+    toast.className = `toast ${notice?.ok ? 'ok' : 'err'}`;
+    toast.textContent = notice?.text ?? '';
     for (const p of previews) drawPreview(p.canvas, p.theme);
 
     sourcesRow.replaceChildren(...(market?.sources ?? []).map((s) => {
@@ -192,7 +223,7 @@ export function createThemeMenu({ onPreview } = {}) {
     auto.classList.toggle('on', on); auto.setAttribute('aria-checked', String(on));
     const stamps = Object.entries(market?.refreshedAt ?? {}).map(([s, t]) => `${s}: ${t ? new Date(t).toLocaleString() : 'not fetched'}`);
     refreshed.textContent = [...stamps, market?.lastCheck ? `Update check ${new Date(market.lastCheck).toLocaleTimeString()}` : 'No update check since the hub started'].join(' · ');
-    settingsStatus.textContent = [...(market?.errors ?? []), message].filter(Boolean).join(' · ');
+    settingsStatus.textContent = (market?.errors ?? []).join(' · ');
     main.hidden = inSettings; settingsBox.hidden = !inSettings;
   }
 
@@ -201,14 +232,13 @@ export function createThemeMenu({ onPreview } = {}) {
   reload.onclick = () => act(reload, async () => { await call('/reload'); clearIconCache(); });
   gear.onclick = () => { inSettings = true; render(); };
   backBtn.onclick = () => { inSettings = false; render(); };
-  addBtn.onclick = () => act(addBtn, async () => { await call('/market/sources', { add: add.value }); add.value = ''; await load(); });
+  addBtn.onclick = () => act(addBtn, async () => { await call('/market/sources', { add: add.value }); add.value = ''; await load(); setNotice(true, 'Source added'); });
   add.onkeydown = (e) => { if (e.key === 'Enter') addBtn.click(); };
-  refresh.onclick = () => act(refresh, async () => { await call('/market/refresh'); await load(); });
+  refresh.onclick = () => act(refresh, async () => { await call('/market/refresh'); await load(); setNotice(true, 'Marketplaces refreshed'); });
   check.onclick = () => act(check, async () => {
     const r = await (await call('/market/update')).json();
     await load();
-    message = r.updated.length ? `Updated: ${r.updated.join(', ')}` : r.errors.length ? r.errors.join(' · ') : 'Everything is up to date.';
-    render();
+    if (r.updated.length) setNotice(true, `Updated ${r.updated.join(', ')}`); else if (r.errors.length) setNotice(false, r.errors.join(' · ')); else setNotice(true, 'Everything is up to date.');
   });
   auto.onclick = () => act(auto, async () => { await postSettings({ themeAutoUpdate: !(market?.autoUpdate ?? true) }); await load(); });
   onIconsLoaded(() => { for (const p of previews) drawPreview(p.canvas, p.theme); });

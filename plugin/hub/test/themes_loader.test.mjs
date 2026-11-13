@@ -73,7 +73,7 @@ test('unknown_icon_pack_in_theme_falls_back_to_robot', () => {
   assert.deepEqual(c.themes.map((t) => t.iconPack), ['robot', 'robot']);
 });
 
-test('raster_icons_are_listed_and_svg_wins_over_png_for_the_same_role', () => {
+test('raster_icons_are_listed_and_png_wins_over_svg_for_the_same_role', () => {
   const b = tmp();
   put(b, 'icons/mix/lead.png', 'png');
   put(b, 'icons/mix/lead.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>');
@@ -81,7 +81,7 @@ test('raster_icons_are_listed_and_svg_wins_over_png_for_the_same_role', () => {
   put(b, 'icons/mix/plan-blink.webp', 'webp');
   put(b, 'icons/mix/test.bmp', 'bmp');
   const c = loadCatalog({ builtinDir: b, userDir: null });
-  assert.deepEqual(c.packs[0].roles, { lead: '/icons/mix/lead.svg', plan: '/icons/mix/plan.gif', 'plan-blink': '/icons/mix/plan-blink.webp' });
+  assert.deepEqual(c.packs[0].roles, { lead: '/icons/mix/lead.png', plan: '/icons/mix/plan.gif', 'plan-blink': '/icons/mix/plan-blink.webp' });
 });
 
 test('raster_icon_over_1_mb_is_skipped_with_an_error', () => {

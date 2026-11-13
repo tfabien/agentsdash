@@ -15,6 +15,7 @@ export function createViewHost(stage) {
   root.append(head, body);
   stage.append(root);
   let current = null;
+  const entries = new Map();                                   // button -> entry
 
   function close() {
     if (!current) return;
@@ -39,9 +40,12 @@ export function createViewHost(stage) {
     /** A click on `button` shows `node` under `title` (and runs `onOpen`), or closes it when it is already shown. */
     attach(button, title, node, onOpen) {
       const entry = { button, title, node, onOpen };
+      entries.set(button, entry);
       button.onclick = () => (current === entry ? close() : open(entry));
     },
     close,
+    /** Shows the view of `button` (the Back button of a preview returns to the theme list this way). */
+    openFor(button) { const e = entries.get(button); if (e) open(e); },
     isOpen: () => current !== null,
   };
 }

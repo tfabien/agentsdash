@@ -4,6 +4,7 @@
 /**
  * @param {{catalog: object[], market: object | null, active: string}} p `catalog`: the installed themes; `market`: the GET /market answer (or null)
  * @returns {object[]} cards: { name, label, description, keywords, author, version, source, preview, installed, active, updatable, availableVersion, deletable }
+ *   Available cards also carry `colors` and `roles` (icon URLs) for a preview without installing.
  *   Installed cards first (the active one on top), then the ones only the marketplace has; each group by label.
  */
 export function mergeCards({ catalog, market, active }) {
@@ -21,7 +22,7 @@ export function mergeCards({ catalog, market, active }) {
   const have = new Set(catalog.map((t) => t.name));
   const available = (market?.themes ?? []).filter((t) => !t.installed && !have.has(t.name)).map((t) => ({
     name: t.name, label: t.label || t.name, description: t.description || '', keywords: t.keywords ?? [], author: t.author || '', version: t.version || '', source: t.source,
-    preview: t.preview ?? null, installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
+    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
   }));
   const byLabel = (a, b) => a.label.localeCompare(b.label);
   installed.sort((a, b) => (b.active - a.active) || byLabel(a, b));

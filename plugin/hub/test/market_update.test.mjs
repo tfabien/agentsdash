@@ -99,3 +99,11 @@ test('a_listing_survives_in_the_store_and_a_failed_listing_is_not_kept', async (
   first.forget();
   assert.deepEqual(disk, {});
 });
+
+test('a_stored_listing_of_an_older_format_is_fetched_again', async () => {
+  let n = 0;
+  const store = { read: () => ({ 'o/r': { at: 5000, result: { themes: [], errors: [] } } }), write: () => {} };       // no format field: an older hub wrote it
+  const u = createUpdater({ store, getInstalled: () => ({}), list: async () => { n++; return { themes: [], errors: [] }; }, install: async () => {}, now: () => 6000 });
+  await u.list('o/r');
+  assert.equal(n, 1);
+});
