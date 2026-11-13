@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  parseUsageJson, parseHeaders, dropImplausibleH5, readToken, quotasEnabled, bodyFromLimits, fetchLimits, createQuotaPoller,
-} from '../quotas.mjs';
+  parseUsageJson, parseHeaders, dropImplausibleH5, readToken, quotasEnabled, bodyFromLimits, fetchLimits, pollOnce, maybeSpawnPoller,
+} from '../scripts/quota_poller.mjs';
 
 const NOW = 1_800_000_000;
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'quota-'));
@@ -118,52 +118,56 @@ test('network_failure_gives_empty_limits', async () => {
 
 // ---------- poller ----------
 function pollerSetup(over = {}) {
-  const applied = [];
+  const posted = [];
   const calls = [];
-  const out = [];
-  const poller = createQuotaPoller({
-    enabled: true, hasSessions: () => true, apply: (b) => applied.push(b), stateDir: tmp(), env: { CLAUDE_CODE_OAUTH_TOKEN: 'SECRET-TOKEN' },
+  const opts = {
+    env: { CLAUDE_CODE_OAUTH_TOKEN: 'SECRET-TOKEN' }, cfg: {}, folder: tmp(), now: NOW,
     fetchImpl: async (url, init) => { calls.push({ url, init }); return resp(200, { five_hour: { utilization: 10, resets_at: new Date((NOW + 9000) * 1000).toISOString() } }); },
-    log: (line) => out.push(line), ...over,
-  });
-  return { poller, applied, calls, out };
+    post: async (route, body) => { posted.push({ route, body }); }, ...over,
+  };
+  return { run: () => pollOnce(opts), posted, calls };
 }
 
-test('poller_does_nothing_without_sessions', async () => {
-  const { poller, applied, calls } = pollerSetup({ hasSessions: () => false });
-  await poller.pollOnce(NOW);
-  assert.equal(calls.length, 0);
-  assert.equal(applied.length, 0);
+test('poll_once_posts_usage', async () => {
+  const { run, posted } = pollerSetup();
+  assert.equal(await run(), 'sent');
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].route, '/usage');
+  assert.equal(posted[0].body.h5_pct, 10);
 });
 
-test('poller_off_when_disabled', async () => {
-  const { poller, calls } = pollerSetup({ enabled: false });
-  await poller.pollOnce(NOW);
-  assert.equal(calls.length, 0);
+test('poll_once_off_when_quotas_disabled', async () => {
+  for (const over of [{ cfg: { quotas: false } }, { env: { CLAUDE_CODE_OAUTH_TOKEN: 'x', CLAUDE_GADGET_QUOTAS: '0' } }, { env: { CLAUDE_CODE_OAUTH_TOKEN: 'x', AGENTSDASH_QUOTAS: '0' } }]) {
+    const { run, posted, calls } = pollerSetup(over);
+    assert.equal(await run(), 'off');
+    assert.equal(calls.length + posted.length, 0);
+  }
 });
 
-test('poller_polls_at_most_once_a_minute_and_applies_the_body', async () => {
-  const { poller, applied, calls } = pollerSetup();
-  await poller.pollOnce(NOW);
-  await poller.pollOnce(NOW + 30);
-  assert.equal(calls.length, 1);
-  assert.equal(applied.length, 1);
-  assert.equal(applied[0].h5_pct, 10);
-  await poller.pollOnce(NOW + 61);
-  assert.equal(calls.length, 2);
-});
-
-test('token_is_sent_only_in_the_authorization_header_and_never_logged', async () => {
-  const { poller, calls, out, applied } = pollerSetup();
-  await poller.pollOnce(NOW);
+test('token_is_sent_only_in_the_authorization_header_and_never_posted', async () => {
+  const { run, calls, posted } = pollerSetup();
+  await run();
   assert.equal(calls[0].init.headers.Authorization, 'Bearer SECRET-TOKEN');
-  assert.equal(JSON.stringify(applied) + out.join('\n'), (JSON.stringify(applied) + out.join('\n')).replace(/SECRET-TOKEN/g, ''));
+  assert.ok(!JSON.stringify(posted).includes('SECRET-TOKEN'));
 });
 
-test('poller_without_a_token_does_nothing', async () => {
-  const { poller, calls } = pollerSetup({ env: {}, credentialsPath: '/nope/creds.json' });
-  await poller.pollOnce(NOW);
+test('poll_once_without_a_token_does_nothing', async () => {
+  const { run, calls } = pollerSetup({ env: {}, credentialsPath: '/nope/creds.json' });
+  assert.equal(await run(), 'no-token');
   assert.equal(calls.length, 0);
+});
+
+test('maybe_spawn_is_throttled', () => {
+  const dir = tmp();
+  const started = [];
+  const spawnFn = (...args) => { started.push(args); return { on() {}, unref() {} }; };
+  const t = Date.now() / 1000;
+  assert.equal(maybeSpawnPoller({ dir, now: t, spawnFn }), true);
+  assert.equal(started.length, 1);
+  assert.equal(maybeSpawnPoller({ dir, now: t + 1, spawnFn }), false, 'the stamp was just written');
+  assert.equal(maybeSpawnPoller({ dir, now: t + 61, spawnFn }), true);
+  assert.equal(maybeSpawnPoller({ dir, now: t + 200, cfg: { quotas: false }, spawnFn }), false);
+  assert.equal(maybeSpawnPoller({ dir: path.join(dir, 'quota_poll.stamp', 'x'), now: t + 200, spawnFn }), false, 'an unwritable folder is not an error');
 });
 
 test('token_from_keychain_when_no_file', () => {

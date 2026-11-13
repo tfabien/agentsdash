@@ -1,20 +1,25 @@
 /*
- * Plan quotas (5 h and 7 days), polled by the hub for the desktop app that runs no status line.
+ * Plan quotas (5 h and 7 days) for the desktop app, which runs no status line. A detached script of the Claude plugin: notify.mjs
+ * starts it (at most once a minute, see maybeSpawnPoller), it asks Anthropic and POSTs the numbers to the hub's /usage route.
+ * The hub itself knows nothing about Claude credentials.
  *
  * Reads the Claude OAuth token (env CLAUDE_CODE_OAUTH_TOKEN, else ~/.claude/.credentials.json while not expired;
  * never refreshed, never logged), then asks the undocumented api/oauth/usage endpoint. That endpoint needs the
  * user:profile scope; when it refuses, a 1-token Haiku call to /v1/messages returns the same numbers in its
  * anthropic-ratelimit-unified-* headers (costs a few tokens per call). Pace and history come from statusline.mjs.
- * Polls at most once a minute, only while a session exists. Off with CLAUDE_GADGET_QUOTAS=0 or "quotas": false.
+ * Off with AGENTSDASH_QUOTAS=0 (old name CLAUDE_GADGET_QUOTAS) or "quotas": false in the config file.
  * All times here are epoch seconds.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { historyPath, updateHistory, usageBody } from '../scripts/statusline.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { envVar, hubHost, pluginConfig, stateDir } from './common.mjs';
+import { postToHub } from './hub_client.mjs';
+import { historyPath, updateHistory, usageBody } from './statusline.mjs';
 
-const EVERY_S = 60;
+const EVERY_S = 60;                      // at most one poll a minute
 const STATUSLINE_FRESH_S = 120;
 const USAGE_BACKOFF_S = 900;
 const USAGE_DEAD_S = 3600;               // after a refusal, skip the usage endpoint for an hour
@@ -24,12 +29,13 @@ const USAGE_REFUSED = [401, 403, 404];   // the endpoint will not serve this tok
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 const TIMEOUT_MS = 15000;
-const TICK_MS = 5000;
+const STAMP = 'quota_poll.stamp';
+const SCRIPT = fileURLToPath(import.meta.url);
 
 export const defaultCredentials = () => path.join(os.homedir(), '.claude', '.credentials.json');
 
 export function quotasEnabled(env, cfg) {
-  return env.CLAUDE_GADGET_QUOTAS !== '0' && cfg.quotas !== false;
+  return envVar('QUOTAS', env) !== '0' && cfg.quotas !== false;
 }
 
 /** macOS only: the Claude Code credentials JSON from the login Keychain, or null. */
@@ -133,37 +139,50 @@ export async function fetchLimits({ token, now, fetchImpl, state, folder }) {
 }
 
 /**
- * @param {{enabled: boolean, hasSessions: () => boolean, apply: (body: object) => void, stateDir: string, env?: object,
- *   credentialsPath?: string, fetchImpl?: Function, log?: (line: string) => void}} opts
- * @returns {{pollOnce: (now: number) => Promise<void>, start: () => void, stop: () => void}}
+ * One poll: reads the token, asks Anthropic, posts the body with `post('/usage', body)`.
+ * @returns {Promise<'sent' | 'off' | 'no-token' | 'empty'>}
  */
-export function createQuotaPoller(opts) {
-  const env = opts.env ?? process.env;
-  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
-  const state = { deadUntil: 0, backoffUntil: 0 };
-  let lastAt = -Infinity;
-  let busy = false;
-  let timer = null;
+export async function pollOnce({ env = process.env, cfg = {}, folder, now, fetchImpl = globalThis.fetch, post, credentialsPath, state = { deadUntil: 0, backoffUntil: 0 } }) {
+  if (!quotasEnabled(env, cfg)) return 'off';
+  const token = readToken(env, credentialsPath ?? defaultCredentials(), now);
+  if (!token) return 'no-token';
+  const { limits } = await fetchLimits({ token, now, fetchImpl, state, folder });
+  if (!Object.keys(limits).length) return 'empty';
+  const h5 = limits.five_hour, d7 = limits.seven_day;
+  const samples = updateHistory(historyPath(folder), now, h5 ? [h5.used_percentage, h5.resets_at] : null, d7 ? [d7.used_percentage, d7.resets_at] : null);
+  await post('/usage', bodyFromLimits(limits, now, samples));
+  return 'sent';
+}
 
-  async function pollOnce(now) {
-    if (!opts.enabled || busy || now - lastAt < EVERY_S || !opts.hasSessions()) return;
-    const token = readToken(env, opts.credentialsPath ?? defaultCredentials(), now);
-    if (!token) return;
-    busy = true;
-    lastAt = now;
-    try {
-      const { limits, source } = await fetchLimits({ token, now, fetchImpl, state, folder: opts.stateDir });
-      if (!Object.keys(limits).length) return;
-      const h5 = limits.five_hour, d7 = limits.seven_day;
-      const samples = updateHistory(historyPath(opts.stateDir), now, h5 ? [h5.used_percentage, h5.resets_at] : null, d7 ? [d7.used_percentage, d7.resets_at] : null);
-      opts.apply(bodyFromLimits(limits, now, samples));
-      opts.log?.(`quotas from ${source}`);
-    } catch { /* the next minute tries again */ } finally { busy = false; }
-  }
+/**
+ * Starts this script detached, at most once a minute (a stamp file in `dir` records the last start). Never throws, never waits.
+ * @returns {boolean} true when it started one.
+ */
+export function maybeSpawnPoller({ dir, env = process.env, cfg = {}, now, spawnFn = spawn, script = SCRIPT }) {
+  try {
+    if (!quotasEnabled(env, cfg)) return false;
+    const stamp = path.join(dir, STAMP);
+    try { if (now - fs.statSync(stamp).mtimeMs / 1000 < EVERY_S) return false; } catch { /* no stamp yet */ }
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(stamp, String(now));
+    const child = spawnFn(process.execPath, [script], { detached: true, stdio: 'ignore', windowsHide: true, env });
+    child.on?.('error', () => {});
+    child.unref?.();
+    return true;
+  } catch { return false; }
+}
 
-  return {
-    pollOnce,
-    start() { if (!timer) { timer = setInterval(() => { pollOnce(Date.now() / 1000); }, TICK_MS); timer.unref(); } },
-    stop() { if (timer) { clearInterval(timer); timer = null; } },
-  };
+// `node quota_poller.mjs`: one poll, then exit. Never fails.
+const isMain = (() => {
+  try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
+})();
+if (isMain) {
+  setTimeout(() => process.exit(0), 20000).unref();
+  process.on('uncaughtException', () => process.exit(0));
+  process.on('unhandledRejection', () => process.exit(0));
+  const env = process.env;
+  try {
+    await pollOnce({ env, cfg: pluginConfig(env), folder: stateDir(env), now: Date.now() / 1000, post: (route, body) => postToHub(route, body, { host: hubHost(env), timeoutMs: 5000, spawnHub: false }) });
+  } catch { /* the next minute tries again */ }
+  process.exitCode = 0;
 }

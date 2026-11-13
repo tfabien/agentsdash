@@ -15,7 +15,6 @@ import { validatePalettePart } from './web/theme_schema.js';
 import { annotate, createUpdater } from './market_update.mjs';
 import { installFirstTheme } from './market_bootstrap.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
-import { createQuotaPoller, quotasEnabled } from './quotas.mjs';
 import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
 import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
@@ -402,24 +401,13 @@ export function startHub(opts = {}) {
     } catch (e) { return { ok: false, error: String(e?.cause?.code ?? e?.message ?? e) }; }
   }
 
-  // Plan quotas for the desktop app (no status line): polled while a session exists, applied like a POST /usage.
-  const quotaOpts = opts.quota ?? {};
-  const quotas = createQuotaPoller({
-    enabled: quotasEnabled(quotaOpts.env ?? process.env, config),
-    hasSessions: () => model.toState(now()).sessions.length > 0,
-    apply: (body) => { model.applyUsage(body, now()); for (const fn of usageTaps) { try { fn(body); } catch { /* tap errors stay local */ } } publish(); },
-    stateDir: quotaOpts.stateDir ?? stateDir(),
-    env: quotaOpts.env,
-    fetchImpl: quotaOpts.fetchImpl,
-  });
-  if (quotaOpts.autostart !== false) quotas.start();
   serial?.start();
 
   return new Promise((resolve, reject) => {
-    server.once('error', (e) => { clearInterval(timer); clearInterval(firstThemeTimer); updater.stop(); quotas.stop(); reject(e); });
+    server.once('error', (e) => { clearInterval(timer); clearInterval(firstThemeTimer); updater.stop(); reject(e); });
     server.listen(wantedPort, host, () => {
       resolve({
-        port: server.address().port, host, model, quotas,
+        port: server.address().port, host, model,
         onEvent: (fn) => eventTaps.push(fn),
         onUsage: (fn) => usageTaps.push(fn),
         onChange: (fn) => changeTaps.push(fn),
@@ -427,7 +415,6 @@ export function startHub(opts = {}) {
           clearInterval(timer);
           clearInterval(firstThemeTimer);
           updater.stop();
-          quotas.stop();
           serial?.release();
           relay?.stop?.();
           for (const res of clients) res.end();

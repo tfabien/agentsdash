@@ -129,24 +129,16 @@ test('second_hub_on_same_port_fails', async () => {
   } finally { await first.close(); }
 });
 
-test('quota_poll_result_reaches_state_and_taps', async () => {
-  const fetchImpl = async () => ({ ok: true, status: 200, headers: new Headers(), json: async () => ({ five_hour: { utilization: 33, resets_at: new Date(Date.now() + 3 * 3600 * 1000).toISOString() } }) });
-  const hub = await startHub({
-    port: 0, config: { relay: { mode: 'none' }, quotas: true }, userDir: tmpUserDir(),
-    quota: { fetchImpl, env: { CLAUDE_CODE_OAUTH_TOKEN: 'x' }, stateDir: fs.mkdtempSync(path.join(os.tmpdir(), 'hubq-')), autostart: false },
-  });
-  try {
-    const seen = [];
-    hub.onUsage((b) => seen.push(b));
-    await hub.quotas.pollOnce(Date.now() / 1000);                 // no session yet: nothing happens
-    assert.equal((await (await get(hub, '/state')).json()).usage, undefined);
-    await post(hub, '/event', EV);
-    await hub.quotas.pollOnce(Date.now() / 1000);
-    const st = await (await get(hub, '/state')).json();
-    assert.equal(st.usage.h5_pct, 33);
-    assert.equal(seen.length, 1);
-  } finally { await hub.close(); }
-});
+test('usage_without_session_reaches_state_and_taps', () => withHub(async (hub) => {
+  const seen = [];
+  hub.onUsage((b) => seen.push(b));
+  const r = await post(hub, '/usage', { v: 1, session: '', h5_pct: 33, h5_reset_s: 3600 });
+  assert.equal(r.status, 200);
+  await post(hub, '/event', EV);
+  assert.equal(seen.length, 1);
+  const st = await (await get(hub, '/state')).json();
+  assert.equal(st.usage.h5_pct, 33);
+}));
 
 test('no_cors_headers_so_other_web_pages_cannot_read_the_state', () => withHub(async (hub) => {
   for (const p of ['/state', '/health', '/relay', '/']) {
@@ -240,17 +232,16 @@ test('core_version_matches_plugin', () => withHub(async (hub) => {
 
 test('loadConfig_defaults_and_file_and_env', () => {
   const dflt = loadConfig(path.join(os.tmpdir(), 'no-such-agent-gadget.json'), {});
-  assert.deepEqual(dflt, { host: '127.0.0.1:8765', relay: { mode: 'none' }, quotas: true, context_window: 1000000, max_sessions: 12, first_theme: 'robot' });
+  assert.deepEqual(dflt, { host: '127.0.0.1:8765', relay: { mode: 'none' }, context_window: 1000000, max_sessions: 12, first_theme: 'robot' });
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubcfg-')), 'c.json');
   fs.writeFileSync(file, JSON.stringify({ host: '127.0.0.1:9000', relay: { mode: 'http', host: '192.168.1.100' }, quotas: false, context_window: 200000 }));
   const c = loadConfig(file, {});
   assert.equal(c.host, '127.0.0.1:9000');
   assert.deepEqual(c.relay, { mode: 'http', host: '192.168.1.100' });
-  assert.equal(c.quotas, false);
   assert.equal(c.context_window, 200000);
   assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '7' }).max_sessions, 7);
   assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '99' }).max_sessions, 12);     // out of range: default
-  assert.equal(loadConfig(file, { CLAUDE_GADGET_HOST: 'h:1', CLAUDE_GADGET_QUOTAS: '0' }).host, 'h:1');
+  assert.equal(loadConfig(file, { CLAUDE_GADGET_HOST: 'h:1' }).host, 'h:1');
   assert.equal(loadConfig(file, { AGENTSDASH_MAX_SESSIONS: '7' }).max_sessions, 7);
   assert.equal(loadConfig(file, { AGENTSDASH_HOST: 'h:2', CLAUDE_GADGET_HOST: 'h:1' }).host, 'h:2', 'the new name wins');
   assert.equal(loadConfig(file, { AGENTSDASH_THEME: 'cat' }).first_theme, 'cat');

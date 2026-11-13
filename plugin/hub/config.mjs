@@ -7,7 +7,7 @@ export const DEFAULT_HOST = '127.0.0.1:8765';
 export const defaultConfigPath = configPath;
 
 /**
- * @returns {{host: string, relay: {mode: string, host?: string, port?: string}, quotas: boolean, context_window: number, max_sessions: number}}
+ * @returns {{host: string, relay: {mode: string, host?: string, port?: string}, context_window: number, max_sessions: number}}
  * Never throws: a missing or broken file gives the defaults.
  */
 export function loadConfig(file = defaultConfigPath(), env = process.env) {
@@ -23,7 +23,6 @@ export function loadConfig(file = defaultConfigPath(), env = process.env) {
   return {
     host: envVar('HOST', env) || (typeof data.host === 'string' && data.host) || DEFAULT_HOST,
     relay,
-    quotas: envVar('QUOTAS', env) === '0' ? false : data.quotas !== false,
     context_window: window,
     max_sessions: maxSessions,
     first_theme: [envVar('THEME', env), data.theme].find((t) => typeof t === 'string' && /^[a-z0-9-]{1,32}$/.test(t)) ?? 'robot',
