@@ -1,6 +1,7 @@
-// The bottom bar of the page: plan quotas, the beeps button, the theme button, the settings gear, the clock.
+// The bottom bar of the page: plan quotas, the beeps button, the theme button, the QR button, the settings gear, the clock.
 import { quotaBars } from './hub_view.js';
-import { createSettingsMenu, createDeviceMenu, postSettings } from './settings.js';
+import { createSettingsMenu, postSettings } from './settings.js';
+import { createPhoneSection } from './phone_section.js';
 import { createThemeMenu } from './theme_dialog.js';
 import { createViewHost } from './views.js';
 import { icon } from './icons.js';
@@ -12,13 +13,17 @@ const SOUND_LABEL = { all: 'all events', ask: 'questions only', off: 'off' };
 const NEXT_SOUND = { all: 'ask', ask: 'off', off: 'all' };
 
 /**
- * Fills `root` (a <footer>) with the bar. `onPreview(spec)`: the page shows a theme on made-up agents without saving it; `preview.show()` fills the bar for it. The theme, settings and device buttons open their menu inside `stage`, in place of the agents.
+ * Fills `root` (a <footer>) with the bar. `onPreview(spec)`: the page shows a theme on made-up agents without saving it; `preview.show()` fills the bar for it. The theme, QR and settings buttons open their menu inside `stage`, in place of the agents.
  * @returns {{update: (state: object, elapsedS: number) => void, settings: ReturnType<typeof createSettingsMenu>, views: ReturnType<typeof createViewHost>, themeButton: HTMLElement,
  *   preview: {show: (label: string, applyLabel: string, busyText: string, onApply: () => Promise<unknown>, onBack: () => void) => void, hide: (note?: string) => void}}}
  */
 export function mountFooter(root, stage, { onPreview } = {}) {
   const quotas = el('span', 'quotas');
-  const device = createDeviceMenu();
+  const phone = createPhoneSection();
+  const qr = el('button', 'chip qrbtn');
+  qr.append(icon('qr'));
+  qr.title = 'Pair a phone (QR code)';
+  qr.setAttribute('aria-label', 'Pair a phone');
   const sound = el('button', 'chip sound');
   const gear = el('span', 'gearslot');
   const clock = el('span', 'clock');
@@ -27,10 +32,10 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   const themes = createThemeMenu({ onPreview: (spec) => { views.close(); onPreview?.(spec); } });
   views.attach(themes.button, 'Theme', themes.panel, themes.onOpen);
   views.attach(settings.button, 'Settings', settings.panel);
-  views.attach(device.button, 'Device', device.panel);
+  views.attach(qr, 'Phone', phone.node, phone.refresh);
   gear.append(settings.button);
   const tools = el('span', 'tools');
-  tools.append(sound, themes.button, device.button, gear);                   // icons close together; the clock stays apart
+  tools.append(sound, themes.button, qr, gear);                   // icons close together; the clock stays apart
   const previewBar = el('span', 'previewbar');
   let noteTimer = null;
   previewBar.hidden = true;
@@ -79,7 +84,7 @@ export function mountFooter(root, stage, { onPreview } = {}) {
     update(state, elapsedS) {
       mode = state.settings?.sound ?? 'ask';
       themes.update(state.settings?.theme, state.settings?.themeVariant, state.settings?.themeOverrides, state.settings?.themeLooks);
-      device.updateRelay(state.relay);
+      settings.updateRelay(state.relay);
       if (sound.dataset.mode !== mode) { sound.dataset.mode = mode; sound.replaceChildren(icon(SOUND_ICON[mode] ?? SOUND_ICON.ask)); }
       sound.title = `Beeps: ${SOUND_LABEL[mode] ?? mode} (click to change)`;
       quotas.replaceChildren(...quotaBars(state.usage, elapsedS).map((q) => {
