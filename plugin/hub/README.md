@@ -1,8 +1,9 @@
-# standup-bot hub
+# agentsdash hub
 
-Local Node.js hub for the agent standup. It receives what the Claude Code plugin sends (`POST /event` v2,
+Local Node.js hub for the agent dashboard. It receives what the Claude Code plugin sends (`POST /event` v2,
 `POST /usage`, the same wire format as the gadget), keeps the state of every session and sub-agent, and shows it in a
 browser page. It works with no hardware, and can relay the same events to the ESP32 gadget.
+The wire contract is in [docs/protocol.md](../../docs/protocol.md) and [docs/device-protocol.md](../../docs/device-protocol.md).
 
 Requires Node.js >= 18. No npm install is needed (the optional `serialport` package is only for USB mode).
 

@@ -1,12 +1,12 @@
 # Themes on the hub side
 
-How the hub finds, installs and serves themes, plus the project rules. The format of themes and icon packs (theme file, looks, accent, palette swaps, marketplace layout) is documented in the themes repository: https://github.com/tfabien/standup-bot-themes/blob/main/docs/format.md
+How the hub finds, installs and serves themes, plus the project rules. The format of themes and icon packs (theme file, looks, accent, palette swaps, marketplace layout) is documented in the themes repository: https://github.com/tfabien/agentsdash-themes/blob/main/docs/format.md
 
 The page has one global theme, chosen with the palette button of the bottom bar. The hub keeps the choice (`theme` in `hub-settings.json`), so every page follows without a restart. The physical screen is not affected. The hub reads the built-in themes from `plugin/hub/` (none ship today) and yours from `~/.claude/standup-bot/`, and publishes them as `catalog` in `GET /state`.
 
 ## Built-in theme and more themes
 
-standup-bot ships no theme file. At the first launch of the hub, when no theme is installed, it downloads the theme named by `"theme"` in `~/.claude/agent-gadget.json` or the env `CLAUDE_GADGET_THEME` (default `robot`; else the first one listed) from the first marketplace source and applies it; it retries every 10 minutes while that fails (offline). Until then the page draws the built-in vector robots in the firmware colors. The themes live in https://github.com/tfabien/standup-bot-themes (cat, lemmings, office, pirates, spelunky and more). Install them with the `install-theme` skill of the plugin, or follow `install.md` of that repository, which also lists the constraints to create a theme.
+agentsdash ships no theme file. At the first launch of the hub, when no theme is installed, it downloads the theme named by `"theme"` in `~/.claude/agent-gadget.json` or the env `CLAUDE_GADGET_THEME` (default `robot`; else the first one listed) from the first marketplace source and applies it; it retries every 10 minutes while that fails (offline). Until then the page draws the built-in vector robots in the firmware colors. The themes live in https://github.com/tfabien/agentsdash-themes (cat, lemmings, office, pirates, spelunky and more). Install them with the `install-theme` skill of the plugin, or follow `install.md` of that repository, which also lists the constraints to create a theme.
 
 ## Drop-in folders
 
@@ -60,7 +60,7 @@ It rewrites `plugin/hub/themes/*.json` and `plugin/hub/icons/<pack>/*.svg`. To s
 
 ## Marketplace
 
-The theme dialog has two tabs: **Installed** (the catalog, with a Remove button on themes that came from a marketplace) and **Marketplace** (themes of GitHub repositories, with search, Install, Update and Remove). The default source is `tfabien/standup-bot-themes`; add others with the "Add a source" field (`owner/repo` or a GitHub URL, at most 10). Sources are the hub setting `marketSources`, shared by all pages.
+The theme dialog has two tabs: **Installed** (the catalog, with a Remove button on themes that came from a marketplace) and **Marketplace** (themes of GitHub repositories, with search, Install, Update and Remove). The default source is `tfabien/agentsdash-themes`; add others with the "Add a source" field (`owner/repo` or a GitHub URL, at most 10). Sources are the hub setting `marketSources`, shared by all pages.
 
 The hub does the work: it reads the repository from `api.github.com` and downloads from `raw.githubusercontent.com`, then writes `~/.claude/standup-bot/themes/<name>.json` (with `iconPack` set to the theme name) and `icons/<name>/`. A download that fails, a file over the size limits (256 KB json and svg, 1 MB raster, 100 files, 20 MB total) or a theme named like a built-in one leaves everything as it was. `~/.claude/standup-bot/market.json` records `{ source, version, installedAt }` for each installed theme; only those themes are updated or removable.
 

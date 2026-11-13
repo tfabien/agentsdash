@@ -1,6 +1,6 @@
 # ESP32 gadget with the screen of an Artillery X3
 
-A physical copy of the standup-bot screen: the 4.3" touchscreen of an Artillery X3 3D printer, driven by an ESP32, with a buzzer.
+A physical copy of the agentsdash screen: the 4.3" touchscreen of an Artillery X3 3D printer, driven by an ESP32, with a buzzer.
 It shows what the browser page shows, and it works on its own: it keeps the state of all sessions and draws the screen itself.
 The screen was used because it was at hand; it is not sold on its own (see the [TODO](#todo)).
 

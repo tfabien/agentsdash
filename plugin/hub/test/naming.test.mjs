@@ -39,6 +39,20 @@ test('old_name_is_gone', () => {
   assert.deepEqual(hits, []);
 });
 
+test('docs_use_the_new_name', () => {
+  const docs = ['README.md', 'INSTALL.md', 'CLAUDE.md', 'plugin/README.md', 'plugin/hub/README.md', 'docs/hub-themes.md', 'devices/README.md', 'devices/artillery-x3-esp32/README.md'];
+  const allowed = /agent-gadget|CLAUDE_GADGET|\.claude\/standup-bot|formerly|renamed/i;
+  const old = /standup-bot|agent standup|STANDUP_BOT/i;
+  const hits = [];
+  for (const d of docs) {
+    fs.readFileSync(path.join(ROOT, d), 'utf8').split('\n').forEach((line, i) => { if (old.test(line) && !allowed.test(line)) hits.push(`${d}:${i + 1}`); });
+  }
+  assert.deepEqual(hits, []);
+  for (const d of ['README.md', 'plugin/hub/README.md', 'devices/README.md']) {
+    assert.match(fs.readFileSync(path.join(ROOT, d), 'utf8'), /protocol\.md/, `${d} links the protocol`);
+  }
+});
+
 test('saved_old_source_still_wins', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentsdash-name-'));
   const settingsFile = path.join(dir, 'hub-settings.json');

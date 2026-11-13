@@ -1,7 +1,7 @@
 # Devices
 
-The browser page is the main way to use standup-bot. A **device** is an optional physical screen that shows the same thing, next to
-the keyboard. Each device lives in its own folder here, with its firmware, its tools, its tests and its own README.
+The browser page is the main way to use agentsdash. A **device** is an optional physical screen that shows the same thing, next to
+the keyboard. Each device lives in its own folder here, with its firmware, its tools, its tests and its own README. What a device receives and how the hub reduces text for it: [docs/device-protocol.md](../docs/device-protocol.md); the events themselves: [docs/protocol.md](../docs/protocol.md).
 
 | Folder | Hardware | State |
 |---|---|---|
