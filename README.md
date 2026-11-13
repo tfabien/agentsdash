@@ -175,15 +175,32 @@ Docs: [hub/README.md](hub/README.md) (hub, configuration, API, relays).
 
 ## TODO (known and not fixed)
 
-- **Share the screen component with the hub page.** The sessions hub tiles are HTML (`hub_page.js`, logic in `hub_view.js`), the full page is still one canvas (`screen.js`). Issue #2 asks for one component used by both. Also open: raise the default of `max_sessions` once the session list of the full page scrolls (12 rows overflow it today).
-- **Configuration names (done).** The file is `~/.agentsdash/config.json` and the variables are `AGENTSDASH_*`. The old `~/.claude/agent-gadget.json` and `CLAUDE_GADGET_*` names still work as a fallback for one major version.
-- **Show the model used by each session and agent** (Opus, Sonnet, Haiku) in the lead panel and the agent detail. To check: which hook payloads carry the model, then add a short `model` field to `/event`.
+Tracked as issues:
+
+- **One screen component for the page and the device.** The sessions hub tiles are HTML (`hub_page.js`, logic in `hub_view.js`), the full page is still one canvas (`screen.js`) ([issue #3](https://github.com/tfabien/agentsdash/issues/3)).
+- **Allow or deny a permission request from the screen.** A `PermissionRequest` hook can allow or deny, so the hook would wait for the hub ([issue #4](https://github.com/tfabien/agentsdash/issues/4)). A free choice among options needs another channel: no hook can inject an answer into a running `AskUserQuestion`.
+- **Reliable usage and quotas.** The usage endpoint returns 429 (backoff 15 minutes), numbers can be stale, and the context estimate from transcripts assumes a 1M window ([issue #6](https://github.com/tfabien/agentsdash/issues/6)).
+- **Phone companion** (iPhone, Android) with hub discovery ([issue #1](https://github.com/tfabien/agentsdash/issues/1)).
+
+Adapters:
+
+- **Codex: tokens, context and session title.** They need the Codex transcript format ([agentsdash-codex](https://github.com/tfabien/agentsdash-codex)). The hooks were written from the documentation and have not run in a real Codex yet, and the plugin form (`.codex-plugin`) is untested.
+- **Claude Code: the `error` state.** The page draws it, but no hook sends it yet (a failed tool or a stopped turn could).
+- **Prompts: a staleness hint on the screen itself,** and a way to see how well sessions follow the rules.
+- **The page does not follow the session that has the focus.** Today it picks the session itself (needs-you first) or by click.
+
+The core and the repositories:
+
+- **Downloads behind a proxy.** The adapters download the hub with `fetch`, which ignores `HTTP_PROXY`: on a work PC behind a proxy the first install needs `AGENTSDASH_CORE_DIR`.
+- **Core updates.** An adapter keeps the core it found and only replaces a hub older than its minimum version: nothing fetches a newer release by itself.
+- **Recorded events are copied by hand** between the adapters and `hub/test/fixtures/`. A check in CI would catch a stale copy.
+- **A GitHub organization** for the repositories, if third parties start to contribute (the topics `agentsdash` group them for now).
+- **A stub for the old `standup-bot` plugin** that tells its users to switch, planned and not made.
+
+Smaller items:
+
 - **Tap a step of the plan bar to preview it.** Needs the titles of all steps (today the plan fields carry only `done`, `total`, the current and the next step).
-- **Answer a question from the screen?** The hooks only send events: no hook can inject an answer into a running `AskUserQuestion`. A `PermissionRequest` hook can allow or deny, so Allow/Deny buttons are feasible by making the hook wait for the hub; a free choice among options needs another channel.
-- **The page does not follow the session that has the focus in Claude Code.** Today it picks the session itself (needs-you first) or by click.
-- **Prompts (first version done, on by default).** The plugin adds the rules at session start and a stale-plan reminder, see the [Claude adapter](https://github.com/tfabien/agentsdash-claude); `AGENTSDASH_PROMPTS=0` turns it off. Left: a staleness hint on the screen itself, and a way to see how well sessions follow the rules ([issue #5](https://github.com/tfabien/agentsdash/issues/5)).
-- **Usage and quotas stay problematic.** The usage endpoint returns 429 (backoff 15 minutes), numbers can be stale, and the context estimate from transcripts assumes a 1M window.
-- Show the context fill as a circle with the percentage in the middle; show the tokens of each agent in its row.
-- Minor items of the hub review, postponed: `"constructor"` accepted as a state, 400 ms per hook when the hub cannot start (no backoff), the plan file lock can wait 2 s, the hub does not replay its state to a device that rebooted.
+- **Raise the default of `max_sessions`** once the session list of the full page scrolls (12 rows overflow it today).
+- **Minor items of the hub review:** `"constructor"` accepted as a state, 400 ms per hook when the hub cannot start (no backoff), the plan file lock can wait 2 s, the hub does not replay its state to a device that rebooted.
 
 The TODO of the ESP32 gadget (USB relay test on hardware, clock settings, other boards) is in its repository: [agentsdash-device-artillery-x3](https://github.com/tfabien/agentsdash-device-artillery-x3#todo).
