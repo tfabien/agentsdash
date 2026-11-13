@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { loadCatalog, ICON_TYPES } from './themes_loader.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createModel } from './model.mjs';
+import { createModel, PROTOCOL_VERSION } from './model.mjs';
 import { validRules } from './rules.mjs';
 import { SOURCE_RE, parseSource, listSource } from './market_source.mjs';
 import { installTheme, removeTheme, readInstalled, saveUserTheme } from './market_install.mjs';
@@ -193,7 +193,7 @@ export function startHub(opts = {}) {
     const url = new URL(req.url, 'http://x');
     const route = `${req.method} ${url.pathname}`;
     switch (route) {
-      case 'GET /health': return json(res, { ok: true, version: pluginVersion, script: realScript, startedAt });
+      case 'GET /health': return json(res, { ok: true, version: pluginVersion, core: pluginVersion, protocol: PROTOCOL_VERSION, script: realScript, startedAt });
       case 'POST /shutdown':                       // a newer plugin asks the old hub to leave (it starts a fresh one itself)
         text(res, 200, 'bye');
         if (opts.onShutdown) setTimeout(opts.onShutdown, 50);

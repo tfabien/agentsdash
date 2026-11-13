@@ -2,6 +2,8 @@
 // Port of devices/artillery-x3-esp32/firmware/model.cpp. Knows nothing about HTTP, the browser or the gadget.
 // Time is a plain number of milliseconds passed in by the caller (`now`), so tests control it.
 
+/** Version of the wire protocol (docs/protocol.md): the `v` of an event, reported by GET /health as `protocol`. */
+export const PROTOCOL_VERSION = 2;
 export const MAX_SESSIONS = 5;
 export const MAX_SUBS = 12;
 export const DONE_TTL_MS = 120000;

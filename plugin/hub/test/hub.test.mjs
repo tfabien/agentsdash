@@ -63,6 +63,14 @@ test('health_answers_ok', () => withHub(async (hub) => {
   assert.equal((await (await get(hub, '/health')).json()).ok, true);
 }));
 
+test('health_reports_core_and_protocol', () => withHub(async (hub) => {
+  const body = await (await get(hub, '/health')).json();
+  assert.equal(body.ok, true);
+  assert.equal(body.protocol, 2);
+  assert.equal(typeof body.core, 'string');
+  assert.equal(body.core, body.version);      // hub_client.mjs still reads `version`
+}));
+
 test('sse_sends_state_on_connect_and_on_change', () => withHub(async (hub) => {
   const ctrl = new AbortController();
   const res = await fetch(`http://127.0.0.1:${hub.port}/events`, { signal: ctrl.signal });
