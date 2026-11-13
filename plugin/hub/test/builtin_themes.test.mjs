@@ -1,63 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { THEMES } from '../web/themes.js';
-import { ICON_PACKS } from '../web/icon_packs.js';
-import { ROLE_FILES, validateTheme } from '../web/theme_schema.js';
-import { loadCatalog } from '../themes_loader.mjs';
 import { svgContext } from '../tools/export_builtin.mjs';
 
-const HUB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PACKS = fs.readdirSync(path.join(HUB, 'icons'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);   // the packs shipped here: robot (the others live in standup-bot-themes)
-const svg = (pack, file) => fs.readFileSync(path.join(HUB, 'icons', pack, `${file}.svg`), 'utf8');
-
-// The files are the source of truth (edit them freely); the old THEMES table only has to keep a valid `default`.
-test('every_builtin_theme_json_validates_and_names_a_shipped_pack', () => {
-  const files = fs.readdirSync(path.join(HUB, 'themes')).filter((f) => f.endsWith('.json'));
-  assert.ok(files.includes('default.json'));
-  for (const f of files) {
-    const r = validateTheme(JSON.parse(fs.readFileSync(path.join(HUB, 'themes', f), 'utf8')));
-    assert.equal(r.ok, true, f);
-    assert.deepEqual(r.ignored, [], f);
-    assert.equal(r.theme.name, f.replace(/\.json$/, ''));
-    assert.ok(PACKS.includes(r.theme.iconPack), `${f} names pack ${r.theme.iconPack}`);
-  }
-});
-
-const IMAGE = /\.(svg|png|webp|gif|jpe?g)$/i;
-
-test('every_pack_has_a_file_for_each_of_the_8_roles', () => {
-  for (const pack of PACKS) {
-    const bases = fs.readdirSync(path.join(HUB, 'icons', pack)).filter((f) => IMAGE.test(f)).map((f) => f.replace(IMAGE, ''));
-    for (const r of ROLE_FILES) assert.ok(bases.includes(r), `${pack}/${r}`);
-  }
-});
-
-test('svg_icons_have_viewbox_36x42_and_no_script', () => {
-  for (const pack of PACKS) {
-    for (const f of fs.readdirSync(path.join(HUB, 'icons', pack)).filter((x) => x.endsWith('.svg'))) {
-      const s = fs.readFileSync(path.join(HUB, 'icons', pack, f), 'utf8');
-      assert.match(s, /viewBox="0 0 36 42"/, `${pack}/${f}`);
-      assert.match(s, /width="36" height="42"/, `${pack}/${f}`);
-      assert.doesNotMatch(s, /<script|onload|onerror/i, `${pack}/${f}`);
-      assert.ok(/<(path|rect|circle|ellipse|image)[\s>]/.test(s), `${pack}/${f} draws nothing`);
-    }
-  }
-});
-
-test('blink_differs_from_open_eyes_for_the_robot_lead', () => {
-  assert.notEqual(svg('robot', 'lead'), svg('robot', 'lead-blink'));
-});
-
-test('catalog_of_the_hub_folder_lists_every_theme_and_pack_with_the_8_roles', () => {
-  const c = loadCatalog({ builtinDir: HUB });
-  assert.deepEqual(c.errors, []);
-  assert.ok(c.themes.length >= 1);
-  assert.ok(c.packs.length >= 1);
-  for (const p of c.packs) for (const r of ROLE_FILES) assert.ok(p.roles[r], `${p.name}/${r}`);
-});
+// The plugin ships no theme and no icon pack: the first launch downloads one (see market_bootstrap.test.mjs).
 
 test('svgContext_throws_on_an_unsupported_call', () => {
   const { ctx } = svgContext();

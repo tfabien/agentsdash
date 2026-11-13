@@ -12,6 +12,7 @@ import { validRules } from './rules.mjs';
 import { SOURCE_RE, parseSource, listSource } from './market_source.mjs';
 import { installTheme, removeTheme, readInstalled } from './market_install.mjs';
 import { annotate, createUpdater } from './market_update.mjs';
+import { installFirstTheme } from './market_bootstrap.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
 import { createQuotaPoller, quotasEnabled } from './quotas.mjs';
 import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
@@ -121,6 +122,22 @@ export function startHub(opts = {}) {
     onDone: () => { reloadCatalog(); publish(); },
   });
   updater.start();
+  // First launch (only when asked: the hub process, not the tests): no theme at all, so one is downloaded and applied. Retried every 10 minutes while none exists.
+  const firstTheme = async () => {
+    const name = await installFirstTheme({
+      sources: settings.marketSources,
+      hasTheme: () => catalog.themes.length > 0,
+      list: (source) => updater.list(source),
+      install: (theme) => installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }),
+    });
+    if (!name) return;
+    reloadCatalog();
+    if (settings.theme === 'default') saveSettings({ theme: name });
+    publish();
+  };
+  const firstThemeTimer = opts.firstRunTheme ? setInterval(() => { if (catalog.themes.length === 0) firstTheme(); }, 10 * 60 * 1000) : null;
+  firstThemeTimer?.unref?.();
+  if (opts.firstRunTheme) setTimeout(firstTheme, 0);
   const stateJson = () => ({ ...model.toState(now()), boot: startedAt, settings, catalog, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
@@ -370,7 +387,7 @@ export function startHub(opts = {}) {
   serial?.start();
 
   return new Promise((resolve, reject) => {
-    server.once('error', (e) => { clearInterval(timer); updater.stop(); quotas.stop(); reject(e); });
+    server.once('error', (e) => { clearInterval(timer); clearInterval(firstThemeTimer); updater.stop(); quotas.stop(); reject(e); });
     server.listen(wantedPort, host, () => {
       resolve({
         port: server.address().port, host, model, quotas,
@@ -379,6 +396,7 @@ export function startHub(opts = {}) {
         onChange: (fn) => changeTaps.push(fn),
         close: () => new Promise((done) => {
           clearInterval(timer);
+          clearInterval(firstThemeTimer);
           updater.stop();
           quotas.stop();
           serial?.release();
@@ -399,7 +417,7 @@ const isMain = (() => {
   try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
 })();
 if (isMain) {
-  startHub({ settingsFile: path.join(stateDir(), 'hub-settings.json'), configFile: defaultConfigPath(), onShutdown: () => process.exit(0) }).then((hub) => {
+  startHub({ firstRunTheme: true, settingsFile: path.join(stateDir(), 'hub-settings.json'), configFile: defaultConfigPath(), onShutdown: () => process.exit(0) }).then((hub) => {
     process.stderr.write(`standup-bot hub listening on http://${hub.host}:${hub.port}/\n`);
   }).catch((e) => {
     process.stderr.write(`standup-bot hub: cannot start (${e.code ?? e.message})\n`);

@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 42" width="36" height="42">
-<path d="M18 10L18 5" fill="none" stroke="#207e73" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M21.2 3.6A3.2 3.2 0 1 1 14.8 3.6A3.2 3.2 0 1 1 21.2 3.6" fill="#fff6c2"/>
-<path d="M12 9H24A8 8 0 0 1 32 17V22A8 8 0 0 1 24 30H12A8 8 0 0 1 4 22V17A8 8 0 0 1 12 9Z" fill="#2fb5a5"/>
-<path d="M13 14.5H23A5 5 0 0 1 28 19.5V19.5A5 5 0 0 1 23 24.5H13A5 5 0 0 1 8 19.5V19.5A5 5 0 0 1 13 14.5Z" fill="#0d1117"/>
-<path d="M12 19.5L16 19.5M20 19.5L24 19.5" fill="none" stroke="#e6edf3" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M15 31H21A5 5 0 0 1 26 36V36A5 5 0 0 1 21 41H15A5 5 0 0 1 10 36V36A5 5 0 0 1 15 31Z" fill="#207e73"/>
-<path d="M19.4 35A2.4 2.4 0 1 1 14.6 35A2.4 2.4 0 1 1 19.4 35M18.8 36.8L21.5 39.2" fill="none" stroke="#f0f3f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<g transform="translate(29 35)"><circle r="6.1" fill="#121b24" stroke="#a2d989" stroke-width="1.2"/><g fill="#a2d989" stroke-linecap="round" stroke-linejoin="round"><path d="M0 -5L1.5 -1.5L5 0L1.5 1.5L0 5L-1.5 1.5L-5 0L-1.5 -1.5Z"/></g></g></svg>
