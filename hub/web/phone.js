@@ -12,6 +12,19 @@ async function keepAwake() {
 addEventListener('pointerdown', keepAwake, { once: true });
 document.addEventListener('visibilitychange', keepAwake);
 
+// Full screen, like a dedicated device: the first tap hides the browser bars (the Fullscreen API works over plain http; an installed
+// app, or an iPhone home screen icon, already runs without bars). Leaving full screen brings the hint back.
+const hint = document.getElementById('fs-hint');
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const canFullscreen = !standalone && typeof document.documentElement.requestFullscreen === 'function';
+const showHint = () => { hint.hidden = !canFullscreen || Boolean(document.fullscreenElement); };
+document.addEventListener('fullscreenchange', showHint);
+showHint();
+addEventListener('click', () => {
+  if (!canFullscreen || document.fullscreenElement) return;
+  document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+});
+
 // Own watcher stream: the banner follows it; when it reopens after a drop the page reloads, so the tiles read a fresh state.
 let delay = 0;
 let wasDown = false;
