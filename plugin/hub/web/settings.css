@@ -107,3 +107,5 @@ button.kw:hover { background: #26334a; }
 .previewbar[hidden] { display: none; }
 .ptext.err { color: #ff9b9b; }
 #bar.previewing .quotas { display: none; }
+.ptext.ok { color: #8fe0a6; }
+.previewbar .spin { flex: none; }
