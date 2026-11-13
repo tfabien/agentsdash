@@ -1,9 +1,9 @@
 {
-  "name": "standup-bot-hub",
+  "name": "agentsdash-hub",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Local hub for the agent standup: state, browser page, relay to the gadget.",
+  "description": "Local hub for the agent dashboard: state, browser page, relay to the gadget.",
   "engines": { "node": ">=18" },
   "scripts": { "test": "node --test" },
   "optionalDependencies": { "serialport": "^12.0.0" }

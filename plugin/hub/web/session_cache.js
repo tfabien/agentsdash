@@ -5,7 +5,7 @@
 // - A session missing from a state of a newer hub is carried as stale, for STALE_MS after the last time a hub confirmed it.
 
 export const STALE_MS = 10 * 60 * 1000;
-const KEY = 'standup.sessions';
+const KEY = 'agentsdash.sessions';
 
 /**
  * @param storage  localStorage-like ({getItem, setItem}); may be null or throw (private mode): the cache then lives in memory only

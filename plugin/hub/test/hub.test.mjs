@@ -338,7 +338,7 @@ test('raster_icons_are_served_with_their_own_mime', async () => {
 // ---- marketplace ----
 import { fakeGitHub } from './fake_github.mjs';
 
-const DEFAULT_SOURCE = 'tfabien/standup-bot-themes';
+const DEFAULT_SOURCE = 'tfabien/agentsdash-themes';
 const mt = (name, version = '1.0.0') => JSON.stringify({ name, label: name, description: `${name} look`, keywords: [name], version, colors: { FRAME: '#112233' } });
 const market = (version = '1.0.0') => fakeGitHub({
   [DEFAULT_SOURCE]: { files: { 'cat/theme.json': mt('cat', version), 'cat/preview.png': 'p', 'cat/icons/lead.png': 'png' } },

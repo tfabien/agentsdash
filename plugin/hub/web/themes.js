@@ -12,9 +12,9 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 export const DEFAULT_THEME = 'default';
 
 export const THEMES = {
-  default: { name: 'default', label: 'Default', author: 'standup-bot', version: '1', iconPack: 'robot', colors: {} },
+  default: { name: 'default', label: 'Default', author: 'agentsdash', version: '1', iconPack: 'robot', colors: {} },
   cat: {
-    name: 'cat', label: 'Cat', author: 'standup-bot', version: '1', iconPack: 'cat',
+    name: 'cat', label: 'Cat', author: 'agentsdash', version: '1', iconPack: 'cat',
     colors: {
       SCREEN: '#1c1410', BAR: '#2a1d16', FRAME: '#6b4630', PANEL: '#2a1d16', ROW: '#3a2820', TEXT: '#fbeedd', LIGHT: '#e0c9ae', FAINT: '#9a8068',
       WORKING: '#8fd18a', NEEDS: '#ffa94d', ERROR: '#ff6b6b', YOURTURN: '#8fc4e8', WAITING: '#c4a6f0', ACCENT: '#ffcb7a', CHIP: '#5b4032',
@@ -22,7 +22,7 @@ export const THEMES = {
     },
   },
   lemmings: {
-    name: 'lemmings', label: 'Lemmings', author: 'standup-bot', version: '1', iconPack: 'lemmings',
+    name: 'lemmings', label: 'Lemmings', author: 'agentsdash', version: '1', iconPack: 'lemmings',
     colors: {
       SCREEN: '#0a1a0e', BAR: '#0e2a18', FRAME: '#2a6b3a', PANEL: '#0e2214', ROW: '#153322', TEXT: '#e8f5dc', LIGHT: '#b9dcb0', FAINT: '#6f9a73',
       WORKING: '#5bd65b', NEEDS: '#ffb23e', ERROR: '#ff5a5a', YOURTURN: '#6fa3ff', WAITING: '#6fd6e0', ACCENT: '#ffe866', CHIP: '#2f5a3a',
@@ -30,7 +30,7 @@ export const THEMES = {
     },
   },
   office: {
-    name: 'office', label: 'Office', author: 'standup-bot', version: '1', iconPack: 'office',
+    name: 'office', label: 'Office', author: 'agentsdash', version: '1', iconPack: 'office',
     colors: {
       SCREEN: '#14181f', BAR: '#1d2430', FRAME: '#3d556e', PANEL: '#1d2430', ROW: '#283241', TEXT: '#eef2f7', LIGHT: '#c3cdd9', FAINT: '#7d8a9a',
       WORKING: '#6cc96f', NEEDS: '#f0a53a', ERROR: '#ef5b5b', YOURTURN: '#6fa8e8', WAITING: '#7fc8d9', ACCENT: '#8ec1f0', CHIP: '#46566c',
@@ -38,7 +38,7 @@ export const THEMES = {
     },
   },
   pirates: {
-    name: 'pirates', label: 'Pirates', author: 'standup-bot', version: '1', iconPack: 'pirates',
+    name: 'pirates', label: 'Pirates', author: 'agentsdash', version: '1', iconPack: 'pirates',
     colors: {
       SCREEN: '#0b1a24', BAR: '#10222e', FRAME: '#7a5230', PANEL: '#0f2230', ROW: '#173041', TEXT: '#f4e9d0', LIGHT: '#d5c3a0', FAINT: '#7f8f96',
       WORKING: '#6fcf97', NEEDS: '#f2a33a', ERROR: '#e5574f', YOURTURN: '#6fb4e8', WAITING: '#79d0c8', ACCENT: '#f2cc60', CHIP: '#2c4a5e',

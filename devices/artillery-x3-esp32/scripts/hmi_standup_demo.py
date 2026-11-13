@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Maquette « agent standup » dessinée sur l'écran HMI en PAYSAGE (480 x 272),
+Maquette « agent dashboard » dessinée sur l'écran HMI en PAYSAGE (480 x 272),
 via le pont série (hmi_bridge.ino) et le projet blank.tft (page vide + polices).
 
 Polices du projet : font 0 = f24 (24 px), font 1 = f16 (16 px), ASCII seulement.

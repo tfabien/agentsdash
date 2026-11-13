@@ -47,7 +47,7 @@ const SETTING_RULES = {
   themeAutoUpdate: (v) => typeof v === 'boolean',                     // install newer versions of marketplace themes (every 6 hours)
 };
 const MAX_SOURCES = 10;
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, themeLooks: {}, rules: [], marketSources: ['tfabien/standup-bot-themes'], themeAutoUpdate: true };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, themeLooks: {}, rules: [], marketSources: ['tfabien/agentsdash-themes'], themeAutoUpdate: true };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -447,9 +447,9 @@ const isMain = (() => {
 })();
 if (isMain) {
   startHub({ firstRunTheme: true, settingsFile: path.join(stateDir(), 'hub-settings.json'), configFile: defaultConfigPath(), onShutdown: () => process.exit(0) }).then((hub) => {
-    process.stderr.write(`standup-bot hub listening on http://${hub.host}:${hub.port}/\n`);
+    process.stderr.write(`agentsdash hub listening on http://${hub.host}:${hub.port}/\n`);
   }).catch((e) => {
-    process.stderr.write(`standup-bot hub: cannot start (${e.code ?? e.message})\n`);
+    process.stderr.write(`agentsdash hub: cannot start (${e.code ?? e.message})\n`);
     process.exit(1);
   });
 }

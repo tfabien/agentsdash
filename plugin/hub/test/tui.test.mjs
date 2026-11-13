@@ -65,7 +65,7 @@ test('empty_state_message', () => {
 test('clock_shows_at_the_right_of_the_title_line_when_given', () => {
   const lines = strip(renderAnsi(state([]), 40, '09:41')).split('\n');
   assert.equal(lines[0].length, 40);
-  assert.ok(lines[0].startsWith('Agent standup') && lines[0].endsWith('09:41'));
+  assert.ok(lines[0].startsWith('Agents Dash') && lines[0].endsWith('09:41'));
 });
 
 test('tui_follows_the_hub_over_sse', async () => {

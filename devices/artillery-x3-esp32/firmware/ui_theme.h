@@ -1,4 +1,4 @@
-// SCREEN - theme of the redesigned "agent standup" UI (480x272, landscape): link, fonts, palette, picture ids.
+// SCREEN - theme of the redesigned "agent dashboard" UI (480x272, landscape): link, fonts, palette, picture ids.
 // Geometry lives in layout.cpp. Spec: docs/superpowers/specs/2026-11-11-screen-redesign-design.md.
 #pragma once
 

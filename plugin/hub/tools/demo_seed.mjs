@@ -75,7 +75,7 @@ export async function startDemoHub({ themes = [], theme = 'line' } = {}) {
   const userDir = fs.mkdtempSync(path.join(os.tmpdir(), 'standup-demo-'));
   const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false, max_sessions: 12 }, userDir, settingsFile: path.join(userDir, 'hub-settings.json') });
   for (const name of themes) {
-    const r = await post(hub, '/market/install', { source: 'tfabien/standup-bot-themes', name });
+    const r = await post(hub, '/market/install', { source: 'tfabien/agentsdash-themes', name });
     if (r.status !== 200) throw new Error(`install ${name}: ${await r.text()}`);
   }
   if (!themes.length) await post(hub, '/settings', { theme });                        // the built-in example theme (variants, looks), no network

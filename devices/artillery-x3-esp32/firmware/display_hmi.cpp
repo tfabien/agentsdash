@@ -1,4 +1,4 @@
-// SCREEN - "agent standup" UI drawn on the HMI screen (redesign 2026-11-11). Implements display.h.
+// SCREEN - "agent dashboard" UI drawn on the HMI screen (redesign 2026-11-11). Implements display.h.
 // Top bar (selected session tab + labels of the other sessions), lead panel (lead, context, plan), team panel
 // (one row per sub-agent), bottom bar (plan quotas, clock). The static decor is picture 16 of the .tft; text sits on
 // flat colors (xstr with a solid background). Each zone keeps a signature of what it shows and redraws only on change.

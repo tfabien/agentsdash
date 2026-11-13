@@ -32,7 +32,7 @@ test('main_address_and_hub_alias_serve_the_one_page', async () => {
       const res = await fetch(`${base}${p}`, { redirect: 'manual' });
       assert.equal(res.status, 200, p);
       const html = await res.text();
-      assert.match(html, /<title>Agent standup<\/title>/);
+      assert.match(html, /<title>Agents Dash<\/title>/);
       assert.match(html, /hub_page\.js/);
       assert.match(html, /id="prev"/);                 // page arrows and dots
       assert.match(html, /id="pager"/);

@@ -7,7 +7,7 @@ export const SOURCE_RE = /^[\w.-]+\/[\w.-]+$/;
 const NAME = /^[a-z0-9-]{1,32}$/;
 const PREVIEW = /^preview\.(png|webp|jpe?g|gif)$/i;
 const MAX_JSON = 256 * 1024;
-export const GITHUB_HEADERS = { 'User-Agent': 'standup-bot', Accept: 'application/vnd.github+json' };
+export const GITHUB_HEADERS = { 'User-Agent': 'agentsdash', Accept: 'application/vnd.github+json' };
 
 /** `owner/repo` or a github.com URL to `owner/repo`; null for anything else. */
 export function parseSource(text) {

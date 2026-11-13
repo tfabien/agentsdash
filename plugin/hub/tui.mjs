@@ -62,7 +62,7 @@ function sessionLines(s, width) {
 export function renderAnsi(state, width = 80, clock = '') {
   const sessions = state.sessions ?? [];
   const lines = [];
-  const title = 'Agent standup';
+  const title = 'Agents Dash';
   lines.push(compose(width, [{ text: title, bold: true }, { text: ' '.repeat(Math.max(1, width - title.length - clock.length)) }, { text: clock, color: DIM }]));
   lines.push('');
   if (!sessions.length) lines.push(compose(width, [{ text: 'Waiting for agents...', color: DIM }]));

@@ -1,7 +1,7 @@
 {
   "name": "line",
   "label": "Line",
-  "author": "standup-bot",
+  "author": "agentsdash",
   "version": "1",
   "iconPack": "line",
   "description": "Minimal line-art robots tinted by the accent color. Example of a pack with pack.json.",
