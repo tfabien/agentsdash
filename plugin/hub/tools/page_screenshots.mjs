@@ -41,7 +41,9 @@ const BUTTON = (label) => `document.querySelector('button[aria-label="${label}"]
 // `clip` crops to the tile area when one session is shown (the page is dark around it).
 const ONE = { x: 0, y: 215, width: 1280, height: 310 };
 export const SHOTS = {
-  grid: { scene: 'grid' },                                                    // 4 tiles, a second page, quotas
+  hub: { scene: 'hub' },                                                      // 2x2 tiles, one per project
+  quotas: { scene: 'hub', clip: { x: 0, y: 728, width: 1280, height: 72 } },   // the bar at the bottom
+  grid: { scene: 'grid' },                                                    // 4 tiles of mixed sizes, a second page
   plan: { scene: 'plan', clip: ONE },                                         // plan bar, context ring
   question: { scene: 'question', clip: { x: 0, y: 195, width: 1280, height: 345 } },
   subs3: { scene: 'subs3', clip: ONE },
@@ -52,8 +54,8 @@ export const SHOTS = {
   editor: { scene: 'grid', steps: [{ js: BUTTON('Theme') }, { wait: 1500 }, { text: 'Edit colors' }, { wait: 1000 }] },
   settings: { scene: 'grid', steps: [{ js: BUTTON('Settings') }, { wait: 600 }] },
 };
-// What the README uses (the default run): everything but `empty`.
-const DEFAULT_SHOTS = Object.keys(SHOTS).filter((n) => n !== 'empty');
+// What the README uses (the default run), in the order of its sections.
+const DEFAULT_SHOTS = ['hub', 'plan', 'question', 'subs3', 'compact', 'detail', 'quotas'];
 
 async function runStep(cdp, step) {
   if (step.js) await cdp.evaluate(step.js);

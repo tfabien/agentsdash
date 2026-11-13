@@ -37,6 +37,7 @@ const PIPELINE = lead('9a0b', 'data-pipeline', { title: 'Backfill the events tab
 
 /** One scene per feature: the events to send and the hub settings (`max_tiles`: sessions the page shows at once, 0 is Auto). */
 export const SCENES = {
+  hub: { settings: { max_tiles: 4 }, events: [CHECKOUT[0], DOCS, MOBILE, PIPELINE] },                    // 2x2: four sessions of four projects
   grid: { settings: { max_tiles: 4 }, events: [...CHECKOUT, DOCS, MOBILE, PIPELINE, ...BILLING] },    // 4 tiles, two more sessions on a second page
   plan: { settings: { max_tiles: 1 }, events: CHECKOUT },
   question: { settings: { max_tiles: 1 }, events: [DOCS] },
