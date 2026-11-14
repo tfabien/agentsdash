@@ -363,15 +363,6 @@ test('hit_test_ignores_plan_bar_while_perm', () => {
   assert.notEqual(hit.kind, 'permAllow');
 });
 
-test('full_screen_back_arrow_sits_bottom_right_beside_deny', () => {
-  const ctx = { ...permCtx, back: true };                 // lead panel 12..472 x 36..240: arrow at 434..466 x 212..234
-  assert.deepEqual(hitTest(450, 220, ctx), { kind: 'back' });
-  assert.deepEqual(hitTest(420, 220, ctx), { kind: 'permDeny' }, 'Deny ends before the arrow');
-  assert.deepEqual(hitTest(30, 220, ctx), { kind: 'permAllow' }, 'the bottom left is free for Allow');
-  assert.deepEqual(hitTest(450, 220, permCtx), { kind: 'permDeny' }, 'no arrow in the grid');
-  const r = draw(state([session()]), ui({ bare: true, part: 'lead', frameW: 472, back: true }));
-  assert.ok(texts(r).includes('←') && !texts(r).includes('BACK'));
-});
 
 test('perm_answer_maps_a_hit_to_the_post_body', () => {
   const s = permSession();
@@ -448,10 +439,3 @@ test('quest_tap_terminal_and_other_taps', () => {
   assert.deepEqual(questTap({ kind: 'questOpt', index: 0 }, s, stale).local.step, 1, 'progress of another question starts over');
 });
 
-test('full_screen_back_arrow_is_beside_the_answer_buttons', () => {
-  const back = { ...questCtx(), back: true };
-  assert.deepEqual(hitTest(450, 36 + 204 - 20, back), { kind: 'back' }, 'the arrow at the bottom right');
-  assert.deepEqual(hitTest(400, 36 + 204 - 20, back), { kind: 'questOpt', index: 1 }, 'the second option ends before the arrow');
-  const r = draw(state([questSession()]), ui({ nowMs: 1000, back: true, part: 'lead' }));
-  assert.ok(texts(r).includes('←') && texts(r).includes('Blue'));
-});

@@ -145,9 +145,8 @@ const menuRow = (i) => ({ x: 12, y: 38 + i * 40, w: 460, h: 36 });
 const MUTE = { x: 370, y: 250, w: 42, h: 22 };
 const backRect = (p) => ({ x: p.x + p.w - 76, y: p.y + 4, w: 70, h: 22 });          // the BACK button of a sub-agent shown as a tile: closes it, the team list returns
 // Allow and Deny of a tile with a pending permission request: two buttons side by side along the bottom of the lead panel.
-// `room`: units left free at the right end (the back arrow of a session shown full screen).
-const permButtons = (p, room = 0) => {
-  const w = Math.trunc((p.w - 18 - room) / 2), y = p.y + p.h - 34;
+const permButtons = (p) => {
+  const w = Math.trunc((p.w - 18) / 2), y = p.y + p.h - 34;
   return { allow: { x: p.x + 6, y, w, h: 28 }, deny: { x: p.x + 12 + w, y, w, h: 28 } };
 };
 /** The body of POST /permission/answer for a tap on a permission button of session `s`; null for any other tap. */
@@ -155,22 +154,16 @@ export function permAnswer(hit, s) {
   if (!s?.perm || (hit?.kind !== 'permAllow' && hit?.kind !== 'permDeny')) return null;
   return { id: s.perm.id, decision: hit.kind === 'permAllow' ? 'allow' : 'deny' };
 }
-// The back arrow of a session shown full screen: bottom right corner (the top right holds the context ring). The page moves the token rate
-// readout and the trash button BACK_ROOM units to its left; the "next" line and the Deny button end before them.
-export const BACK_ROOM = 40;
-const backRectLow = (p) => ({ x: p.x + p.w - 38, y: p.y + p.h - 28, w: 32, h: 22 });
-const NEXT_ROOM = BACK_ROOM + 60;                      // the arrow and the rate readout (or the trash button) beside it
 // A question of AskUserQuestion held for the page: TERMINAL (and SEND for a multi choice) at the right of the header line,
-// the options as buttons, two per row, along the bottom of the lead panel. `nOpts` is the option count of the question on screen,
-// `room` the units left free at the right end (the back arrow of a session shown full screen).
-const questLayout = (p, nOpts, multi, room = 0) => {
+// the options as buttons, two per row, along the bottom of the lead panel. `nOpts` is the option count of the question on screen.
+const questLayout = (p, nOpts, multi) => {
   const x = p.x + 6, w = p.w - 12, y = p.y + 68;
   const terminal = { x: x + w - 96, y, w: 96, h: 22 };
   const send = multi ? { x: terminal.x - 86, y, w: 80, h: 22 } : null;
-  const rows = Math.ceil(nOpts / 2), bw = Math.trunc((p.w - 18 - room) / 2);
+  const rows = Math.ceil(nOpts / 2), bw = Math.trunc((p.w - 18) / 2);
   const opts = Array.from({ length: nOpts }, (_, i) => {
     const r = Math.floor(i / 2), last = i === nOpts - 1 && nOpts % 2 === 1;
-    return { x: p.x + 6 + (i % 2) * (bw + 6), y: p.y + p.h - 34 - (rows - 1 - r) * 34, w: last ? p.w - 12 - room : bw, h: 28 };
+    return { x: p.x + 6 + (i % 2) * (bw + 6), y: p.y + p.h - 34 - (rows - 1 - r) * 34, w: last ? p.w - 12 : bw, h: 28 };
   });
   return { terminal, send, opts, textTop: y + 26, textBottom: opts.length ? opts[0].y - 4 : p.y + p.h - 4 };
 };
@@ -245,21 +238,20 @@ export function hitTest(x, y, ctx) {
     return { kind: 'none' };
   }
   if (s?.perm && ctx.part !== 'team') {                // a request waits for Allow or Deny: only its two buttons answer a tap
-    const b = permButtons(leadRect(0, ctx.frameW, ctx.frameH), ctx.back && ctx.part === 'lead' ? BACK_ROOM : 0);
+    const b = permButtons(leadRect(0, ctx.frameW, ctx.frameH));
     if (inside(b.allow, x, y)) return { kind: 'permAllow' };
     if (inside(b.deny, x, y)) return { kind: 'permDeny' };
   }
   if (s?.quest && !s.perm && ctx.part !== 'team') {     // a question waits for the page: its buttons answer, the rest of the tile is inert
     const cur = questProgress(s.quest, ctx.quest), qq = s.quest.questions[cur.step];
-    const L = questLayout(leadRect(0, ctx.frameW, ctx.frameH), qq.options.length, qq.multi, ctx.back && ctx.part === 'lead' ? BACK_ROOM : 0);
+    const L = questLayout(leadRect(0, ctx.frameW, ctx.frameH), qq.options.length, qq.multi);
     if (inside(L.terminal, x, y)) return { kind: 'questTerminal' };
     if (L.send && inside(L.send, x, y)) return { kind: 'questSend' };
     const i = L.opts.findIndex((r) => inside(r, x, y));
     if (i >= 0) return { kind: 'questOpt', index: i };
-    return ctx.back && ctx.part === 'lead' && inside(backRectLow(leadRect(0, ctx.frameW, ctx.frameH)), x, y) ? { kind: 'back' } : { kind: 'none' };
+    return { kind: 'none' };
   }
   const nSubs = ctx.part === 'lead' ? 0 : s && !s.ask && !s.perm && !s.quest ? s.agents.length - 1 : 0;
-  if (ctx.back && ctx.part === 'lead' && inside(backRectLow(leadRect(0, ctx.frameW, ctx.frameH)), x, y)) return { kind: 'back' };
   if (s && !s.ask && !s.perm && !s.quest && s.plan) {                          // a step of the plan bar (a taller target than the bar itself)
     const b = planBar(leadRect(nSubs, ctx.frameW, ctx.frameH), s.plan.total);
     if (x >= b.x && x < b.x + b.w && y >= b.y - 8 && y < b.y + b.h + 8) return { kind: 'planStep', index: Math.min(s.plan.total - 1, Math.floor((x - b.x) / b.step)) };
@@ -286,7 +278,6 @@ export function renderScreen(screen, state, ui) {
   const line = (x, y, w, font, fg, bg, s, align = 0) => screen.text(x, y, w, font, fg, bg, fit(s, w, font), align);
   let rule = null;                                         // per-project rule of the session on screen: icon pack, badge color
   const ageOf = (a) => formatAge(a.age + ui.elapsedS);
-  const backLow = () => Boolean(ui.back && ui.part === 'lead' && !ui.menu);      // the back arrow sits in the bottom right corner
 
   drawMain();
   drawBottom();
@@ -305,11 +296,6 @@ export function renderScreen(screen, state, ui) {
     if (!ui.bare) drawTopBar(sessions, sel);
     if (ui.part === 'team') { if (detailSlot) drawAgentTile(subs[detailSlot - 1]); else drawTeam(s, subs, 0, true); return; }
     drawLeadPanel(s, subs, panelSubs, detailSlot, sessions, sel);
-    if (backLow()) {                                       // a session shown full screen: the arrow returns to the grid
-      const r = backRectLow(leadRect(0, ui.frameW, ui.frameH));
-      screen.fill(r.x, r.y, r.w, r.h, COLOR.CHIP);
-      screen.text(r.x, r.y + 2, r.w, S16, COLOR.TEXT, COLOR.CHIP, '←', 1);
-    }
     if (panelSubs > 0) drawTeam(s, subs, detailSlot);
   }
 
@@ -467,7 +453,7 @@ export function renderScreen(screen, state, ui) {
     }
     const cur = plan.cur || (plan.done === plan.total ? 'Plan done' : '');
     wrapText(cur, w, 2, m(S20)).forEach((l, i) => screen.text(x, by + 10 + i * 22, w, S20, COLOR.TEXT, COLOR.PANEL, l));
-    if (plan.next) line(x, p.y + p.h - 20, backLow() ? w - NEXT_ROOM : w, S16, COLOR.FAINT, COLOR.PANEL, `next: ${plan.next}`);
+    if (plan.next) line(x, p.y + p.h - 20, w, S16, COLOR.FAINT, COLOR.PANEL, `next: ${plan.next}`);
   }
 
   // Question of the lead (full width): bold 20 in orange (2 lines with 4 options, else 3), then one numbered option per line.
@@ -477,7 +463,7 @@ export function renderScreen(screen, state, ui) {
     const cmd = wrapText(perm.detail || perm.cmd, w, 2, m(S16));
     cmd.forEach((l, i) => screen.text(x, y + 24 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     const left = Math.max(0, Math.ceil((perm.until - (ui.nowMs ?? Date.now())) / 1000));
-    const b = permButtons(p, backLow() ? BACK_ROOM : 0);
+    const b = permButtons(p);
     screen.text(x, b.allow.y - 20, w, S16, COLOR.FAINT, COLOR.PANEL, `${left}s`);
     for (const [r, label, col] of [[b.allow, 'ALLOW', COLOR.WORKING], [b.deny, 'DENY', COLOR.ERROR]]) {
       screen.fill(r.x, r.y, r.w, r.h, col);
@@ -489,7 +475,7 @@ export function renderScreen(screen, state, ui) {
   // A picked option of a multi choice is filled in the accent color; once sent, the buttons wait for the state that follows.
   function drawQuest(quest, x, w, p) {
     const cur = questProgress(quest, ui.quest), qq = quest.questions[cur.step];
-    const L = questLayout(p, qq.options.length, qq.multi, backLow() ? BACK_ROOM : 0);
+    const L = questLayout(p, qq.options.length, qq.multi);
     const left = Math.max(0, Math.ceil((quest.until - (ui.nowMs ?? Date.now())) / 1000));
     const n = quest.questions.length;
     const head = [n > 1 ? `${cur.step + 1}/${n}` : '', qq.header, `${left}s`].filter(Boolean).join('  ');
