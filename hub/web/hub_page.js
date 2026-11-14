@@ -4,7 +4,7 @@ import { rateLevel } from './rate_glow.js';
 import { orderSessions, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
-import { renderScreen, hitTest, permAnswer, teamOrder, COLOR, rgb565 } from './screen.js';
+import { renderScreen, hitTest, permAnswer, teamOrder, COLOR, rgb565, BACK_ROOM } from './screen.js';
 import { postSettings } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
@@ -27,7 +27,7 @@ let receivedAt = performance.now();
 let sound = 'ask';
 let counts = null;
 let page = 0, pages = [], current = [];               // the page shown, all pages, and its sessions
-let focus = null;                                      // session id shown full screen (tap on a tile, BACK or Esc returns), null in the grid
+let focus = null;                                      // session id shown full screen (tap on a tile, the back arrow or Esc returns), null in the grid
 let expandable = false;                                // a tap can expand only when the grid shows several cells
 const PHONE = document.documentElement.dataset.mode === 'phone';   // phone page: one session per page
 let stacked = false;                                   // portrait phone: the team goes under the lead; landscape keeps them side by side
@@ -121,7 +121,8 @@ function fit(t) {
   t.canvas.style.height = `${h / dpr}px`;
   const r = `${7 * k}px`;                                // the corner radius of the frame; a tile welded to its team or lead has square corners on that side
   t.canvas.style.borderRadius = weldOf(t) === 'right' ? `${r} 0 0 ${r}` : weldOf(t) === 'left' ? `0 ${r} ${r} 0` : r;
-  t.box.style.setProperty('--trash-x', `${(bw - w / dpr) / 2 + 10}px`);        // the trash button sits at the bottom right of the frame, under the context
+  t.backRoom = focus && t.part === 'lead' ? BACK_ROOM * k : 0;                  // a session shown full screen: the back arrow holds the bottom right corner
+  t.box.style.setProperty('--trash-x', `${(bw - w / dpr) / 2 + 10 + t.backRoom}px`);        // the trash button sits at the bottom right of the frame, under the context
   t.box.style.setProperty('--trash-y', `${(bh - h / dpr) / 2 + 10}px`);
   if (t.box.parentElement?.classList.contains('group')) t.box.parentElement.style.setProperty('--link-y', `${(bh - h / dpr) / 2 + 16}px`);   // the chip on the seam stays inside the frames, not at the bottom of the cell
   t.frameW = fw;
@@ -146,7 +147,7 @@ function tap(t, e) {
   const until = Date.now() + DETAIL_MS;
   const lead = tiles.get(s.id) ?? t;                      // the agent opened from the team tile shows in the lead tile, which owns the detail
   if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
-  else if (hit.kind === 'back' && t.part === 'lead') { focus = null; render(); return; }       // BACK of the full-screen session
+  else if (hit.kind === 'back' && t.part === 'lead') { focus = null; render(); return; }       // the back arrow of the full-screen session
   else if (hit.kind === 'back') lead.detail = null;
   else if (hit.kind === 'planStep') lead.planStep = lead.planStep && lead.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
   else if (hit.kind === 'lead' && lead.planStep) lead.planStep = null;               // the first tap closes an open plan step
@@ -163,7 +164,7 @@ function drawTile(s, t) {
   const scale = fit(t);
   if (!scale) return;
   const tag = t.box.querySelector('.rate-tag');                                       // the readout sits inside the frame: the canvas can be narrower than its cell
-  if (tag) { tag.style.right = `${t.box.clientWidth - t.canvas.offsetLeft - t.canvas.offsetWidth + 14}px`; tag.style.bottom = `${t.box.clientHeight - t.canvas.offsetTop - t.canvas.offsetHeight + 10}px`; }
+  if (tag) { tag.style.right = `${t.box.clientWidth - t.canvas.offsetLeft - t.canvas.offsetWidth + 14 + t.backRoom}px`; tag.style.bottom = `${t.box.clientHeight - t.canvas.offsetTop - t.canvas.offsetHeight + 10}px`; }
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();

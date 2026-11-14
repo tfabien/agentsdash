@@ -145,8 +145,9 @@ const menuRow = (i) => ({ x: 12, y: 38 + i * 40, w: 460, h: 36 });
 const MUTE = { x: 370, y: 250, w: 42, h: 22 };
 const backRect = (p) => ({ x: p.x + p.w - 76, y: p.y + 4, w: 70, h: 22 });          // the BACK button of a sub-agent shown as a tile: closes it, the team list returns
 // Allow and Deny of a tile with a pending permission request: two buttons side by side along the bottom of the lead panel.
-const permButtons = (p) => {
-  const w = Math.trunc((p.w - 18) / 2), y = p.y + p.h - 34;
+// `room`: units left free at the right end (the back arrow of a session shown full screen).
+const permButtons = (p, room = 0) => {
+  const w = Math.trunc((p.w - 18 - room) / 2), y = p.y + p.h - 34;
   return { allow: { x: p.x + 6, y, w, h: 28 }, deny: { x: p.x + 12 + w, y, w, h: 28 } };
 };
 /** The body of POST /permission/answer for a tap on a permission button of session `s`; null for any other tap. */
@@ -154,7 +155,11 @@ export function permAnswer(hit, s) {
   if (!s?.perm || (hit?.kind !== 'permAllow' && hit?.kind !== 'permDeny')) return null;
   return { id: s.perm.id, decision: hit.kind === 'permAllow' ? 'allow' : 'deny' };
 }
-const backRectLow = (p) => ({ x: p.x + 6, y: p.y + p.h - 28, w: 70, h: 22 });         // the same BACK button on a session shown full screen: bottom left, the top right holds the context ring
+// The back arrow of a session shown full screen: bottom right corner (the top right holds the context ring). The page moves the token rate
+// readout and the trash button BACK_ROOM units to its left; the "next" line and the Deny button end before them.
+export const BACK_ROOM = 40;
+const backRectLow = (p) => ({ x: p.x + p.w - 38, y: p.y + p.h - 28, w: 32, h: 22 });
+const NEXT_ROOM = BACK_ROOM + 60;                      // the arrow and the rate readout (or the trash button) beside it
 const inside = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
 // Where the team rows sit: beside a narrow lead panel (the single page), or across the whole frame (the team tile of a hub session).
@@ -198,7 +203,7 @@ export function hitTest(x, y, ctx) {
     return { kind: 'none' };
   }
   if (s?.perm && ctx.part !== 'team') {                // a request waits for Allow or Deny: only its two buttons answer a tap
-    const b = permButtons(leadRect(0, ctx.frameW, ctx.frameH));
+    const b = permButtons(leadRect(0, ctx.frameW, ctx.frameH), ctx.back && ctx.part === 'lead' ? BACK_ROOM : 0);
     if (inside(b.allow, x, y)) return { kind: 'permAllow' };
     if (inside(b.deny, x, y)) return { kind: 'permDeny' };
   }
@@ -230,6 +235,7 @@ export function renderScreen(screen, state, ui) {
   const line = (x, y, w, font, fg, bg, s, align = 0) => screen.text(x, y, w, font, fg, bg, fit(s, w, font), align);
   let rule = null;                                         // per-project rule of the session on screen: icon pack, badge color
   const ageOf = (a) => formatAge(a.age + ui.elapsedS);
+  const backLow = () => Boolean(ui.back && ui.part === 'lead' && !ui.menu);      // the back arrow sits in the bottom right corner
 
   drawMain();
   drawBottom();
@@ -248,10 +254,10 @@ export function renderScreen(screen, state, ui) {
     if (!ui.bare) drawTopBar(sessions, sel);
     if (ui.part === 'team') { if (detailSlot) drawAgentTile(subs[detailSlot - 1]); else drawTeam(s, subs, 0, true); return; }
     drawLeadPanel(s, subs, panelSubs, detailSlot, sessions, sel);
-    if (ui.back && ui.part === 'lead' && !ui.menu) {       // a session shown full screen: BACK returns to the grid
+    if (backLow()) {                                       // a session shown full screen: the arrow returns to the grid
       const r = backRectLow(leadRect(0, ui.frameW, ui.frameH));
       screen.fill(r.x, r.y, r.w, r.h, COLOR.CHIP);
-      screen.text(r.x, r.y + 2, r.w, S16, COLOR.TEXT, COLOR.CHIP, 'BACK', 1);
+      screen.text(r.x, r.y + 2, r.w, S16, COLOR.TEXT, COLOR.CHIP, '←', 1);
     }
     if (panelSubs > 0) drawTeam(s, subs, detailSlot);
   }
@@ -409,7 +415,7 @@ export function renderScreen(screen, state, ui) {
     }
     const cur = plan.cur || (plan.done === plan.total ? 'Plan done' : '');
     wrapText(cur, w, 2, m(S20)).forEach((l, i) => screen.text(x, by + 10 + i * 22, w, S20, COLOR.TEXT, COLOR.PANEL, l));
-    if (plan.next) line(x, p.y + p.h - 20, w, S16, COLOR.FAINT, COLOR.PANEL, `next: ${plan.next}`);
+    if (plan.next) line(x, p.y + p.h - 20, backLow() ? w - NEXT_ROOM : w, S16, COLOR.FAINT, COLOR.PANEL, `next: ${plan.next}`);
   }
 
   // Question of the lead (full width): bold 20 in orange (2 lines with 4 options, else 3), then one numbered option per line.
@@ -419,7 +425,7 @@ export function renderScreen(screen, state, ui) {
     const cmd = wrapText(perm.detail || perm.cmd, w, 2, m(S16));
     cmd.forEach((l, i) => screen.text(x, y + 24 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     const left = Math.max(0, Math.ceil((perm.until - (ui.nowMs ?? Date.now())) / 1000));
-    const b = permButtons(p);
+    const b = permButtons(p, backLow() ? BACK_ROOM : 0);
     screen.text(x, b.allow.y - 20, w, S16, COLOR.FAINT, COLOR.PANEL, `${left}s`);
     for (const [r, label, col] of [[b.allow, 'ALLOW', COLOR.WORKING], [b.deny, 'DENY', COLOR.ERROR]]) {
       screen.fill(r.x, r.y, r.w, r.h, col);
