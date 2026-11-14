@@ -9,6 +9,7 @@ import { postSettings } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
+import { askConfirm } from './confirm_dialog.js';
 import { applyTheme, setCatalog } from './themes.js';
 import { previewSessions } from './preview_state.js';
 import { onIconsLoaded } from './icon_packs.js';
@@ -85,11 +86,11 @@ function tileFor(s, part = 'lead') {
     if (part === 'lead') {
       const trash = el('button', 'trash', '\u{1F5D1}');    // shown on tiles waiting for you and stale ones: hides the session until it works again
       trash.title = 'Remove this session';
-      trash.onclick = (e) => {
+      trash.onclick = async (e) => {
         e.stopPropagation();
         const id = s.id;
         const dimmed = box.classList.contains('idle') || box.classList.contains('stale');
-        if (!dimmed && !confirm('This session is waiting for you. Remove it anyway?')) return;   // a tile that is not greyed out yet asks first
+        if (!dimmed && !(await askConfirm('This session is waiting for you. Remove it anyway?', { ok: 'Remove', danger: true }))) return;   // a tile that is not greyed out yet asks first
         cache.forget(id);                                  // a session the hub no longer knows (404) would come back from the cache otherwise
         state = { ...state, sessions: state.sessions.filter((x) => x.id !== id) };
         render();
