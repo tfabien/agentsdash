@@ -88,6 +88,19 @@ test('stop_of_the_lead_clears_but_a_post_tool_use_does_not', () => withHub(async
   assert.deepEqual(await (await held).json(), { none: true });
 }));
 
+test('release_drops_the_question_answered_elsewhere', () => withHub(async (hub) => {
+  await post(hub, '/event', EV);
+  const held = post(hub, '/question', REQ);
+  await questOf(hub);
+  assert.equal((await post(hub, '/question/release', { session: 'abcd', agent: 'sub1' })).status, 200, 'another agent');
+  await questOf(hub, true);
+  assert.equal((await post(hub, '/question/release', { session: 'abcd', agent: 'lead' })).status, 200);
+  assert.deepEqual(await (await held).json(), { none: true });
+  await questOf(hub, false);
+  assert.equal((await post(hub, '/question/release', { session: 'abcd', agent: 'lead' })).status, 200, 'nothing held is fine');
+  assert.equal((await post(hub, '/question/release', { session: 'abcd' })).status, 400);
+}));
+
 test('dismiss_and_reset_clear_the_question', () => withHub(async (hub) => {
   await post(hub, '/event', EV);
   const a = post(hub, '/question', REQ);

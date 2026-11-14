@@ -375,6 +375,13 @@ export function startHub(opts = {}) {
         if (!Array.isArray(body.picks)) return text(res, 400, 'picks (a list of option indexes per question) or terminal: true is required');
         return quests.answer(id, body.picks) ? text(res, 200, 'ok') : text(res, 404, 'unknown question or picks that do not fit it');
       }
+      case 'POST /question/release': {              // the hook saw the question answered in the terminal or the app: the tile lets go (loopback only)
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        if (!body.session || !body.agent) return text(res, 400, 'session and agent are required');
+        quests.clear(String(body.session), String(body.agent));
+        return text(res, 200, 'ok');
+      }
       case 'POST /event':
       case 'POST /usage':
       case 'POST /select':
