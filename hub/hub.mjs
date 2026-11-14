@@ -21,6 +21,7 @@ import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
 import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
 import { stateDir, userDir, migrateUserDir } from './paths.mjs';
+import { webFingerprint } from './web_fingerprint.mjs';
 import { COOKIE, setLan, isLoopback, loadOrCreateToken, tokenMatches, lanHosts, privateAddresses, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
@@ -86,6 +87,7 @@ export function startHub(opts = {}) {
   const wantedPort = opts.port ?? (Number(String(config.host).split(':')[1]) || 8765);
   const model = createModel({ maxSessions: config.max_sessions });
   const startedAt = Date.now();
+  const web = webFingerprint(WEB_DIR);               // an open page reloads when this changes (new code behind a restarted hub)
   // Settings shared by every page (and kept in a file for the next hub): beeps (default: only when something needs you), which view
   // opens, tiles on the hub page, pulse on events, grey idle sessions.
   const settingsFile = opts.settingsFile ?? null;
@@ -168,7 +170,7 @@ export function startHub(opts = {}) {
   firstThemeTimer?.unref?.();
   if (opts.firstRunTheme) setTimeout(firstTheme, 0);
   const withPerm = (st) => ({ ...st, sessions: st.sessions.map((s) => ({ ...s, perm: perms.view(s.id), quest: quests.view(s.id) })) });
-  const stateJson = () => ({ ...withPerm(model.toState(now())), boot: startedAt, settings, catalog, ...(relayInfo() ? { relay: relayInfo() } : {}) });
+  const stateJson = () => ({ ...withPerm(model.toState(now())), boot: startedAt, web, settings, catalog, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
     for (const res of clients) res.write(`data: ${payload}\n\n`);

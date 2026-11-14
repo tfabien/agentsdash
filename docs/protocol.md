@@ -103,7 +103,7 @@ Forgets every session. The body may be empty.
 
 ### GET /state
 
-The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `rate`, `plan`, `ask`, `perm` (`null`, or `{ id, tool, cmd, detail, until }` with `until` in epoch milliseconds, while a hook waits for Allow or Deny), `quest` (`null`, or `{ id, until, questions }` with `questions` as posted to `/question`, while a hook waits for the page's answers), `agents`), `more_sessions`, `view`, `usage` (when quotas are known), `agents` (flat v0.1 list), `boot`, `settings`, `catalog`, and `relay` (when a device relay is set).
+The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `rate`, `plan`, `ask`, `perm` (`null`, or `{ id, tool, cmd, detail, until }` with `until` in epoch milliseconds, while a hook waits for Allow or Deny), `quest` (`null`, or `{ id, until, questions }` with `questions` as posted to `/question`, while a hook waits for the page's answers), `agents`), `more_sessions`, `view`, `usage` (when quotas are known), `agents` (flat v0.1 list), `boot`, `web` (a hash of the page's files taken at start: an open page reloads when it changes), `settings`, `catalog`, and `relay` (when a device relay is set).
 `rate` is `{ "tok_min": number }`, the tokens per minute of the session over the last 5 minutes, or `null` with fewer than 2 samples.
 Each entry of `agents` holds `id`, `parent`, `role`, `state`, `cmd`, `detail`, `tok`, `model`, `prev`, `prev_age`, `age` and, after a `Stop`, `reply_first` and `reply_last`.
 
