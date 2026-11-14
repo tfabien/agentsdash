@@ -4,7 +4,7 @@ import { rateLevel } from './rate_glow.js';
 import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
-import { renderScreen, hitTest, permAnswer, questTap, teamOrder, COLOR, rgb565 } from './screen.js';
+import { renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, COLOR, rgb565 } from './screen.js';
 import { postSettings } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
@@ -162,7 +162,7 @@ function tap(t, e) {
   }
   const until = Date.now() + DETAIL_MS;
   const lead = tiles.get(s.id) ?? t;                      // the agent opened from the team tile shows in the lead tile, which owns the detail
-  if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1)).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
+  if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1), t.part === 'team' ? teamCapacity(t.frameH) : undefined).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
   else if (hit.kind === 'back') lead.detail = null;
   else if (hit.kind === 'planStep') lead.planStep = lead.planStep && lead.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
   else if (hit.kind === 'lead' && lead.planStep) lead.planStep = null;               // the first tap closes an open plan step

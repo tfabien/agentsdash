@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  renderScreen, hitTest, permAnswer, questTap, teamOrder, wrapText, fitText, roleIndex, paceLevel, projectColors, COLOR, rgb565,
+  renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, wrapText, fitText, roleIndex, paceLevel, projectColors, COLOR, rgb565,
 } from '../web/screen.js';
 
 /** A screen that records its drawing operations. Text is 5 px per character, so wrapping is deterministic. */
@@ -293,6 +293,39 @@ test('on_a_team_tile_a_tapped_subagent_opens_as_a_tile_with_a_back_button', () =
   assert.ok(texts(gone).some((t) => t.startsWith('TEAM')), 'an agent that is gone returns the list');
   const lead = draw(state([withSubs(subs)]), ui({ bare: true, part: 'lead', frameW: 700, detail: { session: 'aaaa', agent: 'ef56' } }));
   assert.ok(!texts(lead).includes('COMMAND'), 'the lead tile ignores the open sub-agent');
+});
+
+test('team_capacity_is_7_rows_on_the_gadget_frame_and_grows_with_a_tall_tile', () => {
+  assert.equal(teamCapacity(), 7);
+  assert.equal(teamCapacity(216), 7);
+  assert.equal(teamCapacity(330), 12);
+  assert.deepEqual(teamOrder(Array.from({ length: 10 }, () => sub('x', 'Explore')), 12), { order: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], more: 0 });
+});
+
+test('a_tall_team_tile_shows_every_subagent_that_fits_with_rows_as_wide_as_the_tile', () => {
+  const subs = Array.from({ length: 10 }, (_, i) => sub(`a${i}00`, 'Explore', { age: 100 + i }));
+  const r = draw(state([withSubs(subs)]), ui({ bare: true, part: 'team', frameW: 700, frameH: 330 }));
+  assert.ok(!texts(r).some((t) => t.endsWith(' more')), 'no "+N more" when the 10 rows fit');
+  const rows = r.ops.filter((o) => o.op === 'fill' && o.c === COLOR.ROW);
+  assert.equal(rows.length, 10);
+  assert.ok(rows.every((o) => o.x === 18 && o.w === 676), 'each row background spans the tile');
+  assert.ok(!pics(r).some((p) => p.id === 17 || p.id === 18), 'the 290-unit row pictures of the gadget are not used on a wide tile');
+  assert.equal(r.ops.filter((o) => o.op === 'text' && o.s === 'Explore').length, 10);
+});
+
+test('a_short_team_tile_keeps_7_rows_and_the_more_row_spans_the_tile', () => {
+  const subs = Array.from({ length: 10 }, (_, i) => sub(`a${i}00`, 'Explore', { age: 100 + i }));
+  const r = draw(state([withSubs(subs)]), ui({ bare: true, part: 'team', frameW: 700, frameH: 216 }));
+  assert.ok(texts(r).includes('+4 more'));
+  assert.equal(r.ops.filter((o) => o.op === 'fill' && o.c === COLOR.ROW && o.w === 676).length, 7);
+});
+
+test('hitTest_on_a_tall_team_tile_finds_every_row_and_the_more_row_at_the_capacity', () => {
+  const agents = (n) => [{ state: 'working', age: 1 }, ...Array.from({ length: n }, () => ({ state: 'working', age: 1 }))];
+  const ctx = (n) => ({ sessions: [{ id: 'a', dot: 'working', ask: null, plan: null, agents: agents(n) }], selected: 0, menu: false, part: 'team', frameW: 700, frameH: 330 });
+  assert.deepEqual(hitTest(30, 58 + 9 * 24 + 5, ctx(10)), { kind: 'row', index: 9 }, 'the 10th row of 10');
+  assert.deepEqual(hitTest(30, 58 + 11 * 24 + 5, ctx(14)), { kind: 'more' }, 'the 12th row of 14 is "+N more"');
+  assert.deepEqual(hitTest(30, 58 + 6 * 24 + 5, ctx(14)), { kind: 'row', index: 6 }, 'the 7th row is a row on a tall tile');
 });
 
 test('hitTest_on_an_open_subagent_tile_finds_only_the_back_button', () => {
