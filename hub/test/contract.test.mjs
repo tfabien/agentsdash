@@ -25,11 +25,22 @@ test('core_accepts_the_recorded_events', async () => {
     const lead = a.agents.find((x) => x.id === 'lead');
     assert.equal(lead.state, 'done');
     assert.equal(lead.reply_first, undefined, 'a later event (SessionEnd) clears the reply of the Stop');
-    // Session bbbb answered its question and stopped: the user's turn.
+    // Session bbbb answered its question and stopped (the user's turn, with the reply of the Stop), then its next prompt ended on an API error.
     const b = bySession.get('bbbb');
-    assert.equal(b.agents.find((x) => x.id === 'lead').state, 'your_turn');
+    const bLead = b.agents.find((x) => x.id === 'lead');
+    assert.equal(bLead.state, 'error');
+    assert.equal(bLead.cmd, 'Error: rate_limit');
     assert.equal(b.project, 'other');
-    assert.equal(b.agents.find((x) => x.id === 'lead').reply_first, 'Release plan written.', 'the reply of the last Stop travels');
+    const replies = events.filter((e) => e.session === 'bbbb' && e.evt === 'Stop');
+    assert.equal(replies[0].reply_first, 'Release plan written.', 'the recorded Stop carries the reply');
+    const before = events.slice(0, events.findIndex((e) => e.evt === 'StopFailure'));
+    const hub2 = await startHub({ port: 0, config: { relay: { mode: 'none' } }, userDir: fs.mkdtempSync(path.join(os.tmpdir(), 'contract2-')) });
+    try {
+      for (const ev of before) await fetch(`http://127.0.0.1:${hub2.port}/event`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+      const s2 = await (await fetch(`http://127.0.0.1:${hub2.port}/state`)).json();
+      const lead2 = s2.sessions.find((s) => s.id === 'bbbb').agents.find((x) => x.id === 'lead');
+      assert.equal(lead2.state, 'working', 'the prompt after the Stop');
+    } finally { await hub2.close(); }
     // The usage body shape of the quota poller is accepted.
     assert.equal((await post('/usage', { v: 1, session: '', h5_pct: 12, h5_reset_s: 3600, d7_pct: 30, d7_reset_s: 86400 })).status, 200);
     assert.equal((await (await fetch(`${base}/state`)).json()).usage.h5_pct, 12);
