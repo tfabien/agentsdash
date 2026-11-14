@@ -36,8 +36,9 @@ Answers 200 `ok`, or 400 `session, agent and a valid state are required`.
 | `model` | string | Model name. |
 | `tok` | number | Tokens of this agent. Absent or not a number means unknown. |
 | `stok` | number | Tokens of the whole session (lead only). |
-| `ctx_pct` | number | Context used, percent (lead only). |
-| `ctx_k` | number | Context used, thousands of tokens (lead only). |
+| `ctx_pct` | number | Context used, percent: of the session for the lead, of its own context for a sub-agent. |
+| `ctx_k` | number | Context used, thousands of tokens (same rule). |
+| `prompt` | string | The task a sub-agent was given (its first prompt). Sub-agents only; 300 characters. |
 | `plan_done` | number | Finished steps of the task list (lead only). |
 | `plan_total` | number | Steps of the task list. 0 means no list. |
 | `plan_items` | string[] | Up to 30 steps, each `<mark> <title>` where the first character is the step state. |
@@ -109,7 +110,7 @@ Forgets every session. The body may be empty.
 
 The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `rate`, `plan`, `ask`, `perm` (`null`, or `{ id, tool, cmd, detail, until }` with `until` in epoch milliseconds, while a hook waits for Allow or Deny), `quest` (`null`, or `{ id, until, questions }` with `questions` as posted to `/question`, while a hook waits for the page's answers), `agents`), `more_sessions`, `view`, `usage` (when quotas are known), `agents` (flat v0.1 list), `boot`, `web` (a hash of the page's files taken at start: an open page reloads when it changes), `settings`, `catalog`, and `relay` (when a device relay is set).
 `rate` is `{ "tok_min": number }`, the tokens per minute of the session over the last 5 minutes, or `null` with fewer than 2 samples.
-Each entry of `agents` holds `id`, `parent`, `role`, `state`, `cmd`, `detail`, `tok`, `model`, `prev`, `prev_age`, `age` and, after a `Stop`, `reply_first` and `reply_last`.
+Each entry of `agents` holds `id`, `parent`, `role`, `state`, `cmd`, `detail`, `tok`, `model`, `prev`, `prev_age`, `age`, `prompt` (sub-agents, `''` when unknown), `ctx_pct` and `ctx_k` (sub-agents, `null` and 0 when unknown) and, after a `Stop`, `reply_first` and `reply_last`.
 
 ### GET /events
 
