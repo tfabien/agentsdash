@@ -353,7 +353,15 @@ function showState(next) {
 }
 
 const es = new EventSource('/events');                // the only stream: every tile reads the same state
-es.onmessage = (m) => { const next = cache.merge(JSON.parse(m.data)); showState(next); render(); flashChanged(next); };
+let webSeen = null;                                   // fingerprint of the page's files on the hub that served this page
+es.onmessage = (m) => {
+  const raw = JSON.parse(m.data);
+  if (raw.web) {                                      // a hub restarted on newer page files: load them instead of drawing with old code
+    if (webSeen === null) webSeen = raw.web;
+    else if (raw.web !== webSeen) { location.reload(); return; }
+  }
+  const next = cache.merge(raw); showState(next); render(); flashChanged(next);
+};
 es.onerror = () => document.body.classList.add('offline');
 es.onopen = () => document.body.classList.remove('offline');
 setInterval(render, 1000);                            // ages and the clock run on between events

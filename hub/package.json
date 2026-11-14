@@ -1,6 +1,6 @@
 {
   "name": "agentsdash-hub",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "protocol": 2,
   "private": true,
   "type": "module",
