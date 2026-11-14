@@ -363,6 +363,16 @@ test('hit_test_ignores_plan_bar_while_perm', () => {
   assert.notEqual(hit.kind, 'permAllow');
 });
 
+test('full_screen_back_arrow_sits_bottom_right_beside_deny', () => {
+  const ctx = { ...permCtx, back: true };                 // lead panel 12..472 x 36..240: arrow at 434..466 x 212..234
+  assert.deepEqual(hitTest(450, 220, ctx), { kind: 'back' });
+  assert.deepEqual(hitTest(420, 220, ctx), { kind: 'permDeny' }, 'Deny ends before the arrow');
+  assert.deepEqual(hitTest(30, 220, ctx), { kind: 'permAllow' }, 'the bottom left is free for Allow');
+  assert.deepEqual(hitTest(450, 220, permCtx), { kind: 'permDeny' }, 'no arrow in the grid');
+  const r = draw(state([session()]), ui({ bare: true, part: 'lead', frameW: 472, back: true }));
+  assert.ok(texts(r).includes('←') && !texts(r).includes('BACK'));
+});
+
 test('perm_answer_maps_a_hit_to_the_post_body', () => {
   const s = permSession();
   assert.deepEqual(permAnswer({ kind: 'permAllow' }, s), { id: 'p1', decision: 'allow' });
