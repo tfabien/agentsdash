@@ -1,5 +1,5 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
-// go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic (order, pages, grid shape) is in hub_view.js, the beep rule in alerts.js.
+// go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
 import { orderSessions, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, fillRows, autoCapacity, paginate } from './layout.js';
@@ -295,9 +295,7 @@ function render() {
     const lead = tileFor(s, 'lead');
     lead.span = hasTeam(s) ? 1 : spans[i] ?? 1;                                        // columns the cell gives the tile: fit() lets a wide one stretch
     lead.box.style.gridColumn = lead.span > 1 ? `span ${lead.span}` : '';
-    const team = hasTeam(s) ? tileFor(s, 'team') : null;
-    if (team) team.span = 1;
-    return team ? groupFor(s, lead.box, team.box) : lead.box;
+    return hasTeam(s) ? groupFor(s, lead.box, tileFor(s, 'team').box) : lead.box;
   });
   for (const key of [...tiles.keys()]) {
     const team = key.endsWith('#team');

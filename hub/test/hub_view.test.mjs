@@ -126,7 +126,8 @@ test('tileSize_scales_both_axes_alike_and_stretches_the_frame_up_to_its_limits',
   assert.equal(lone.fh, FRAME.h * 2, 'and 2 times taller');
   const wide = tileSize(2000, 216);
   assert.equal(wide.k, 1);
-  assert.ok(wide.fw > tileSize(2000, 216, { span: 1 }).fw - 1e-9 && tileSize(2000, 216, { span: 2 }).fw > wide.fw, 'a widened tile stretches further');
+  assert.equal(wide.fw, FRAME.w * 2.2, 'one column: capped at 2.2 times');
+  assert.ok(Math.abs(tileSize(2000, 216, { span: 2 }).fw - FRAME.w * 3.4) < 1e-6, 'a tile widened to 2 columns stretches to 3.4 times');
   const full = tileSize(1500, 700, { focus: true });
   assert.deepEqual([full.fw * full.k, full.fh * full.k], [1500, 700], 'full screen fills the cell');
 });
