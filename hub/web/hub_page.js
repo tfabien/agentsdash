@@ -2,7 +2,7 @@
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
 import { orderSessions, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
-import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, fillRows, autoCapacity, paginate } from './layout.js';
+import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, teamOrder, COLOR, rgb565 } from './screen.js';
 import { postSettings } from './settings.js';
@@ -290,12 +290,14 @@ function render() {
     : bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, { maxScale: focus ? FOCUS_SCALE : MAX_SCALE });   // a team is 2 columns wide
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);
-  const spans = PHONE ? [] : fillRows(current.map(cellsOf), cols);                      // the last tile of each row fills its free columns
+  const placed = PHONE ? null : placeItems(current.map(cellsOf), cols).cells;           // a single tile may fill a hole or the rest of its row
   const nodes = current.map((s, i) => {
-    const lead = tileFor(s, 'lead');
-    lead.span = hasTeam(s) ? 1 : spans[i] ?? 1;                                        // columns the cell gives the tile: fit() lets a wide one stretch
-    lead.box.style.gridColumn = lead.span > 1 ? `span ${lead.span}` : '';
-    return hasTeam(s) ? groupFor(s, lead.box, tileFor(s, 'team').box) : lead.box;
+    const lead = tileFor(s, 'lead'), at = placed?.[i];
+    lead.span = hasTeam(s) ? 1 : at?.span ?? 1;                                         // columns the cell gives the tile: fit() lets a wide one stretch
+    const node = hasTeam(s) ? groupFor(s, lead.box, tileFor(s, 'team').box) : lead.box;
+    node.style.gridColumn = at ? `${at.col + 1} / span ${at.span}` : '';
+    node.style.gridRow = at ? String(at.row + 1) : '';
+    return node;
   });
   for (const key of [...tiles.keys()]) {
     const team = key.endsWith('#team');

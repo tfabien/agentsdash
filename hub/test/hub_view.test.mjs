@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isIdle, orderSessions, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
-import { packRows, fillRows, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
+import { placeItems, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
 const agent = (over = {}) => ({ id: 'lead', role: 'lead', state: 'working', cmd: 'Edit app.js', age: 100, tok: 0, prev: '', prev_age: 0, ...over });
@@ -152,21 +152,30 @@ test('a_session_with_sub_agents_takes_two_cells_and_is_never_split_across_pages'
   assert.deepEqual(paginate(all, { max: 1, cost: cellsOf }).map((p) => p.map((s) => s.id)), [['t1'], ['t2'], ['s1']], 'a team alone on a page when the capacity is 1');
 });
 
-test('a_team_takes_two_columns_and_wraps_to_the_next_row_with_its_lead', () => {
-  assert.equal(packRows([1, 1, 1], 3), 1);
-  assert.equal(packRows([1, 2, 1], 3), 2, '1 + 2 fills the row, the last one wraps');
-  assert.equal(packRows([1, 1, 2], 3), 2, 'the pair would straddle two rows, so it starts the next one');
-  assert.equal(packRows([2, 2, 1], 2), 3);
+test('a_team_takes_two_columns_and_wraps_to_the_next_row', () => {
+  const rows = (spans, cols) => placeItems(spans, cols).rows;
+  assert.equal(rows([1, 1, 1], 3), 1);
+  assert.equal(rows([1, 2, 1], 3), 2);
+  assert.equal(rows([1, 1, 2], 3), 2, 'the pair would straddle two rows, so it starts the next one');
+  assert.equal(rows([2, 2, 1], 2), 3);
   assert.deepEqual(bestLayout([2], 800, 300, { maxScale: 700 / FRAME.w }), { cols: 2, rows: 1 }, 'a lone team: lead and team side by side');
   assert.ok(bestLayout([1, 2, 1, 2], 1200, 500, { maxScale: 700 / FRAME.w }).cols >= 2, 'never narrower than a team');
   assert.deepEqual(bestLayout([], 800, 600), { cols: 1, rows: 1 });
   assert.deepEqual(bestLayout([1, 1, 1], 1000, 520), { cols: 2, rows: 2 }, '3 tiles: 2 columns (the last one is wide), not a column of short wide frames');
-  assert.deepEqual(fillRows([1, 1, 1], 2), [1, 1, 2], 'the third tile takes the free column');
-  assert.deepEqual(fillRows([1, 1, 1, 1], 2), [1, 1, 1, 1]);
-  assert.deepEqual(fillRows([1, 1, 1, 1, 1], 3), [1, 1, 1, 1, 2]);
-  assert.deepEqual(fillRows([1, 2, 1], 3), [1, 2, 3], 'a team keeps its width, a lone last tile takes its whole row');
-  assert.deepEqual(fillRows([2, 1], 3), [2, 1]);
-  assert.deepEqual(fillRows([1], 1), [1]);
-  assert.deepEqual(fillRows([1, 2], 2), [2, 2], 'a tile before a team that wraps takes the free column of its row');
-  assert.deepEqual(fillRows([1, 1, 2, 1], 3), [1, 2, 2, 1], 'rows 1+1 then 2+1: the second tile fills the first row');
+});
+
+test('items_fill_holes_and_the_last_single_tile_of_a_short_row_widens', () => {
+  const spans = (s, cols) => placeItems(s, cols).cells.map((c) => c.span);
+  const at = (s, cols) => placeItems(s, cols).cells.map((c) => `${c.row}:${c.col}`);
+  assert.deepEqual(spans([1, 1, 1], 2), [1, 1, 2], 'the third tile takes the free column');
+  assert.deepEqual(spans([1, 1, 1, 1], 2), [1, 1, 1, 1]);
+  assert.deepEqual(spans([1, 1, 1, 1, 1], 3), [1, 1, 1, 1, 2]);
+  assert.deepEqual(spans([1, 2, 1], 3), [1, 2, 3], 'a team keeps its width, a lone last tile takes its whole row');
+  assert.deepEqual(spans([2, 1], 3), [2, 1]);
+  assert.deepEqual(spans([1], 1), [1]);
+  assert.deepEqual(spans([1, 2], 2), [2, 2], 'a tile before a team that wraps takes the free column of its row');
+  assert.deepEqual(spans([1, 1, 2, 1], 3), [1, 1, 2, 1], 'the last single tile fills the hole beside the first two');
+  assert.deepEqual(spans([1, 2, 1], 2), [1, 2, 1], 'single, team, single in 2 columns: the singles share the first row');
+  assert.deepEqual(at([1, 2, 1], 2), ['0:0', '1:0', '0:1'], 'the team goes full width under them');
+  assert.deepEqual(placeItems([], 2), { cells: [], rows: 0 });
 });
