@@ -107,6 +107,12 @@ An adapter finds a core in this order: a folder or script the user names (`AGENT
 GitHub release whose asset is named `agentsdash-core-<version>-p<protocol>.tar.gz` (plus `.sha256`) and checks the digest before unpacking. It leaves a running hub
 alone when `/health` shows the same `protocol` and a `core` at or above its minimum, and asks any other hub to stop with `POST /shutdown`.
 
+#### How an adapter updates a core
+
+An adapter that runs an installed core (not a checkout, not a folder named by `AGENTSDASH_CORE_DIR`) looks for a newer release once a day, on the first event after 24 hours (stamp `core_update.stamp` in the state folder).
+It runs the same download as a first install: the newest non-draft, non-prerelease release with a `-p<protocol>` asset for the protocol it speaks, digest checked, unpacked into its own `~/.agentsdash/core/<version>/` folder.
+The running hub is not touched. The next hub start runs the highest installed folder, and a hub whose `core` is above the adapter's minimum is never replaced. A failed check (offline, bad digest) leaves the old core and retries the next day.
+
 ### POST /shutdown
 
 Asks the hub to exit (a newer client starts a fresh one). Answers `bye`.
