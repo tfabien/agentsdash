@@ -232,7 +232,7 @@ test('core_package_protocol_matches_model', () => withHub(async (hub) => {
 
 test('loadConfig_defaults_and_file_and_env', () => {
   const dflt = loadConfig(path.join(os.tmpdir(), 'no-such-agent-gadget.json'), {});
-  assert.deepEqual(dflt, { lan: { enabled: false, bind: '0.0.0.0' }, host: '127.0.0.1:8765', relay: { mode: 'none' }, context_window: 1000000, max_sessions: 12, first_theme: 'robot' });
+  assert.deepEqual(dflt, { lan: { enabled: false, bind: '0.0.0.0' }, host: '127.0.0.1:8765', relay: { mode: 'none' }, context_window: 1000000, max_sessions: 24, first_theme: 'robot' });
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubcfg-')), 'c.json');
   fs.writeFileSync(file, JSON.stringify({ host: '127.0.0.1:9000', relay: { mode: 'http', host: '192.168.1.100' }, quotas: false, context_window: 200000 }));
   const c = loadConfig(file, {});
@@ -240,7 +240,7 @@ test('loadConfig_defaults_and_file_and_env', () => {
   assert.deepEqual(c.relay, { mode: 'http', host: '192.168.1.100' });
   assert.equal(c.context_window, 200000);
   assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '7' }).max_sessions, 7);
-  assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '99' }).max_sessions, 12);     // out of range: default
+  assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '99' }).max_sessions, 24);     // out of range: default
   assert.equal(loadConfig(file, { CLAUDE_GADGET_HOST: 'h:1' }).host, 'h:1');
   assert.equal(loadConfig(file, { AGENTSDASH_MAX_SESSIONS: '7' }).max_sessions, 7);
   assert.equal(loadConfig(file, { AGENTSDASH_HOST: 'h:2', CLAUDE_GADGET_HOST: 'h:1' }).host, 'h:2', 'the new name wins');

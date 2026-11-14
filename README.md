@@ -79,7 +79,7 @@ Open <http://127.0.0.1:8765/> for a grid with one tile per session (Claude Code 
 - A session waiting for you for 5 minutes turns grey and moves to the end (the hub drops it after 10). The trash icon on a grey tile hides it until it works again or asks you something.
 - A tap on a tile opens that session full screen, BACK returns. More sessions than tiles make pages: side arrows, dots (orange or red when a session on that page needs you or failed), a swipe or the left and right keys.
 - The settings menu (gear) sets the tiles per page (Auto fits the window, 1 shows one session at a time), the beeps, the pulse and the grey-out. The hub keeps them for every page.
-- The hub keeps 12 sessions by default: set `"max_sessions"` (up to 32) in `~/.agentsdash/config.json` to change it.
+- The hub keeps 24 sessions by default: set `"max_sessions"` (up to 32) in `~/.agentsdash/config.json` to change it.
 
 ### Plans: see and follow the progress
 
@@ -197,7 +197,6 @@ Core ([issues](https://github.com/tfabien/agentsdash/issues)):
 - **Adapters never fetch a newer core** ([#57](https://github.com/tfabien/agentsdash/issues/57)).
 - **The page does not follow the session that has the focus in the agent** ([#59](https://github.com/tfabien/agentsdash/issues/59)).
 - **Tap a step of the plan bar to preview it** ([#60](https://github.com/tfabien/agentsdash/issues/60)).
-- **Raise the default of `max_sessions`** ([#61](https://github.com/tfabien/agentsdash/issues/61)).
 - Smaller: recorded events copied by hand between repositories ([#58](https://github.com/tfabien/agentsdash/issues/58)), minor items of the hub review ([#62](https://github.com/tfabien/agentsdash/issues/62)), a GitHub organization ([#63](https://github.com/tfabien/agentsdash/issues/63)), a stub for the plugin under the first name ([#64](https://github.com/tfabien/agentsdash/issues/64)).
 
 Codex adapter ([agentsdash-codex](https://github.com/tfabien/agentsdash-codex/issues)):
