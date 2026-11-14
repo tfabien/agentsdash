@@ -1,16 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gridShape, bestGrid, packRows, fillLastRow, bestLayout, isIdle, paginate, orderSessions, autoCapacity, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { isIdle, orderSessions, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { packRows, fillRows, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
 const agent = (over = {}) => ({ id: 'lead', role: 'lead', state: 'working', cmd: 'Edit app.js', age: 100, tok: 0, prev: '', prev_age: 0, ...over });
 const sess = (id, dot = 'working', over = {}) => ({ id, project: id, title: '', dot, ctx_pct: 40, ctx_k: 400, plan: null, ask: null, agents: [agent({ state: dot })], ...over });
-
-test('grid_fits_the_session_count', () => {
-  assert.deepEqual([0, 1, 2, 3, 4, 6, 9, 10, 16].map((n) => gridShape(n)), [
-    { cols: 1, rows: 1 }, { cols: 1, rows: 1 }, { cols: 2, rows: 1 }, { cols: 3, rows: 1 }, { cols: 2, rows: 2 },
-    { cols: 3, rows: 2 }, { cols: 3, rows: 3 }, { cols: 4, rows: 3 }, { cols: 4, rows: 4 }]);
-});
 
 test('sessions_fit_one_page_when_they_fit_the_capacity', () => {
   const all = ['a', 'b', 'c'].map((id) => sess(id));
@@ -31,10 +26,10 @@ test('idle_sessions_go_last_and_each_group_keeps_its_first_seen_order', () => {
 });
 
 test('auto_capacity_counts_the_tiles_that_fit_the_window', () => {
-  assert.equal(autoCapacity(0, 0, 472, 216), 12, 'unknown size: the cap');
-  assert.equal(autoCapacity(500, 300, 472, 216), 1);
-  assert.equal(autoCapacity(1200, 400, 472, 216), 6, '3 columns x 2 rows at 0.8 scale (378 x 173)');
-  assert.equal(autoCapacity(3000, 2000, 472, 216), 12, 'never above the cap');
+  assert.equal(autoCapacity(0, 0), 12, 'unknown size: the cap');
+  assert.equal(autoCapacity(500, 300), 1);
+  assert.equal(autoCapacity(1200, 400), 6, '3 columns x 2 rows at 0.8 scale (378 x 173)');
+  assert.equal(autoCapacity(3000, 2000), 12, 'never above the cap');
 });
 
 test('a_page_is_flagged_when_a_session_needs_you_or_failed', () => {
@@ -112,22 +107,28 @@ test('beeps_follow_the_gadget_rule', () => {
   assert.equal(beepsFor(asks, asks, 'all'), 0);
 });
 
-test('bestGrid_picks_the_columns_that_make_the_screens_biggest', () => {
-  const aspect = 468 / 216;
-  assert.deepEqual(bestGrid(1, 800, 600, aspect), { cols: 1, rows: 1 });
-  assert.deepEqual(bestGrid(3, 800, 600, aspect), { cols: 1, rows: 3 }, 'a tall box stacks the screens');
-  assert.deepEqual(bestGrid(3, 2000, 300, aspect), { cols: 3, rows: 1 }, 'a wide box puts them side by side');
-  assert.deepEqual(bestGrid(4, 1000, 800, aspect), { cols: 2, rows: 2 });
+test('bestLayout_picks_the_columns_that_make_the_screens_biggest', () => {
+  const ones = (n) => Array(n).fill(1);
+  assert.deepEqual(bestLayout(ones(1), 800, 600), { cols: 1, rows: 1 });
+  assert.deepEqual(bestLayout(ones(3), 800, 600), { cols: 1, rows: 3 }, 'a tall box stacks the screens');
+  assert.deepEqual(bestLayout(ones(3), 2000, 300), { cols: 3, rows: 1 }, 'a wide box puts them side by side');
+  assert.deepEqual(bestLayout(ones(4), 1000, 800), { cols: 2, rows: 2 });
 });
 
-test('bestGrid_with_stretch_keeps_wide_cells_when_they_make_the_biggest_screens', () => {
-  const aspect = 472 / 216;
-  assert.deepEqual(bestGrid(5, 1008, 500, aspect, 12, 708, 1.5), { cols: 2, rows: 3 }, 'wide cells are filled by stretching');
-  assert.deepEqual(bestGrid(2, 2000, 300, aspect, 12, 708, 1.5), { cols: 2, rows: 1 });
+test('bestLayout_stops_rewarding_size_past_the_cap_and_prefers_columns_on_a_tie', () => {
+  assert.deepEqual(bestLayout([1, 1], 2000, 1000, { maxScale: 700 / FRAME.w }), { cols: 2, rows: 1 });
 });
 
-test('bestGrid_stops_rewarding_size_past_the_cap_and_prefers_columns_on_a_tie', () => {
-  assert.deepEqual(bestGrid(2, 2000, 1000, 468 / 216, 12, 700), { cols: 2, rows: 1 });
+test('tileSize_scales_both_axes_alike_and_stretches_the_frame_up_to_its_limits', () => {
+  const lone = tileSize(3000, 2000);
+  assert.equal(lone.k, 1.5, 'a lone tile stops at MAX_SCALE');
+  assert.equal(lone.fw, FRAME.w * 2.2, 'the frame is at most 2.2 times wider');
+  assert.equal(lone.fh, FRAME.h * 2, 'and 2 times taller');
+  const wide = tileSize(2000, 216);
+  assert.equal(wide.k, 1);
+  assert.ok(wide.fw > tileSize(2000, 216, { span: 1 }).fw - 1e-9 && tileSize(2000, 216, { span: 2 }).fw > wide.fw, 'a widened tile stretches further');
+  const full = tileSize(1500, 700, { focus: true });
+  assert.deepEqual([full.fw * full.k, full.fh * full.k], [1500, 700], 'full screen fills the cell');
 });
 
 test('isIdle_after_five_minutes_waiting_for_the_user_only', () => {
@@ -155,16 +156,16 @@ test('a_team_takes_two_columns_and_wraps_to_the_next_row_with_its_lead', () => {
   assert.equal(packRows([1, 2, 1], 3), 2, '1 + 2 fills the row, the last one wraps');
   assert.equal(packRows([1, 1, 2], 3), 2, 'the pair would straddle two rows, so it starts the next one');
   assert.equal(packRows([2, 2, 1], 2), 3);
-  assert.deepEqual(bestLayout([2], 800, 300, 472 / 216, 12, 700, 1.8), { cols: 2, rows: 1 }, 'a lone team: lead and team side by side');
-  assert.ok(bestLayout([1, 2, 1, 2], 1200, 500, 472 / 216, 12, 700, 1.8).cols >= 2, 'never narrower than a team');
-  assert.deepEqual(bestLayout([], 800, 600, 2), { cols: 1, rows: 1 });
-  assert.deepEqual(bestLayout([1, 1, 1], 1000, 520, 472 / 216, 12, 708, 2.2), { cols: 2, rows: 2 }, '3 tiles: 2 columns (the last one is wide), not a column of short wide frames');
-  assert.deepEqual(fillLastRow([1, 1, 1], 2), [1, 1, 2], 'the third tile takes the free column');
-  assert.deepEqual(fillLastRow([1, 1, 1, 1], 2), [1, 1, 1, 1]);
-  assert.deepEqual(fillLastRow([1, 1, 1, 1, 1], 3), [1, 1, 1, 1, 2]);
-  assert.deepEqual(fillLastRow([1, 2, 1], 3), [1, 2, 3], 'a team keeps its width, a lone last tile takes its whole row');
-  assert.deepEqual(fillLastRow([2, 1], 3), [2, 1]);
-  assert.deepEqual(fillLastRow([1], 1), [1]);
-  assert.deepEqual(fillLastRow([1, 2], 2), [2, 2], 'a tile before a team that wraps takes the free column of its row');
-  assert.deepEqual(fillLastRow([1, 1, 2, 1], 3), [1, 2, 2, 1], 'rows 1+1 then 2+1: the second tile fills the first row');
+  assert.deepEqual(bestLayout([2], 800, 300, { maxScale: 700 / FRAME.w }), { cols: 2, rows: 1 }, 'a lone team: lead and team side by side');
+  assert.ok(bestLayout([1, 2, 1, 2], 1200, 500, { maxScale: 700 / FRAME.w }).cols >= 2, 'never narrower than a team');
+  assert.deepEqual(bestLayout([], 800, 600), { cols: 1, rows: 1 });
+  assert.deepEqual(bestLayout([1, 1, 1], 1000, 520), { cols: 2, rows: 2 }, '3 tiles: 2 columns (the last one is wide), not a column of short wide frames');
+  assert.deepEqual(fillRows([1, 1, 1], 2), [1, 1, 2], 'the third tile takes the free column');
+  assert.deepEqual(fillRows([1, 1, 1, 1], 2), [1, 1, 1, 1]);
+  assert.deepEqual(fillRows([1, 1, 1, 1, 1], 3), [1, 1, 1, 1, 2]);
+  assert.deepEqual(fillRows([1, 2, 1], 3), [1, 2, 3], 'a team keeps its width, a lone last tile takes its whole row');
+  assert.deepEqual(fillRows([2, 1], 3), [2, 1]);
+  assert.deepEqual(fillRows([1], 1), [1]);
+  assert.deepEqual(fillRows([1, 2], 2), [2, 2], 'a tile before a team that wraps takes the free column of its row');
+  assert.deepEqual(fillRows([1, 1, 2, 1], 3), [1, 2, 2, 1], 'rows 1+1 then 2+1: the second tile fills the first row');
 });
