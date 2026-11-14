@@ -224,6 +224,15 @@ test('plan_segments_are_done_current_and_pending_and_running_steps_pulse', () =>
   assert.deepEqual([parallel[0].c, parallel[1].c, parallel[2].c, parallel[3].c], [COLOR.WORKING, COLOR.ACCENT, COLOR.ACCENT, COLOR.CHIP]);
 });
 
+test('running_plan_step_is_steady_needs_color_while_the_session_waits_for_the_user', () => {
+  for (const st of ['your_turn', 'needs_you']) {
+    const fills = draw(state([session({ plan: { done: 1, total: 3, cur: 'B', next: 'C', state: '' }, agents: [agent({ state: st })] })]), ui({ pulse: 0 }))
+      .ops.filter((o) => o.op === 'fill' && o.h === 6 && o.y === 36 + 130 && o.x >= 18);
+    assert.equal(fills[1].c, COLOR.NEEDS, `${st}: running step uses the NEEDS color, whatever the pulse`);
+    assert.equal(fills[0].c, COLOR.WORKING, 'done step unchanged');
+  }
+});
+
 test('context_bar_color_follows_the_thresholds', () => {
   const barColor = (pct) => draw(state([session({ ctx_pct: pct })])).ops.find((o) => o.op === 'ring').c;
   assert.equal(barColor(34), COLOR.WORKING);
