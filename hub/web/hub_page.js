@@ -140,7 +140,7 @@ function tap(t, e) {
   const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * (t.frameH ?? FRAME.h)) / box.height;
   const lead0 = tiles.get(s.id) ?? t;
   const detailOpen = Boolean(lead0.detail && s.agents.some((a) => a.id === lead0.detail.agent));
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead0.quest });
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead0.quest, measure: (txt, font) => t.screen.measure(txt, font) });
   const answer = permAnswer(hit, s);
   if (answer) {                                           // Allow or Deny of a permission request: the state that follows redraws the tile
     fetch('/permission/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(answer) }).catch(() => {});

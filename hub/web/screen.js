@@ -154,19 +154,26 @@ export function permAnswer(hit, s) {
   if (!s?.perm || (hit?.kind !== 'permAllow' && hit?.kind !== 'permDeny')) return null;
   return { id: s.perm.id, decision: hit.kind === 'permAllow' ? 'allow' : 'deny' };
 }
-// A question of AskUserQuestion held for the page: TERMINAL (and SEND for a multi choice) at the right of the header line,
-// the options as buttons, two per row, along the bottom of the lead panel. `nOpts` is the option count of the question on screen.
-const questLayout = (p, nOpts, multi) => {
+// A question of AskUserQuestion held for the page: TERMINAL (and SEND for a multi choice) at the right of the header line, the question
+// under it, then the options right under the question: one full-width button per row, or two per row when a short panel has no room.
+// `nOpts` is the option count of the question on screen, `qLines` the lines its text wraps to (cut to leave room for the options).
+const questLayout = (p, nOpts, multi, qLines = 1) => {
   const x = p.x + 6, w = p.w - 12, y = p.y + 68;
   const terminal = { x: x + w - 96, y, w: 96, h: 22 };
   const send = multi ? { x: terminal.x - 86, y, w: 80, h: 22 } : null;
-  const rows = Math.ceil(nOpts / 2), bw = Math.trunc((p.w - 18) / 2);
+  const textTop = y + 26, room = p.y + p.h - 4 - textTop - 6;          // height for the text and the options
+  const cols = 18 + nOpts * 34 <= room ? 1 : 2;                         // one line of text and every option stacked, else two per row
+  const rows = Math.ceil(nOpts / cols);
+  const lines = Math.max(1, Math.min(qLines, Math.floor((room - rows * 34) / 18)));
+  const top = textTop + lines * 18 + 6, bw = cols === 1 ? w : Math.trunc((w - 6) / 2);
   const opts = Array.from({ length: nOpts }, (_, i) => {
-    const r = Math.floor(i / 2), last = i === nOpts - 1 && nOpts % 2 === 1;
-    return { x: p.x + 6 + (i % 2) * (bw + 6), y: p.y + p.h - 34 - (rows - 1 - r) * 34, w: last ? p.w - 12 : bw, h: 28 };
+    const r = Math.floor(i / cols), c = i % cols, last = cols === 2 && i === nOpts - 1 && nOpts % 2 === 1;
+    return { x: x + c * (bw + 6), y: top + r * 34, w: last ? w : bw, h: 28 };
   });
-  return { terminal, send, opts, textTop: y + 26, textBottom: opts.length ? opts[0].y - 4 : p.y + p.h - 4 };
+  return { terminal, send, opts, textTop, lines };
 };
+/** Lines the text of question `qq` wraps to in panel `p`; `measure(text, font)` is the screen's (a tap without it guesses 8 units a character). */
+const questLines = (qq, p, measure) => wrapText(qq.question, p.w - 12, 8, (t) => (measure ? measure(t, S16) : t.length * 8)).length;
 /** The page's progress on question `q` (session.quest): the step on screen and the picks so far. A stale `local` (another question) starts over. */
 export const questProgress = (q, local) => (local && local.id === q.id ? local : { id: q.id, step: 0, picks: q.questions.map(() => []), sent: false });
 /**
@@ -218,6 +225,7 @@ export function planBar(p, total) {
  * or 'team' (a hub tile with the team rows alone, full width); left out, the screen shows both side by side. `frameW`: width of the frame in units (default 472).
  * `detailOpen` (team part): a sub-agent is open as a tile, so the only target is its BACK button.
  * `quest` (a session with a question for the page): the page's progress on it (questProgress), which says the question on screen.
+ * `measure(text, font)` (optional): the screen's text width, so the options of a question sit where they were drawn under its text.
  * @returns {{kind: 'questOpt'|'questSend'|'questTerminal'|'permAllow'|'permDeny'|'planStep'|'tab'|'mute'|'lead'|'row'|'back'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
  */
 export function hitTest(x, y, ctx) {
@@ -244,7 +252,8 @@ export function hitTest(x, y, ctx) {
   }
   if (s?.quest && !s.perm && ctx.part !== 'team') {     // a question waits for the page: its buttons answer, the rest of the tile is inert
     const cur = questProgress(s.quest, ctx.quest), qq = s.quest.questions[cur.step];
-    const L = questLayout(leadRect(0, ctx.frameW, ctx.frameH), qq.options.length, qq.multi);
+    const p = leadRect(0, ctx.frameW, ctx.frameH);
+    const L = questLayout(p, qq.options.length, qq.multi, questLines(qq, p, ctx.measure));
     if (inside(L.terminal, x, y)) return { kind: 'questTerminal' };
     if (L.send && inside(L.send, x, y)) return { kind: 'questSend' };
     const i = L.opts.findIndex((r) => inside(r, x, y));
@@ -475,7 +484,7 @@ export function renderScreen(screen, state, ui) {
   // A picked option of a multi choice is filled in the accent color; once sent, the buttons wait for the state that follows.
   function drawQuest(quest, x, w, p) {
     const cur = questProgress(quest, ui.quest), qq = quest.questions[cur.step];
-    const L = questLayout(p, qq.options.length, qq.multi);
+    const L = questLayout(p, qq.options.length, qq.multi, questLines(qq, p, screen.measure));
     const left = Math.max(0, Math.ceil((quest.until - (ui.nowMs ?? Date.now())) / 1000));
     const n = quest.questions.length;
     const head = [n > 1 ? `${cur.step + 1}/${n}` : '', qq.header, `${left}s`].filter(Boolean).join('  ');
@@ -484,8 +493,7 @@ export function renderScreen(screen, state, ui) {
     btn(L.terminal, cur.sent ? 'SENT' : 'TERMINAL', COLOR.CHIP);
     const picked = cur.picks[cur.step];
     if (L.send) btn(L.send, `SEND ${picked.length}`, picked.length && !cur.sent ? COLOR.WORKING : COLOR.CHIP, picked.length && !cur.sent ? COLOR.SCREEN : COLOR.FAINT);
-    const maxLines = Math.max(1, Math.floor((L.textBottom - L.textTop) / 18));
-    wrapText(qq.question, w, maxLines, m(S16)).forEach((l, i) => screen.text(x, L.textTop + i * 18, w, S16, COLOR.NEEDS, COLOR.PANEL, l));
+    wrapText(qq.question, w, L.lines, m(S16)).forEach((l, i) => screen.text(x, L.textTop + i * 18, w, S16, COLOR.NEEDS, COLOR.PANEL, l));
     L.opts.forEach((r, i) => btn(r, qq.options[i], picked.includes(i) ? COLOR.ACCENT : COLOR.CHIP, picked.includes(i) ? COLOR.SCREEN : COLOR.TEXT));
   }
 
