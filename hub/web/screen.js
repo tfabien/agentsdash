@@ -98,13 +98,13 @@ export function wrapText(s, width, maxLines, m) {
 }
 
 // ---------- state helpers ----------
-/** Rows of the team panel: [slots (1-based), more]. Past 7 sub-agents: 6 rows and "+N more"; done agents drop first,
- * then the least recently seen (the longest in its state: `age`). */
-export function teamOrder(subs) {
+/** Rows of the team panel: [slots (1-based), more]. Past `cap` sub-agents (7 on the gadget, see teamCapacity): `cap` - 1 rows
+ * and "+N more"; done agents drop first, then the least recently seen (the longest in its state: `age`). */
+export function teamOrder(subs, cap = TEAM_ROWS) {
   const n = subs.length;
-  if (n <= TEAM_ROWS) return { order: subs.map((_, i) => i + 1), more: 0 };
+  if (n <= cap) return { order: subs.map((_, i) => i + 1), more: 0 };
   const keep = new Set(subs.map((_, i) => i + 1));
-  while (keep.size > TEAM_ROWS - 1) {
+  while (keep.size > cap - 1) {
     let victim = -1;
     for (let pass = 0; pass < 2 && victim < 0; pass++) {
       for (let i = 1; i <= n; i++) {
@@ -207,10 +207,16 @@ const inside = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r
 const TEAM_BESIDE = { x: 176, w: 290 };
 const teamFull = (fw = 472) => ({ x: 18, w: fw - 24 });
 
-function layoutRows(nSubs, box = TEAM_BESIDE) {
+// Rows that fit a frame `fh` units tall between the TEAM line (y 58) and the bottom of the panel (fh + 24): tall rows (42, every 45)
+// or compact rows (22, every 24). The gadget's 216 gives 4 and 7; a tall hub team tile fits more (hub only, the firmware has no team tile).
+const tallRows = (fh = 216) => Math.floor((fh - 76) / 45) + 1;
+/** Rows of the team list in a frame `fh` units tall (7 on the gadget): past that, the last row is "+N more". */
+export const teamCapacity = (fh = 216) => Math.max(TEAM_ROWS, Math.floor((fh - 56) / 24) + 1);
+
+function layoutRows(nSubs, box = TEAM_BESIDE, fh = 216) {
   if (nSubs <= 0) return [];
-  if (nSubs <= 4) return Array.from({ length: nSubs }, (_, i) => ({ x: box.x, y: 58 + i * 45, w: box.w, h: 42 }));
-  return Array.from({ length: Math.min(nSubs, 7) }, (_, i) => ({ x: box.x, y: 58 + i * 24, w: box.w, h: 22 }));
+  if (nSubs <= tallRows(fh)) return Array.from({ length: nSubs }, (_, i) => ({ x: box.x, y: 58 + i * 45, w: box.w, h: 42 }));
+  return Array.from({ length: Math.min(nSubs, teamCapacity(fh)) }, (_, i) => ({ x: box.x, y: 58 + i * 24, w: box.w, h: 22 }));
 }
 
 /** Segments of the plan bar inside the lead panel `p`. Past 16 steps the bar is continuous (seg = w / total). */
@@ -241,8 +247,8 @@ export function hitTest(x, y, ctx) {
   const s = ctx.sessions[ctx.selected];
   if (ctx.part === 'team') {
     if (ctx.detailOpen) return inside(backRect(leadRect(0, ctx.frameW, ctx.frameH)), x, y) ? { kind: 'back' } : { kind: 'none' };
-    const n = s ? s.agents.length - 1 : 0, rows = layoutRows(n, teamFull(ctx.frameW));
-    for (let i = 0; i < rows.length; i++) if (inside(rows[i], x, y)) return n >= 8 && i === 6 ? { kind: 'more' } : { kind: 'row', index: i };
+    const n = s ? s.agents.length - 1 : 0, cap = teamCapacity(ctx.frameH), rows = layoutRows(n, teamFull(ctx.frameW), ctx.frameH);
+    for (let i = 0; i < rows.length; i++) if (inside(rows[i], x, y)) return n > cap && i === cap - 1 ? { kind: 'more' } : { kind: 'row', index: i };
     return { kind: 'none' };
   }
   if (s?.perm && ctx.part !== 'team') {                // a request waits for Allow or Deny: only its two buttons answer a tap
@@ -565,15 +571,16 @@ export function renderScreen(screen, state, ui) {
 
   // ----- team panel -----
   function drawTeam(s, subs, detailSlot, full = false) {
-    const { order, more } = teamOrder(subs);
+    const fh = full ? ui.frameH ?? 216 : 216, cap = teamCapacity(fh);    // the gadget and the page beside a lead: 7 rows; a tall team tile: more
+    const { order, more } = teamOrder(subs, cap);
     const fw = ui.frameW ?? 472, ph = (ui.frameH ?? 216) - 12;
     const box = full ? teamFull(fw) : TEAM_BESIDE;
-    const rows = layoutRows(subs.length, box);
-    const compact = subs.length > 4;
+    const rows = layoutRows(subs.length, box, fh);
+    const compact = subs.length > tallRows(fh);
     if (full) { screen.erase(12, 36, fw - 12, ph); screen.fill(156, 36, 20, ph, COLOR.PANEL); } else screen.erase(170, 36, 302, 204);    // full: one panel over the gap between the two
-    if (more > 0 && rows.length === TEAM_ROWS) {
-      const r = rows[TEAM_ROWS - 1];
-      screen.pic(PIC.ROW_COMPACT, r.x, r.y);
+    if (more > 0 && rows.length === cap) {
+      const r = rows[cap - 1];
+      rowBack(r, true);
       screen.text(r.x + 30, r.y + 2, r.w - 34, S16, COLOR.FAINT, COLOR.ROW, `+${more} more`);
     }
     const working = subs.filter((a) => a.state === 'working').length;
@@ -583,9 +590,15 @@ export function renderScreen(screen, state, ui) {
     if (detailSlot && want >= 0) screen.rect(rows[want].x - 1, rows[want].y - 1, rows[want].w + 2, rows[want].h + 2, COLOR.LIGHT);
   }
 
+  // Background of a team row: the gadget's 290-unit row picture, or a filled box as wide as the row on a wider hub team tile.
+  function rowBack(r, compact) {
+    if (r.w === TEAM_BESIDE.w) screen.pic(compact ? PIC.ROW_COMPACT : PIC.ROW, r.x, r.y);
+    else screen.fill(r.x, r.y, r.w, r.h, COLOR.ROW);
+  }
+
   function drawRow(a, r, compact, seed) {
     const done = a.state === 'done';
-    screen.pic(compact ? PIC.ROW_COMPACT : PIC.ROW, r.x, r.y);
+    rowBack(r, compact);
     const pulseDim = a.state === 'needs_you' && Math.trunc(ui.tick / 4) % 2 === 1;
     screen.fill(r.x + 2, r.y + 3, 3, r.h - 6, pulseDim ? COLOR.NEEDS_DIM : stateColor(a.state));
     const nameCol = done ? COLOR.FAINT : COLOR.TEXT;
