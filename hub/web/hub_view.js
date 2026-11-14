@@ -36,12 +36,18 @@ export function packRows(spans, cols) {
   return rows;
 }
 
-/** Spans with the last item widened to fill the free columns of the last row (3 tiles in 2 columns: the third one is double width). A team keeps its 2 columns. */
+/** Spans with the last single tile of each row widened to fill the free columns (3 tiles in 2 columns: the third one is double width; a lone tile before a team is double width too). A team keeps its 2 columns. */
 export function fillLastRow(spans, cols) {
   const out = [...spans];
   if (!out.length) return out;
-  let used = cols;
-  for (const sp of out) { if (used + sp > cols) used = 0; used += sp; }
+  let used = 0;
+  for (let i = 0; i < out.length; i++) {
+    if (used + out[i] > cols) {                                    // the row ends here: its last tile takes the free columns
+      if (out[i - 1] === 1) out[i - 1] += cols - used;
+      used = 0;
+    }
+    used += out[i];
+  }
   if (out[out.length - 1] === 1 && used < cols) out[out.length - 1] += cols - used;
   return out;
 }
