@@ -4,8 +4,8 @@
 // The hub keeps option indexes only: the hook maps them back to the exact labels and question texts it received.
 import crypto from 'node:crypto';
 
-export const DEFAULT_WAIT_S = 60;
-export const MAX_WAIT_S = 300;
+export const DEFAULT_WAIT_S = 600;
+export const MAX_WAIT_S = 600;                  // the terminal or the app shows the question meanwhile: the wait only bounds a stuck hook
 export const MAX_QUESTIONS = 4;
 export const MAX_OPTIONS = 4;
 
