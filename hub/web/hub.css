@@ -9,8 +9,11 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px "Segoe U
   color: var(--text); background: rgba(18, 26, 38, .72); border: 1px solid var(--edge); border-radius: 8px; cursor: pointer; }
 .nav:hover:not(:disabled) { background: var(--chip); }
 .nav:disabled { opacity: .25; cursor: default; }
-#prev, #back { left: 0; }
-#next, #jump { right: 0; }
+#prev { left: 0; }
+#next { right: 0; }
+/* Back and jump of a full-screen session: tabs on the left and right border of its frame, level with the avatar and the context ring.
+   The page sets their place and size from the frame (placeEdge in hub_page.js), so they cover the frame and its margin, never the text. */
+.nav.edge { transform: none; padding: 0; border: 2px solid var(--bg); border-radius: 6px; }
 .nav[hidden], #pager[hidden] { display: none; }
 /* An arrow toward a session that needs you (orange) or failed (red) blinks: the page arrows toward its page, the jump arrow of a full-screen session. */
 .nav.needs_you, .nav.error { color: var(--bg); background: var(--needs); border-color: var(--needs); animation: blink 1.2s ease-in-out infinite; }

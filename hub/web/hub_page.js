@@ -167,6 +167,15 @@ function tap(t, e) {
   for (const part of partsOf(s)) { const u = tiles.get(keyOf(s.id, part)); if (u) drawTile(s, u); }
 }
 
+// A tab on the border of a frame (6 units wide): centred on the border, level with the avatar and the context ring (unit y 58 of the screen,
+// the frame starts at y 30). It reaches 4 units into the panel, where the header keeps a margin of about 7 before the avatar and the ring.
+function placeEdge(btn, t, k, side) {
+  const stage = $('stage').getBoundingClientRect(), c = t.canvas.getBoundingClientRect();
+  const w = 14 * k, h = 24 * k;
+  const x = side === 'left' ? c.left + 3 * k : c.right - 3 * k;
+  Object.assign(btn.style, { left: `${x - w / 2 - stage.left}px`, top: `${c.top + 28 * k - h / 2 - stage.top}px`, width: `${w}px`, height: `${h}px`, fontSize: `${16 * k}px` });
+}
+
 function drawTile(s, t) {
   t.session = s;
   const now = Date.now();
@@ -180,7 +189,12 @@ function drawTile(s, t) {
   const age = now - t.flashAt;
   const pulse = state.settings?.pulse !== false && age < FLASH_MS ? Math.sin((Math.PI * age) / FLASH_MS) : 0;
   const base = ALERT_RGB[s.dot] ?? frameRgb();
-  t.screen.begin(scale * (window.devicePixelRatio || 1), FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
+  const tint = pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null;
+  t.screen.begin(scale * (window.devicePixelRatio || 1), FRAME, tint, t.frameW, weldOf(t), t.frameH);
+  if (focus === s.id) {                                // a session shown full screen: Back on the left border of its first frame, jump on the right border of its last
+    if (t.part === 'lead') { placeEdge(backBtn, t, scale, 'left'); backBtn.style.background = `rgb(${(tint ?? base).map(Math.round).join(',')})`; }
+    if (t.part === 'team' || !hasTeam(s) || stacked) placeEdge(jumpBtn, t, scale, 'right');
+  }
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
     bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, elapsedS: elapsed(), menu: false, detail: owner.detail, planStep: owner.planStep, quest: owner.quest, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
@@ -265,7 +279,7 @@ function renderFocusAlert(sessions) {
   if (jumpBtn.hidden) { jumpBtn.onclick = null; return; }
   const first = alerts[0];
   const label = `${first.title || first.project || first.id} ${first.dot === 'needs_you' ? 'needs you' : 'has an error'}`;
-  jumpBtn.className = `nav ${first.dot}`;
+  jumpBtn.className = `nav edge ${first.dot}`;
   jumpBtn.title = label;
   jumpBtn.setAttribute('aria-label', label);
   if (alerts.length > 1) jumpBtn.dataset.more = `+${alerts.length - 1}`; else delete jumpBtn.dataset.more;

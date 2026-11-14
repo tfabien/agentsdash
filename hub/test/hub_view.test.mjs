@@ -214,7 +214,7 @@ test('side_alerts_color_the_page_arrows_toward_a_session_that_needs_you', () => 
 test('page_has_the_jump_arrow_for_a_full_screen_session', async () => {
   const fs = await import('node:fs');
   const html = fs.readFileSync(new URL('../web/hub.html', import.meta.url), 'utf8');
-  assert.match(html, /<button id="jump" class="nav" hidden>/);
+  assert.match(html, /<button id="jump" class="nav edge" hidden>/);
   assert.doesNotMatch(html, /focus-alert/, 'the banner is gone');
   const page = fs.readFileSync(new URL('../web/hub_page.js', import.meta.url), 'utf8');
   assert.match(page, /renderFocusAlert\(sessions\)/);
