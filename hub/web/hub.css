@@ -11,7 +11,10 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px "Segoe U
 .nav:disabled { opacity: .25; cursor: default; }
 #prev { left: 0; }
 #next { right: 0; }
-.nav[hidden], #pager[hidden] { display: none; }
+.nav[hidden], #pager[hidden], #focus-alert[hidden] { display: none; }
+#focus-alert { align-self: center; flex: none; max-width: 90%; padding: 6px 18px; font: inherit; font-size: 16px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--bg); background: var(--needs); border: 0; border-radius: 18px; cursor: pointer; }   /* full screen: another session needs you (its own row above the tile, so it covers nothing) */
+#focus-alert.error { background: var(--error); }
 #tiles.expandable .tile canvas { cursor: zoom-in; }
 #pager { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; gap: 12px; padding: 8px 14px;
   background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; }        /* half on the stage, half on the bottom bar */

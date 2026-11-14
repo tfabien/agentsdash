@@ -30,6 +30,12 @@ export function orderSessions(sessions, rank, idle) {
 
 
 /** The most urgent state of a page that deserves a dot of color in the pager: 'needs_you', 'error' or ''. */
+/** Sessions behind a full-screen one that need the user (a question, a permission, an error): needs you first. The banner names them. */
+export function focusAlerts(sessions, focusId) {
+  const rank = (s) => (s.dot === 'needs_you' ? 0 : s.dot === 'error' ? 1 : 2);
+  return sessions.filter((s) => s.id !== focusId && rank(s) < 2).sort((a, b) => rank(a) - rank(b));
+}
+
 export const pageAlert = (page) => (page.some((s) => s.dot === 'needs_you') ? 'needs_you' : page.some((s) => s.dot === 'error') ? 'error' : '');
 
 const ctxLevel = (pct) => (pct === null || pct === undefined ? 'unknown' : pct >= 80 ? 'bad' : pct >= 60 ? 'warn' : 'ok');
