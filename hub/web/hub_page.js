@@ -1,7 +1,7 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
-import { orderSessions, pageAlert, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
+import { orderSessions, pageAlert, focusAlerts, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, permAnswer, questTap, teamOrder, COLOR, rgb565, BACK_ROOM } from './screen.js';
@@ -259,6 +259,19 @@ $('stage').addEventListener('touchend', (e) => {
 }, { passive: true });
 
 let pagerSig = '';
+/** A session shown full screen hides the others: a banner names the first one that needs you, a click shows it full screen instead. */
+function renderFocusAlert(sessions) {
+  const banner = $('focus-alert');
+  const alerts = focusAlerts(sessions, focus);
+  banner.hidden = !focus || !alerts.length;
+  if (banner.hidden) return;
+  const first = alerts[0];
+  const name = first.title || first.project || first.id;
+  banner.className = first.dot;
+  banner.textContent = `${name} ${first.dot === 'needs_you' ? 'needs you' : 'has an error'}${alerts.length > 1 ? ` (+${alerts.length - 1})` : ''}`;
+  banner.onclick = () => { focus = first.id; render(); };
+}
+
 function renderPager() {
   const many = pages.length > 1;
   prevBtn.hidden = nextBtn.hidden = pager.hidden = !many;
@@ -329,6 +342,7 @@ function render() {
   if (!sessions.length) nodes.push(el('div', 'tile empty', `No sessions yet. Events go to ${location.host}`));
   if (nodes.length !== grid.children.length || nodes.some((n, i) => grid.children[i] !== n)) grid.replaceChildren(...nodes);
   renderPager();
+  renderFocusAlert(sessions);
   draw();
   footer.update(state, elapsed());
 }

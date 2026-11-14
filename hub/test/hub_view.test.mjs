@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isIdle, waitsForYou, orderSessions, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { isIdle, waitsForYou, orderSessions, pageAlert, focusAlerts, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
 import { placeItems, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
@@ -195,4 +195,18 @@ test('items_fill_holes_and_the_last_single_tile_of_a_short_row_widens', () => {
   assert.deepEqual(spans([1, 2, 1], 2), [1, 2, 1], 'single, team, single in 2 columns: the singles share the first row');
   assert.deepEqual(at([1, 2, 1], 2), ['0:0', '1:0', '0:1'], 'the team goes full width under them');
   assert.deepEqual(placeItems([], 2), { cells: [], rows: 0 });
+});
+
+test('focus_alerts_name_the_other_sessions_that_need_you', () => {
+  const ss = [{ id: 'a', dot: 'error' }, { id: 'b', dot: 'working' }, { id: 'c', dot: 'needs_you' }, { id: 'd', dot: 'needs_you' }, { id: 'e', dot: 'done' }];
+  assert.deepEqual(focusAlerts(ss, 'd').map((s) => s.id), ['c', 'a']);      // the full-screen one is left out, needs you before error
+  assert.deepEqual(focusAlerts(ss.filter((s) => s.id === 'b' || s.id === 'e'), 'b'), []);
+});
+
+test('page_has_the_focus_banner', async () => {
+  const fs = await import('node:fs');
+  const html = fs.readFileSync(new URL('../web/hub.html', import.meta.url), 'utf8');
+  assert.match(html, /<button id="focus-alert" hidden>/);
+  const page = fs.readFileSync(new URL('../web/hub_page.js', import.meta.url), 'utf8');
+  assert.match(page, /renderFocusAlert\(sessions\)/);
 });
