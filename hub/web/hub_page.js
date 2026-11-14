@@ -61,7 +61,7 @@ function capacity() {
   const grid = $('tiles');
   return autoCapacity(grid.clientWidth, grid.clientHeight);
 }
-const isIdle = (s) => idleFor(s, elapsed());          // greyed out after 5 minutes waiting for you; the hub drops the session after 10
+const isIdle = (s) => idleFor(s, elapsed(), (state.settings?.idle_minutes ?? 5) * 60);   // greyed out after idle_minutes waiting for you (default 5); the hub drops the session after 10
 
 // The frame is the one place that says how a session is doing: orange when it needs you, red on an error, a light blue pulse on an event.
 const frameRgb = () => rgb565(COLOR.FRAME), PULSE_RGB = [126, 170, 235];
