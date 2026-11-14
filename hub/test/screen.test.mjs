@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  renderScreen, hitTest, permAnswer, teamOrder, wrapText, fitText, roleIndex, paceLevel, projectColors, COLOR, rgb565,
+  renderScreen, hitTest, permAnswer, questTap, teamOrder, wrapText, fitText, roleIndex, paceLevel, projectColors, COLOR, rgb565,
 } from '../web/screen.js';
 
 /** A screen that records its drawing operations. Text is 5 px per character, so wrapping is deterministic. */
@@ -379,4 +379,79 @@ test('perm_answer_maps_a_hit_to_the_post_body', () => {
   assert.deepEqual(permAnswer({ kind: 'permDeny' }, s), { id: 'p1', decision: 'deny' });
   assert.equal(permAnswer({ kind: 'lead' }, s), null);
   assert.equal(permAnswer({ kind: 'permAllow' }, session()), null, 'no request pending');
+});
+
+// A question of AskUserQuestion held for the page (POST /question): the tile shows the question, one button per option and TERMINAL.
+const quest = (over = {}) => ({
+  id: 'q1', until: 61000,
+  questions: [
+    { question: 'Which color?', header: 'Color', options: ['Red', 'Blue'], multi: false },
+    { question: 'Which sizes?', header: 'Size', options: ['S', 'M', 'L', 'XL'], multi: true },
+  ],
+  ...over,
+});
+const questSession = (over = {}) => session({ ask: { question: 'Which color?', options: 'Red | Blue' }, perm: null, quest: quest(), agents: [agent({ state: 'needs_you' })], ...over });
+const questCtx = (local) => ({ sessions: [questSession()], selected: 0, menu: false, part: 'lead', frameW: 472, frameH: 216, quest: local });
+
+test('quest_tile_draws_the_first_question_its_options_and_terminal', () => {
+  const r = draw(state([questSession()]), ui({ nowMs: 1000 }));
+  const all = texts(r);
+  assert.ok(all.some((t) => t.includes('1/2') && t.includes('Color') && t.includes('60s')), 'header line');
+  assert.ok(all.some((t) => t.includes('Which color?')), 'question');
+  assert.ok(all.includes('Red') && all.includes('Blue') && all.includes('TERMINAL'), 'buttons');
+  assert.ok(!all.some((t) => t.startsWith('SEND')), 'no SEND for a single choice');
+  assert.ok(!all.some((t) => t.includes('Which sizes?')), 'one question at a time');
+});
+
+test('quest_tile_draws_the_second_question_with_send_and_picks', () => {
+  const local = { id: 'q1', step: 1, picks: [[0], [1, 3]], sent: false };
+  const r = draw(state([questSession()]), ui({ nowMs: 1000, quest: local }));
+  const all = texts(r);
+  assert.ok(all.some((t) => t.includes('Which sizes?')));
+  assert.ok(all.includes('SEND 2') && all.includes('XL'));
+});
+
+test('hit_test_quest_buttons', () => {
+  assert.deepEqual(hitTest(100, 215, questCtx()), { kind: 'questOpt', index: 0 });
+  assert.deepEqual(hitTest(300, 215, questCtx()), { kind: 'questOpt', index: 1 });
+  assert.deepEqual(hitTest(400, 110, questCtx()), { kind: 'questTerminal' });
+  assert.deepEqual(hitTest(100, 140, questCtx()), { kind: 'none' }, 'the question text is inert');
+  const step2 = { id: 'q1', step: 1, picks: [[0], []], sent: false };
+  assert.deepEqual(hitTest(100, 180, questCtx(step2)), { kind: 'questOpt', index: 0 });
+  assert.deepEqual(hitTest(300, 215, questCtx(step2)), { kind: 'questOpt', index: 3 });
+  assert.deepEqual(hitTest(320, 110, questCtx(step2)), { kind: 'questSend' });
+});
+
+test('quest_tap_walks_the_questions_then_posts_the_picks', () => {
+  const s = questSession();
+  let r = questTap({ kind: 'questOpt', index: 1 }, s, null);
+  assert.deepEqual(r, { local: { id: 'q1', step: 1, picks: [[1], []], sent: false }, post: null });
+  r = questTap({ kind: 'questSend' }, s, r.local);
+  assert.equal(r.post, null, 'SEND needs a pick');
+  r = questTap({ kind: 'questOpt', index: 3 }, s, r.local);
+  r = questTap({ kind: 'questOpt', index: 0 }, s, r.local);
+  r = questTap({ kind: 'questOpt', index: 2 }, s, r.local);
+  r = questTap({ kind: 'questOpt', index: 2 }, s, r.local);
+  assert.deepEqual(r.local.picks[1], [3, 0], 'a second tap unpicks');
+  r = questTap({ kind: 'questSend' }, s, r.local);
+  assert.deepEqual(r.post, { id: 'q1', picks: [[1], [0, 3]] });
+  assert.equal(r.local.sent, true);
+  assert.deepEqual(questTap({ kind: 'questOpt', index: 0 }, s, r.local).post, null, 'taps after sending do nothing');
+});
+
+test('quest_tap_terminal_and_other_taps', () => {
+  const s = questSession();
+  assert.deepEqual(questTap({ kind: 'questTerminal' }, s, null).post, { id: 'q1', terminal: true });
+  assert.equal(questTap({ kind: 'lead' }, s, null), null);
+  assert.equal(questTap({ kind: 'questOpt', index: 0 }, session(), null), null, 'no question pending');
+  const stale = { id: 'old', step: 1, picks: [[0], [1]], sent: true };
+  assert.deepEqual(questTap({ kind: 'questOpt', index: 0 }, s, stale).local.step, 1, 'progress of another question starts over');
+});
+
+test('full_screen_back_arrow_is_beside_the_answer_buttons', () => {
+  const back = { ...questCtx(), back: true };
+  assert.deepEqual(hitTest(450, 36 + 204 - 20, back), { kind: 'back' }, 'the arrow at the bottom right');
+  assert.deepEqual(hitTest(400, 36 + 204 - 20, back), { kind: 'questOpt', index: 1 }, 'the second option ends before the arrow');
+  const r = draw(state([questSession()]), ui({ nowMs: 1000, back: true, part: 'lead' }));
+  assert.ok(texts(r).includes('←') && texts(r).includes('Blue'));
 });
