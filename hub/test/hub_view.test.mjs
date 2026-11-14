@@ -18,11 +18,23 @@ test('past_the_capacity_sessions_run_on_to_more_pages_in_order', () => {
   assert.deepEqual(paginate(all, { max: 3 }).map((p) => p.map((s) => s.id)), [['s0', 's1', 's2'], ['s3', 's4', 's5'], ['s6']]);
 });
 
-test('idle_sessions_go_last_and_each_group_keeps_its_first_seen_order', () => {
+test('idle_sessions_go_last_and_each_group_is_ordered_by_urgency', () => {
   const all = [sess('a', 'done'), sess('b'), sess('c', 'your_turn'), sess('d')];
   const rank = new Map([['a', 0], ['b', 1], ['c', 2], ['d', 3]]);
   const idle = (s) => s.dot === 'done' || s.dot === 'your_turn';
-  assert.deepEqual(orderSessions(all, rank, idle).map((s) => s.id), ['b', 'd', 'a', 'c']);
+  assert.deepEqual(orderSessions(all, rank, idle).map((s) => s.id), ['b', 'd', 'c', 'a']);
+});
+
+test('sessions_are_ordered_by_urgency_then_first_seen', () => {
+  const all = [sess('a', 'done'), sess('b', 'working'), sess('c', 'your_turn'), sess('d', 'needs_you'), sess('e', 'error'), sess('f', 'done')];
+  const rank = new Map(all.map((s, i) => [s.id, i]));
+  assert.deepEqual(orderSessions(all, rank, () => false).map((s) => s.id), ['d', 'e', 'c', 'b', 'a', 'f']);
+});
+
+test('a_session_waiting_for_you_precedes_older_done_sessions', () => {
+  const all = [sess('a', 'done'), sess('b', 'done'), sess('c', 'your_turn')];
+  const rank = new Map([['a', 0], ['b', 1], ['c', 2]]);
+  assert.deepEqual(orderSessions(all, rank, () => false).map((s) => s.id), ['c', 'a', 'b']);
 });
 
 test('auto_capacity_counts_the_tiles_that_fit_the_window', () => {

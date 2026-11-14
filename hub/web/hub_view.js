@@ -15,10 +15,14 @@ export function isIdle(s, elapsedS = 0, limitS = 5 * 60) {
 export const hasTeam = (s) => s.agents.length > 1;
 export const cellsOf = (s) => (hasTeam(s) ? 2 : 1);
 
-/** Active sessions first, idle ones last; each group keeps the order of `rank` (session id -> first appearance), so the grid does not jump. */
+const URGENCY = ['needs_you', 'error', 'your_turn', 'working', 'waiting_subs', 'done'];   // most urgent first, same order as the model's states
+const urgency = (s) => { const i = URGENCY.indexOf(s.dot); return i < 0 ? URGENCY.length : i; };
+
+/** Idle sessions last; before that the most urgent state first (needs you, error, your turn, working, done); ties keep the order of `rank`
+ * (session id -> first appearance), so equal sessions do not jump. */
 export function orderSessions(sessions, rank, idle) {
-  const key = (s) => [idle(s) ? 1 : 0, rank.get(s.id) ?? 0];
-  return [...sessions].sort((a, b) => { const [ia, ra] = key(a), [ib, rb] = key(b); return ia - ib || ra - rb; });
+  const key = (s) => [idle(s) ? 1 : 0, urgency(s), rank.get(s.id) ?? 0];
+  return [...sessions].sort((a, b) => { const ka = key(a), kb = key(b); return ka[0] - kb[0] || ka[1] - kb[1] || ka[2] - kb[2]; });
 }
 
 
