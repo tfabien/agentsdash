@@ -355,10 +355,17 @@ export function renderScreen(screen, state, ui) {
     }
   }
 
-  // A working robot closes its eyes for one 300 ms tick in fifteen (robots staggered by `seed`).
+  /** Draws the working avatar's blink and a brief breath, staggered by its slot. */
   function sprite(x, y, base, state_, seed, agentId) {
-    const closed = state_ === 'working' && (ui.tick + seed * 4) % 15 === 0;
-    screen.pic(base + (closed ? PIC.BLINK : 0), x, y, rule?.iconPack, agentId);
+    const working = state_ === 'working' && !ui.reduceMotion;
+    const closed = working && (ui.tick + seed * 4) % 15 === 0;
+    let compression = 0;
+    if (working && ui.motionTime !== undefined) {
+      // Reuse the view's redraw clock and give the avatar time to settle between breaths.
+      const phase = (ui.motionTime + seed * 500) % 3600;
+      if (phase < 1000) compression = 0.045 * Math.sin(Math.PI * phase / 1000) ** 2;
+    }
+    screen.pic(base + (closed ? PIC.BLINK : 0), x, y, rule?.iconPack, agentId, compression);
   }
 
   function drawLeadPanel(s, subs, panelSubs, detailSlot, all, sel) {

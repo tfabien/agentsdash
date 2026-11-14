@@ -98,3 +98,25 @@ test('a_listed_theme_carries_its_colors_and_the_best_icon_url_per_role', async (
   assert.deepEqual(t.colors, { FRAME: '#112233' });
   assert.deepEqual(t.roles, { lead: `${RAW}/cat/icons/lead.png`, 'lead-blink': `${RAW}/cat/icons/lead-blink.webp`, 'explore-2': `${RAW}/cat/icons/explore-2.gif` });
 });
+
+test('a listed theme preserves the looks, tint and palettes used in live preview', async () => {
+  const theme = themeJson('cat', {
+    accent: '#778899', variants: { mint: { accent: '#008866' } },
+    looks: { mint: { sprite: 2, palette: 'mint' } }, defaultLooks: ['mint'],
+  });
+  const pack = { tint: 'svg', palettes: { mint: { '#aabbcc': '#008866' } } };
+  const r = await listSource('o/r', fakeGitHub({
+    tree: ['cat/theme.json', 'cat/icons/pack.json', 'cat/icons/lead-2.svg'],
+    raw: { 'cat/theme.json': theme, 'cat/icons/pack.json': JSON.stringify(pack) },
+  }));
+  assert.deepEqual(r.errors, []);
+  const [listed] = r.themes;
+  assert.equal(listed.accent, '#778899');
+  assert.equal(listed.variants.mint.accent, '#008866');
+  assert.equal(listed.looks.mint.sprite, 2);
+  assert.equal(listed.looks.mint.palette, 'mint');
+  assert.deepEqual(listed.defaultLooks, ['mint']);
+  assert.equal(listed.pack.tint, 'svg');
+  assert.equal(listed.pack.palettes.mint['#aabbcc'], '#008866');
+  assert.equal(listed.roles['lead-2'], `${RAW}/cat/icons/lead-2.svg`);
+});

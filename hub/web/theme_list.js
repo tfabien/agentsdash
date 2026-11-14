@@ -26,7 +26,8 @@ export function mergeCards({ catalog, market, active, looks = {} }) {
   const have = new Set(catalog.map((t) => t.name));
   const available = (market?.themes ?? []).filter((t) => !t.installed && !have.has(t.name)).map((t) => ({
     name: t.name, label: t.label || t.name, description: t.description || '', keywords: t.keywords ?? [], author: t.author || '', version: t.version || '', source: t.source,
-    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, variants: [], looks: [], activeLooks: [], installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
+    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, pack: t.pack ?? {},
+    accent: t.accent, previewVariants: t.variants, previewLooks: t.looks, defaultLooks: t.defaultLooks, variants: [], looks: [], activeLooks: [], installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
   }));
   const byLabel = (a, b) => a.label.localeCompare(b.label);
   installed.sort((a, b) => (b.active - a.active) || byLabel(a, b));

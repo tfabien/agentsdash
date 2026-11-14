@@ -207,11 +207,13 @@ const loadedListeners = new Set();
 export function onIconsLoaded(cb) { loadedListeners.add(cb); return () => loadedListeners.delete(cb); }
 
 // Plain `new Image()`: the browser renders an SVG there with scripts off, so a third-party file cannot run code.
+/** Loads a sprite and gives Marketplace previews read access to its palette pixels. */
 function imageFor(url) {
   let img = images.get(url);
   if (!img) {
     img = new Image();
     img.onload = () => { for (const cb of [...loadedListeners]) cb(); };
+    if (url.startsWith('https://raw.githubusercontent.com/')) img.crossOrigin = 'anonymous';
     img.src = url;
     images.set(url, img);
   }

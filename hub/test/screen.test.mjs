@@ -10,7 +10,8 @@ function recorder() {
   const screen = {
     ops,
     measure: (s) => String(s).length * 5,
-    pic: (id, x, y, pack) => ops.push({ op: 'pic', id, x, y, ...(pack !== undefined ? { pack } : {}) }),
+    pic: (id, x, y, pack, _agentId, compression = 0) => ops.push({ op: 'pic', id, x, y,
+      ...(pack !== undefined ? { pack } : {}), ...(compression ? { compression } : {}) }),
     erase: (x, y, w, h) => ops.push({ op: 'erase', x, y, w, h }),
     fill: (x, y, w, h, c) => ops.push({ op: 'fill', x, y, w, h, c }),
     rect: (x, y, w, h, c) => ops.push({ op: 'rect', x, y, w, h, c }),
@@ -484,3 +485,13 @@ test('quest_tap_terminal_and_other_taps', () => {
   assert.deepEqual(questTap({ kind: 'questOpt', index: 0 }, s, stale).local.step, 1, 'progress of another question starts over');
 });
 
+
+test('avatar motion follows working state and respects reduced motion', () => {
+  const lead = (s, options) => pics(draw(state([s]), ui(options))).find((o) => o.id === 27 || o.id === 63);
+  assert.equal(lead(session(), { motionTime: 500 }).compression, 0.045);
+  assert.equal(lead(session(), { motionTime: 1500 }).compression, undefined);
+  assert.equal(lead(session({ agents: [agent({ state: 'needs_you' })] }), { motionTime: 500 }).compression, undefined);
+  const reduced = lead(session(), { motionTime: 500, tick: 0, reduceMotion: true });
+  assert.equal(reduced.id, 27);
+  assert.equal(reduced.compression, undefined);
+});

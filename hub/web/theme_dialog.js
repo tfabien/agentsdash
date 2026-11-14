@@ -233,7 +233,10 @@ export function createThemeMenu({ onPreview } = {}) {
 
   /** What the page needs to preview a card: the name for an installed theme, the colors and icon URLs for one that is not. */
   const previewSpec = (c) => (c.installed ? { name: c.name, label: c.label, installed: true }
-    : { name: c.name, label: c.label, installed: false, source: c.source, roles: c.roles, theme: { name: c.name, label: c.label, description: c.description, keywords: c.keywords, author: c.author, version: c.version, iconPack: c.name, colors: c.colors } });
+    : { name: c.name, label: c.label, installed: false, source: c.source, roles: c.roles, pack: c.pack, theme: {
+      name: c.name, label: c.label, description: c.description, keywords: c.keywords, author: c.author, version: c.version,
+      iconPack: c.name, colors: c.colors, accent: c.accent, variants: c.previewVariants, looks: c.previewLooks, defaultLooks: c.defaultLooks,
+    } });
 
   function group(title, cards) {
     const g = el('div', 'tgroup');

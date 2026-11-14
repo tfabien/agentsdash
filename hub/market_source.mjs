@@ -1,12 +1,13 @@
 // Lists the themes of a GitHub repository: one folder per theme, `<name>/theme.json` plus `<name>/icons/` and an optional preview.
 // Two API calls (default branch, recursive tree) and one raw download per theme.json. `fetchFn` is injected for the tests.
-import { validateTheme } from './web/theme_schema.js';
+import { validateTheme, validatePalettes } from './web/theme_schema.js';
 import { ICON_TYPES, ICON_NAME } from './themes_loader.mjs';
 
 export const SOURCE_RE = /^[\w.-]+\/[\w.-]+$/;
 const NAME = /^[a-z0-9-]{1,32}$/;
 const PREVIEW = /^preview\.(png|webp|jpe?g|gif)$/i;
 const MAX_JSON = 256 * 1024;
+const MAX_PACK_JSON = 4096;
 export const GITHUB_HEADERS = { 'User-Agent': 'agentsdash', Accept: 'application/vnd.github+json' };
 
 /** `owner/repo` or a github.com URL to `owner/repo`; null for anything else. */
@@ -41,9 +42,27 @@ async function getJson(fetchFn, url) {
   return res.json();
 }
 
+/** Loads the optional tint and palette definitions used by a live preview. */
+async function previewPack(fetchFn, base, files) {
+  if (!files.includes('icons/pack.json')) return {};
+  try {
+    const response = await fetchFn(`${base}/icons/pack.json`, { headers: GITHUB_HEADERS });
+    if (!response.ok) return {};
+    const text = await response.text();
+    if (Buffer.byteLength(text) > MAX_PACK_JSON) return {};
+    const pack = JSON.parse(text);
+    const tint = ['svg', 'hue', 'none'].includes(pack?.tint) ? pack.tint : 'none';
+    const hue = Number.isInteger(pack?.hue) && pack.hue >= 0 && pack.hue < 360 ? pack.hue : 0;
+    return { tint, hue, palettes: validatePalettes(pack?.palettes).palettes };
+  } catch {
+    // The base artwork remains available if pack metadata cannot be downloaded or parsed.
+    return {};
+  }
+}
+
 /**
- * @returns {Promise<{ themes: object[], errors: string[] }>} each theme: { source, name, label, description, keywords, author, version, branch, colors,
- *   roles, preview: string | null, files: string[] } with `files` relative to the theme folder (theme.json left out). `roles` maps an icon file name
+ * @returns {Promise<{ themes: object[], errors: string[] }>} Themes with validated theme metadata and optional preview pack.
+ *   `roles` maps an icon file name
  *   (`lead`, `lead-blink`, `explore-2`...) to its raw GitHub URL, the best extension per name: the page previews a theme from them.
  */
 export async function listSource(source, fetchFn = fetch) {
@@ -67,8 +86,10 @@ export async function listSource(source, fetchFn = fetch) {
         if (v.theme.name !== folder) throw new Error(`folder ${folder} holds the theme ${v.theme.name}`);
         const files = blobs.filter((p) => p.startsWith(`${folder}/`) && p !== `${folder}/theme.json`).map((p) => p.slice(folder.length + 1)).filter(safePath);
         const preview = files.find((f) => PREVIEW.test(f));
-        const { name, label, description, keywords, author, version, colors } = v.theme;
-        themes.push({ source, name, label, description, keywords, author, version, branch, colors, roles: iconUrls(files, base), preview: preview ? `${base}/${preview}` : null, files });
+        const { name, label, description, keywords, author, version, colors, accent, variants, looks, defaultLooks } = v.theme;
+        const pack = await previewPack(fetchFn, base, files);
+        themes.push({ source, name, label, description, keywords, author, version, branch, colors, accent, variants, looks, defaultLooks,
+          pack, roles: iconUrls(files, base), preview: preview ? `${base}/${preview}` : null, files });
       } catch (err) { errors.push(`${source}/${folder}: ${err.message}`); }
     }
     return { themes, errors };
