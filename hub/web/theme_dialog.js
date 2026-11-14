@@ -8,6 +8,7 @@ import { createThemeEditor } from './theme_editor.js';
 import { postSettings } from './settings.js';
 import { icon } from './icons.js';
 import { mergeCards, filterCards, tagCounts, STATUSES } from './theme_list.js';
+import { askConfirm } from './confirm_dialog.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const ICON_W = 36, ICON_H = 42, GAP = 6;
@@ -113,7 +114,7 @@ export function createThemeMenu({ onPreview } = {}) {
     onSave: async ({ name, label, override }) => {
       const send = (overwrite) => fetch('/themes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, label, theme: active, variant: savedVariant, override, overwrite }) });
       let res = await send(false);
-      if (res.status === 409 && confirm(`The theme ${name} exists. Replace it?`)) res = await send(true);
+      if (res.status === 409 && (await askConfirm(`The theme ${name} exists. Replace it?`, { ok: 'Replace', danger: true }))) res = await send(true);
       if (!res.ok) throw new Error(await res.text());
       editing = false; setNotice(true, `Saved ${label} as a theme`); load();
     },
@@ -215,7 +216,7 @@ export function createThemeMenu({ onPreview } = {}) {
       const btn = (label, o, fn) => {
         const b = el('button', 'chip', label);
         if (o.title) b.title = o.title;
-        b.onclick = () => { if (o.confirm && !confirm(o.confirm)) return; run(c.name, o.busy, o.done, fn); };
+        b.onclick = async () => { if (o.confirm && !(await askConfirm(o.confirm, { ok: label, danger: true }))) return; run(c.name, o.busy, o.done, fn); };
         actions.append(b);
       };
       if (onPreview) { const p = el('button', 'chip', 'Preview'); p.title = 'Show the theme on made-up agents without saving it'; p.onclick = () => onPreview({ ...previewSpec(c), variant: variantKey }); actions.append(p); }
