@@ -17,12 +17,11 @@ export function toHex(css) {
 
 /**
  * @param {{draw: (canvas: HTMLCanvasElement, theme: object, accent: string) => void, themeColor: (theme: object, key: string) => string,
- *   onChange: (draft: object) => void, onReset: () => void, onSave: (info: {name: string, label: string}) => Promise<void>, onBack: () => void}} p
+ *   onChange: (draft: object) => void, onReset: () => void, onSave: (info: {name: string, label: string}) => Promise<void>}} p
  * @returns {{element: HTMLElement, open: (theme: object, variant: string, override: object) => void, redraw: () => void}}
  */
-export function createThemeEditor({ draw, themeColor, onChange, onReset, onSave, onBack }) {
+export function createThemeEditor({ draw, themeColor, onChange, onReset, onSave }) {
   const root = el('div', 'tedit');
-  const back = el('button', 'chip', '← Themes');
   const title = el('div', 'tname');
   const canvas = el('canvas', 'tpreview');
   const warn = el('div', 'shint twarn');
@@ -37,7 +36,7 @@ export function createThemeEditor({ draw, themeColor, onChange, onReset, onSave,
   const save = el('button', 'chip', 'Save as theme');
   const saveRow = el('div', 'mtools'); saveRow.append(reset, nameInput, save);
   const note = el('div', 'shint');
-  root.append(back, title, canvas, warn, grid, accentRow, saveRow, note);
+  root.append(title, canvas, warn, grid, accentRow, saveRow, note);
 
   let theme = null, variant = '', draft = { colors: {}, accent: '' }, timer = null;
   const inputs = new Map();
@@ -62,7 +61,6 @@ export function createThemeEditor({ draw, themeColor, onChange, onReset, onSave,
   }
   accentInput.oninput = () => { draft.accent = accentInput.value; refresh(); push(); };
   accentOff.onclick = () => { draft.accent = ''; accentInput.value = '#ffffff'; refresh(); push(); };
-  back.onclick = onBack;
   reset.onclick = () => { clearTimeout(timer); onReset(); };
   save.onclick = async () => {
     if (!NAME.test(nameInput.value)) { note.textContent = 'The name is 1 to 32 characters among a-z, 0-9 and -.'; return; }

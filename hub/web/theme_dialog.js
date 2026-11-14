@@ -85,7 +85,6 @@ export function createThemeMenu({ onPreview } = {}) {
   // --- the settings view
   const settingsBox = el('div', 'tsettings');
   settingsBox.hidden = true;
-  const backBtn = el('button', 'chip', '← Themes');
   const sourcesRow = el('div', 'msources');
   const add = el('input', 'dinput'); add.placeholder = 'Add a source: owner/repo or a GitHub URL';
   const addBtn = el('button', 'chip', 'Add');
@@ -99,7 +98,7 @@ export function createThemeMenu({ onPreview } = {}) {
   const actionRow = el('div', 'mtools'); actionRow.append(refresh, check);
   const refreshed = el('div', 'shint');
   const settingsStatus = el('div', 'mstatus shint');
-  settingsBox.append(backBtn, el('div', 'tname', 'Marketplaces'), el('div', 'shint', 'GitHub repositories with one folder per theme. The listings are kept for 24 hours.'),
+  settingsBox.append(el('div', 'tname', 'Marketplaces'), el('div', 'shint', 'GitHub repositories with one folder per theme. The listings are kept for 24 hours.'),
     sourcesRow, addRow, autoRow, actionRow, refreshed, settingsStatus);
   const overrideKey = () => (savedVariant ? `${active}/${savedVariant}` : active);
   const editor = createThemeEditor({
@@ -118,7 +117,6 @@ export function createThemeMenu({ onPreview } = {}) {
       if (!res.ok) throw new Error(await res.text());
       editing = false; setNotice(true, `Saved ${label} as a theme`); load();
     },
-    onBack: () => { editing = false; render(); },
   });
   editor.element.hidden = true;
   function openEditor() {
@@ -296,7 +294,10 @@ export function createThemeMenu({ onPreview } = {}) {
   search.oninput = () => { query = search.value; render(); };
   reload.onclick = () => act(reload, async () => { await call('/reload'); clearIconCache(); });
   gear.onclick = () => { inSettings = true; render(); };
-  backBtn.onclick = () => { inSettings = false; render(); };
+  panel.addEventListener('viewback', (e) => {                // the Back tab of the view: the settings or the editor return to the list first
+    if (!inSettings && !editing) return;
+    e.preventDefault(); inSettings = false; editing = false; render();
+  });
   addBtn.onclick = () => act(addBtn, async () => { await call('/market/sources', { add: add.value }); add.value = ''; await load(); setNotice(true, 'Source added'); });
   add.onkeydown = (e) => { if (e.key === 'Enter') addBtn.click(); };
   refresh.onclick = () => act(refresh, async () => { await call('/market/refresh'); await load(); setNotice(true, 'Marketplaces refreshed'); });
