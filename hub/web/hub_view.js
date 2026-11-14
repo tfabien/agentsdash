@@ -6,9 +6,12 @@ import { paceLevel, STATE_LABEL } from './screen.js';
 const MAX_DOTS = 5;                          // agent dots in a tile header
 const STALE_S = 15 * 60;                     // same rule as the screen: quotas older than 15 minutes show faint
 
-/** A session waiting for the user (your turn, done) for `limitS` seconds or more is idle: its tile is greyed out. */
+/** A session waiting for the user (your turn, done): its tile has a trash button. */
+export const waitsForYou = (s) => s.dot === 'your_turn' || s.dot === 'done';
+
+/** A session waiting for the user for `limitS` seconds or more is idle: its tile is greyed out. */
 export function isIdle(s, elapsedS = 0, limitS = 5 * 60) {
-  return (s.dot === 'your_turn' || s.dot === 'done') && s.agents[0].age + elapsedS >= limitS;
+  return waitsForYou(s) && s.agents[0].age + elapsedS >= limitS;
 }
 
 /** A session with sub-agents gets a second tile beside its own: the team. */

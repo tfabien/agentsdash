@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isIdle, orderSessions, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { isIdle, waitsForYou, orderSessions, pageAlert, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
 import { placeItems, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
@@ -151,6 +151,11 @@ test('isIdle_after_five_minutes_waiting_for_the_user_only', () => {
   assert.equal(isIdle(s('done', 400)), true);
   assert.equal(isIdle(s('working', 900)), false, 'a working session is never idle');
   assert.equal(isIdle(s('needs_you', 900)), false);
+});
+
+test('waitsForYou_on_your_turn_and_done_only', () => {
+  const s = (dot) => ({ dot, agents: [{ age: 0 }] });
+  assert.deepEqual(['your_turn', 'done', 'working', 'needs_you', 'error', 'waiting_subs'].map((d) => waitsForYou(s(d))), [true, true, false, false, false, false]);
 });
 
 test('a_session_with_sub_agents_takes_two_cells_and_is_never_split_across_pages', () => {

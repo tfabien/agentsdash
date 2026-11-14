@@ -1,7 +1,7 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
-import { orderSessions, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
+import { orderSessions, pageAlert, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, permAnswer, questTap, teamOrder, COLOR, rgb565, BACK_ROOM } from './screen.js';
@@ -81,11 +81,13 @@ function tileFor(s, part = 'lead') {
     box.append(canvas, el('span', 'stale-tag', 'stale'));
     if (part === 'lead') box.append(el('span', 'rate-tag'));
     if (part === 'lead') {
-      const trash = el('button', 'trash', '\u{1F5D1}');    // shown on greyed-out tiles: hides the session until it works again
+      const trash = el('button', 'trash', '\u{1F5D1}');    // shown on tiles waiting for you and stale ones: hides the session until it works again
       trash.title = 'Remove this session';
       trash.onclick = (e) => {
         e.stopPropagation();
         const id = s.id;
+        const dimmed = box.classList.contains('idle') || box.classList.contains('stale');
+        if (!dimmed && !confirm('This session is waiting for you. Remove it anyway?')) return;   // a tile that is not greyed out yet asks first
         cache.forget(id);                                  // a session the hub no longer knows (404) would come back from the cache otherwise
         state = { ...state, sessions: state.sessions.filter((x) => x.id !== id) };
         render();
@@ -98,6 +100,7 @@ function tileFor(s, part = 'lead') {
     tiles.set(key, t);
   }
   t.box.classList.toggle('stale', !!s.stale);
+  t.box.classList.toggle('waiting', waitsForYou(s));
   t.box.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false);
   const rate = part === 'lead' ? rateLevel(s, state.settings) : null;      // the readout shows the token rate of the session
   t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;

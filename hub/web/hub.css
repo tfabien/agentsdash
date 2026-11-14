@@ -42,6 +42,6 @@ main { flex: 1; min-height: 0; min-width: 0; display: grid; gap: 12px; grid-temp
   background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; cursor: pointer; }    /* bottom right of the frame, set by fit() */
 .group .tile[data-part="lead"] .trash { margin-right: 40px; }      /* leaves the seam badge (sub-agents link) free */
 .tile .trash:hover { background: var(--chip); border-color: var(--error); }
-.tile.idle .trash, .tile.stale .trash { display: block; }
+.tile.waiting .trash, .tile.idle .trash, .tile.stale .trash { display: block; }      /* a tile waiting for you that is not greyed out asks before removing */
 .tile.empty { color: #55606e; background: transparent; border: 2px dashed var(--edge); border-radius: 12px; font: inherit; cursor: pointer; }
 .offline main { opacity: .4; }
