@@ -89,7 +89,7 @@ Body `{ "id": "<id>", "picks": [[...], ...] }` with the `quest.id` of a session,
 
 ### POST /settings
 
-Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 32), `theme`, `pulse`, `dim_idle`, `idle_minutes` (1, 2, 5 or 10: minutes waiting for you before a tile is idle, greyed and sorted last), `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`, `rate_alert_k` (0, 20, 40 or 80: 0 hides the token rate readout of the tiles, else it turns orange from that many thousand tokens per minute and red from 3 times that). Invalid entries are ignored; 400 when none is valid.
+Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 32), `theme`, `pulse`, `dim_idle`, `idle_minutes` (1, 2, 5 or 10: minutes waiting for you before a tile is idle, greyed and sorted last), `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`, `rate_alert_k` (0, 20, 40 or 80: 0 hides the token rate readout of the tiles, else it turns orange from that many thousand tokens per minute and red from 3 times that), `focus_on_ask` (true: a question or an Allow/Deny held for the page opens its session full screen, and the view before comes back after the answer; default false). Invalid entries are ignored; 400 when none is valid.
 
 ### POST /select
 

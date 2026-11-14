@@ -29,6 +29,30 @@ export function orderSessions(sessions, rank, idle) {
 }
 
 
+/**
+ * Setting focus_on_ask: a session with a question or an Allow/Deny held for the page goes full screen, and the view before it (the grid,
+ * or another full-screen session) comes back once that request is answered, expired or gone. `auto`: null, or the auto full screen in
+ * progress `{ id, req, from }`. `done`: request ids already shown once (a Back from an auto full screen does not bring it back).
+ * A focus the user changed in the meantime wins: the page drops `auto` and restores nothing.
+ */
+export function autoFocus(sessions, focus, auto, done) {
+  const req = (s) => (s.quest ? `q${s.quest.id}` : s.perm ? `p${s.perm.id}` : null);
+  if (auto && focus !== auto.id) auto = null;
+  if (auto && !sessions.some((s) => s.id === auto.id && req(s) === auto.req)) {
+    focus = auto.from && sessions.some((s) => s.id === auto.from) ? auto.from : null;
+    auto = null;
+  }
+  if (!auto) {
+    const s = sessions.find((x) => req(x) && !done.has(req(x)));
+    if (s) {
+      done.add(req(s));
+      if (focus !== s.id) auto = { id: s.id, req: req(s), from: focus };
+      focus = s.id;
+    }
+  }
+  return { focus, auto };
+}
+
 /** Sessions behind a full-screen one that need the user (a question, a permission, an error): needs you first. The orange arrow at the right opens the first. */
 export function focusAlerts(sessions, focusId) {
   const rank = (s) => (s.dot === 'needs_you' ? 0 : s.dot === 'error' ? 1 : 2);

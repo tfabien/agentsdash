@@ -185,6 +185,7 @@ test('settings_default_to_beeps_for_questions_only_and_are_shared_by_every_page'
   assert.equal((await (await get(hub, '/state')).json()).settings.sound, 'off', 'a bad value changes nothing');
   const s0 = (await (await get(hub, '/state')).json()).settings;
   assert.deepEqual([s0.max_tiles, s0.pulse, s0.dim_idle, 'view' in s0], [0, true, true, false], 'Auto tiles per page by default, no view setting');
+  assert.equal(s0.focus_on_ask, false, 'no auto full screen by default');
   assert.equal((await post(hub, '/settings', { view: 'hub', max_tiles: 8, pulse: false })).status, 200);
   const s1 = (await (await get(hub, '/state')).json()).settings;
   assert.deepEqual([s1.sound, s1.max_tiles, s1.pulse, s1.dim_idle, 'view' in s1], ['off', 8, false, true, false], 'a partial update keeps the rest; the old view setting is ignored');

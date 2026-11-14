@@ -1,7 +1,7 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
-import { orderSessions, pageAlert, sideAlerts, focusAlerts, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
+import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, permAnswer, questTap, teamOrder, COLOR, rgb565 } from './screen.js';
@@ -29,6 +29,8 @@ let counts = null;
 let page = 0, pages = [], current = [];               // the page shown, all pages, and its sessions
 let focus = null;                                      // session id shown full screen (tap on a tile; the Back button at the left or Esc returns), null in the grid
 let expandable = false;                                // a tap can expand only when the grid shows several cells
+let auto = null;                                       // setting focus_on_ask: the full screen a request opened, and the view to restore (autoFocus)
+const autoDone = new Set();                            // requests already opened full screen once
 const PHONE = document.documentElement.dataset.mode === 'phone';   // phone page: one session per page
 let stacked = false;                                   // portrait phone: the team goes under the lead; landscape keeps them side by side
 const SWIPE_PX = 50;                                  // a horizontal swipe of 50 px or more turns the page
@@ -328,6 +330,8 @@ function render() {
   for (const s of sessions) if (!seen.has(s.id)) seen.set(s.id, seen.size);
   const cap = capacity();
   expandable = cap > 1 && sessions.length > 1;
+  if (state.settings?.focus_on_ask && expandable && !preview) ({ focus, auto } = autoFocus(sessions, focus, auto, autoDone));
+  else auto = null;
   if (focus && (!expandable || !sessions.some((s) => s.id === focus))) focus = null;   // session gone, or the grid shrank to one cell
   const focused = focus && sessions.find((s) => s.id === focus);
   pages = focused ? [[focused]] : paginate(orderSessions(sessions, seen, isIdle), { max: cap, cost: cellsOf });
