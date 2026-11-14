@@ -192,7 +192,8 @@ Every item is an issue in the repository it belongs to; the maintainer follows t
 Core ([issues](https://github.com/tfabien/agentsdash/issues)):
 
 - **One screen component for the page and the device** ([#3](https://github.com/tfabien/agentsdash/issues/3)).
-- **Allow or deny a permission request from the screen** ([#4](https://github.com/tfabien/agentsdash/issues/4)). A free choice among options needs another channel: no hook can inject an answer into a running `AskUserQuestion`.
+- **Allow or deny a permission request from the screen** ([#4](https://github.com/tfabien/agentsdash/issues/4)).
+- **Answer an `AskUserQuestion` from the screen** ([#75](https://github.com/tfabien/agentsdash/issues/75)): option buttons on the hub page; free text, the phone page and the device are still missing, and a real session check is pending.
 - **Reliable usage and quotas** ([#6](https://github.com/tfabien/agentsdash/issues/6)): the usage endpoint returns 429 and numbers can be stale.
 - **Adapters never fetch a newer core** ([#57](https://github.com/tfabien/agentsdash/issues/57)).
 - **The page does not follow the session that has the focus in the agent** ([#59](https://github.com/tfabien/agentsdash/issues/59)).

@@ -79,6 +79,14 @@ A `PermissionRequest` hook asks the page for Allow or Deny. Body `{ "session", "
 
 Body `{ "id": "<id>", "decision": "allow" | "deny" }`, sent by the page with the `perm.id` of a session. 400 `decision must be allow or deny`, 404 `unknown request`. Loopback only.
 
+### POST /question
+
+A `PreToolUse` hook on `AskUserQuestion` asks the page for the answers. Body `{ "session", "agent", "questions", "wait_s" }`: `questions` is a list of 1 to 4 `{ "question", "header", "options", "multi" }`, `options` a list of 2 or more option labels (the hub keeps the first 4), `multi` true for a multi choice. `wait_s` is a number of seconds, default 60, clamped to 1..300. 400 when `session` or `agent` is missing or a question does not fit. The response stays open until the page answers, then returns `{ "picks": [[<index>, ...], ...] }` (one list of option indexes per question, in question order, exactly one index for a single choice) or `{ "none": true }`. The hub returns indexes only: the hook maps them back to the labels and question texts it received, so the hub never alters the keys of `answers`. `none` means nobody answered from the page: the delay passed, the user tapped TERMINAL, a newer question of the same session and agent replaced it, the hook went away, or the turn ended (`UserPromptSubmit`, `Stop`, `StopFailure` or `SessionEnd` of the same session and agent, `/dismiss`, `/reset`). A `PostToolUse` does not clear it: a tool running in parallel would. A hook that gets `none`, an error or a 404 (older core) prints nothing, so the terminal asks the question. Loopback only: a LAN client gets 403.
+
+### POST /question/answer
+
+Body `{ "id": "<id>", "picks": [[...], ...] }` with the `quest.id` of a session, or `{ "id": "<id>", "terminal": true }` to hand the question back to the terminal. 400 when neither `picks` nor `terminal` is given, 404 when the question is unknown (answered, expired) or the picks do not fit it. A second answer is a no-op (404). Loopback only.
+
 ### POST /settings
 
 Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 32), `theme`, `pulse`, `dim_idle`, `idle_minutes` (1, 2, 5 or 10: minutes waiting for you before a tile is idle, greyed and sorted last), `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`, `rate_alert_k` (0, 20, 40 or 80: 0 hides the token rate readout of the tiles, else it turns orange from that many thousand tokens per minute and red from 3 times that). Invalid entries are ignored; 400 when none is valid.
@@ -95,7 +103,7 @@ Forgets every session. The body may be empty.
 
 ### GET /state
 
-The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `rate`, `plan`, `ask`, `perm` (`null`, or `{ id, tool, cmd, detail, until }` with `until` in epoch milliseconds, while a hook waits for Allow or Deny), `agents`), `more_sessions`, `view`, `usage` (when quotas are known), `agents` (flat v0.1 list), `boot`, `settings`, `catalog`, and `relay` (when a device relay is set).
+The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `rate`, `plan`, `ask`, `perm` (`null`, or `{ id, tool, cmd, detail, until }` with `until` in epoch milliseconds, while a hook waits for Allow or Deny), `quest` (`null`, or `{ id, until, questions }` with `questions` as posted to `/question`, while a hook waits for the page's answers), `agents`), `more_sessions`, `view`, `usage` (when quotas are known), `agents` (flat v0.1 list), `boot`, `settings`, `catalog`, and `relay` (when a device relay is set).
 `rate` is `{ "tok_min": number }`, the tokens per minute of the session over the last 5 minutes, or `null` with fewer than 2 samples.
 Each entry of `agents` holds `id`, `parent`, `role`, `state`, `cmd`, `detail`, `tok`, `model`, `prev`, `prev_age`, `age` and, after a `Stop`, `reply_first` and `reply_last`.
 

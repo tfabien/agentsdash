@@ -4,7 +4,7 @@ import { rateLevel } from './rate_glow.js';
 import { orderSessions, pageAlert, isIdle as idleFor, hasTeam, cellsOf } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
-import { renderScreen, hitTest, permAnswer, teamOrder, COLOR, rgb565, BACK_ROOM } from './screen.js';
+import { renderScreen, hitTest, permAnswer, questTap, teamOrder, COLOR, rgb565, BACK_ROOM } from './screen.js';
 import { postSettings } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
@@ -138,10 +138,21 @@ function tap(t, e) {
   const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * (t.frameH ?? FRAME.h)) / box.height;
   const lead0 = tiles.get(s.id) ?? t;
   const detailOpen = Boolean(lead0.detail && s.agents.some((a) => a.id === lead0.detail.agent));
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, back: Boolean(focus) });
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, back: Boolean(focus), quest: lead0.quest });
   const answer = permAnswer(hit, s);
   if (answer) {                                           // Allow or Deny of a permission request: the state that follows redraws the tile
     fetch('/permission/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(answer) }).catch(() => {});
+    return;
+  }
+  const quest = questTap(hit, s, lead0.quest);
+  if (quest) {                                            // a question for the page: the picks so far live on the lead tile, the last one posts them
+    lead0.quest = quest.local;
+    if (quest.post) {
+      fetch('/question/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(quest.post) })
+        .then((r) => { if (!r.ok && lead0.quest?.id === quest.post.id) { lead0.quest = null; drawTile(s, lead0); } })    // refused (expired, answered elsewhere): start over
+        .catch(() => {});
+    }
+    drawTile(s, t);
     return;
   }
   const until = Date.now() + DETAIL_MS;
@@ -170,7 +181,7 @@ function drawTile(s, t) {
   const base = ALERT_RGB[s.dot] ?? frameRgb();
   t.screen.begin(scale * (window.devicePixelRatio || 1), FRAME, pulse > 0 || ALERT_RGB[s.dot] ? mix(base, PULSE_RGB, pulse * 0.85) : null, t.frameW, weldOf(t), t.frameH);
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
-    bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, elapsedS: elapsed(), menu: false, back: Boolean(focus), detail: owner.detail, planStep: owner.planStep, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
+    bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, elapsedS: elapsed(), menu: false, back: Boolean(focus), detail: owner.detail, planStep: owner.planStep, quest: owner.quest, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
   });
 }
 

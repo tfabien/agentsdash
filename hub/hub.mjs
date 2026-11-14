@@ -9,6 +9,7 @@ import { loadCatalog, ICON_TYPES } from './themes_loader.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModel, PROTOCOL_VERSION } from './model.mjs';
 import { createPermissions } from './permissions.mjs';
+import { createQuestions, cleanQuestions } from './questions.mjs';
 import { validRules } from './rules.mjs';
 import { SOURCE_RE, parseSource, listSource } from './market_source.mjs';
 import { installTheme, removeTheme, readInstalled, saveUserTheme } from './market_install.mjs';
@@ -100,6 +101,11 @@ export function startHub(opts = {}) {
   const perms = createPermissions();
   perms.onChange(() => publish());
   const CLEARING_EVTS = new Set(['PostToolUse', 'PostToolUseFailure', 'PermissionDenied', 'Stop', 'SessionEnd']);    // the terminal moved on
+  // Questions of AskUserQuestion held for the page (POST /question). The terminal shows nothing while the hook waits, so only the
+  // end of the turn clears one (a parallel tool's PostToolUse must not): a new prompt, Stop, StopFailure, SessionEnd of the same agent.
+  const quests = createQuestions();
+  quests.onChange(() => publish());
+  const QUEST_CLEARING_EVTS = new Set(['UserPromptSubmit', 'Stop', 'StopFailure', 'SessionEnd']);
 
   // The relay to the device: chosen in the config file, or from the page (POST /relay), which swaps it while the hub runs.
   let relayConf = config.relay ?? { mode: 'none' };
@@ -161,7 +167,7 @@ export function startHub(opts = {}) {
   const firstThemeTimer = opts.firstRunTheme ? setInterval(() => { if (catalog.themes.length === 0) firstTheme(); }, 10 * 60 * 1000) : null;
   firstThemeTimer?.unref?.();
   if (opts.firstRunTheme) setTimeout(firstTheme, 0);
-  const withPerm = (st) => ({ ...st, sessions: st.sessions.map((s) => ({ ...s, perm: perms.view(s.id) })) });
+  const withPerm = (st) => ({ ...st, sessions: st.sessions.map((s) => ({ ...s, perm: perms.view(s.id), quest: quests.view(s.id) })) });
   const stateJson = () => ({ ...withPerm(model.toState(now())), boot: startedAt, settings, catalog, ...(relayInfo() ? { relay: relayInfo() } : {}) });
   const publish = () => {
     const payload = JSON.stringify(stateJson());
@@ -347,6 +353,25 @@ export function startHub(opts = {}) {
         if (body?.decision !== 'allow' && body?.decision !== 'deny') return text(res, 400, 'decision must be allow or deny');
         return perms.answer(String(body.id ?? ''), body.decision) ? text(res, 200, 'ok') : text(res, 404, 'unknown request');
       }
+      case 'POST /question': {                      // an AskUserQuestion hook waits here for the page's picks (loopback only)
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        const str = (v) => (typeof v === 'string' ? v : '');
+        const questions = cleanQuestions(body.questions);
+        if (!str(body.session) || !str(body.agent) || !questions) return text(res, 400, 'session, agent and 1 to 4 questions of 2 to 4 options are required');
+        const { id, promise } = quests.open({ session: str(body.session), agent: str(body.agent), questions, wait_s: body.wait_s });
+        res.on('close', () => quests.release(id));   // the hook went away: nothing to answer any more
+        const picks = await promise;
+        return json(res, picks ? { picks } : { none: true });
+      }
+      case 'POST /question/answer': {               // the page sends the picks, or TERMINAL hands the question back (loopback only)
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        const id = String(body.id ?? '');
+        if (body.terminal === true) return quests.release(id) ? text(res, 200, 'ok') : text(res, 404, 'unknown question');
+        if (!Array.isArray(body.picks)) return text(res, 400, 'picks (a list of option indexes per question) or terminal: true is required');
+        return quests.answer(id, body.picks) ? text(res, 200, 'ok') : text(res, 404, 'unknown question or picks that do not fit it');
+      }
       case 'POST /event':
       case 'POST /usage':
       case 'POST /select':
@@ -363,6 +388,7 @@ export function startHub(opts = {}) {
         if (route === 'POST /event') {
           if (!model.applyEvent(body, now())) return text(res, 400, 'session, agent and a valid state are required');
           if (CLEARING_EVTS.has(body.evt)) perms.clearSession(String(body.session));
+          if (QUEST_CLEARING_EVTS.has(body.evt)) quests.clear(String(body.session), String(body.agent));
           for (const fn of eventTaps) { try { fn(body); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /usage') {
           if (!body || typeof body.v !== 'number') return text(res, 400, 'v is required');
@@ -372,6 +398,7 @@ export function startHub(opts = {}) {
           const id = String(body?.session ?? '');
           if (!model.dismiss(id)) return text(res, 404, 'unknown session');
           perms.clearSession(id);
+          quests.clear(id);
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
@@ -382,6 +409,7 @@ export function startHub(opts = {}) {
         } else {
           model.clear();
           perms.clearAll();
+          quests.clearAll();
         }
         publish();
         return text(res, 200, 'ok');
@@ -495,6 +523,7 @@ export function startHub(opts = {}) {
           relay?.stop?.();
           for (const res of clients) res.end();
           perms.clearAll();
+          quests.clearAll();
           clients.clear();
           server.close(() => done());
           server.closeAllConnections();

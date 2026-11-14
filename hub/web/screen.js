@@ -160,6 +160,46 @@ export function permAnswer(hit, s) {
 export const BACK_ROOM = 40;
 const backRectLow = (p) => ({ x: p.x + p.w - 38, y: p.y + p.h - 28, w: 32, h: 22 });
 const NEXT_ROOM = BACK_ROOM + 60;                      // the arrow and the rate readout (or the trash button) beside it
+// A question of AskUserQuestion held for the page: TERMINAL (and SEND for a multi choice) at the right of the header line,
+// the options as buttons, two per row, along the bottom of the lead panel. `nOpts` is the option count of the question on screen.
+const questLayout = (p, nOpts, multi) => {
+  const x = p.x + 6, w = p.w - 12, y = p.y + 68;
+  const terminal = { x: x + w - 96, y, w: 96, h: 22 };
+  const send = multi ? { x: terminal.x - 86, y, w: 80, h: 22 } : null;
+  const rows = Math.ceil(nOpts / 2), bw = Math.trunc((p.w - 18) / 2);
+  const opts = Array.from({ length: nOpts }, (_, i) => {
+    const r = Math.floor(i / 2), last = i === nOpts - 1 && nOpts % 2 === 1;
+    return { x: p.x + 6 + (i % 2) * (bw + 6), y: p.y + p.h - 34 - (rows - 1 - r) * 34, w: last ? p.w - 12 : bw, h: 28 };
+  });
+  return { terminal, send, opts, textTop: y + 26, textBottom: opts.length ? opts[0].y - 4 : p.y + p.h - 4 };
+};
+/** The page's progress on question `q` (session.quest): the step on screen and the picks so far. A stale `local` (another question) starts over. */
+export const questProgress = (q, local) => (local && local.id === q.id ? local : { id: q.id, step: 0, picks: q.questions.map(() => []), sent: false });
+/**
+ * A tap on a question of session `s`: the page's next progress (`local`) and the body of POST /question/answer to send, or null.
+ * A single choice records the option and moves to the next question; a multi choice toggles it and SEND moves on; after the last
+ * question the picks go out. TERMINAL hands the question back to the terminal. Returns null for a tap that is not on the question.
+ */
+export function questTap(hit, s, local) {
+  const q = s?.quest;
+  if (!q || !hit || !String(hit.kind).startsWith('quest')) return null;
+  const cur = questProgress(q, local);
+  if (cur.sent) return { local: cur, post: null };
+  if (hit.kind === 'questTerminal') return { local: { ...cur, sent: true }, post: { id: q.id, terminal: true } };
+  const qq = q.questions[cur.step];
+  const next = (c) => (c.step + 1 < q.questions.length
+    ? { local: { ...c, step: c.step + 1 }, post: null }
+    : { local: { ...c, sent: true }, post: { id: q.id, picks: c.picks.map((p) => [...p].sort((a, b) => a - b)) } });
+  if (hit.kind === 'questOpt' && hit.index < qq.options.length) {
+    const picks = cur.picks.map((p) => [...p]);
+    if (!qq.multi) { picks[cur.step] = [hit.index]; return next({ ...cur, picks }); }
+    const at = picks[cur.step].indexOf(hit.index);
+    if (at >= 0) picks[cur.step].splice(at, 1); else picks[cur.step].push(hit.index);
+    return { local: { ...cur, picks }, post: null };
+  }
+  if (hit.kind === 'questSend' && qq.multi && cur.picks[cur.step].length) return next(cur);
+  return { local: cur, post: null };
+}
 const inside = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
 // Where the team rows sit: beside a narrow lead panel (the single page), or across the whole frame (the team tile of a hub session).
@@ -183,7 +223,8 @@ export function planBar(p, total) {
  * Tap at (x, y) in screen pixels. ctx: {sessions, selected, menu, asking?, part?}. `part` is 'lead' (a hub tile with the lead panel alone, full width)
  * or 'team' (a hub tile with the team rows alone, full width); left out, the screen shows both side by side. `frameW`: width of the frame in units (default 472).
  * `detailOpen` (team part): a sub-agent is open as a tile, so the only target is its BACK button.
- * @returns {{kind: 'permAllow'|'permDeny'|'planStep'|'tab'|'mute'|'lead'|'row'|'back'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
+ * `quest` (a session with a question for the page): the page's progress on it (questProgress), which says the question on screen.
+ * @returns {{kind: 'questOpt'|'questSend'|'questTerminal'|'permAllow'|'permDeny'|'planStep'|'tab'|'mute'|'lead'|'row'|'back'|'menuRow'|'trashRow'|'more'|'none', index?: number}}
  */
 export function hitTest(x, y, ctx) {
   if (y < 34) return inside({ x: 6, y: 0, w: 468, h: 34 }, x, y) ? { kind: 'tab' } : { kind: 'none' };
@@ -207,9 +248,18 @@ export function hitTest(x, y, ctx) {
     if (inside(b.allow, x, y)) return { kind: 'permAllow' };
     if (inside(b.deny, x, y)) return { kind: 'permDeny' };
   }
-  const nSubs = ctx.part === 'lead' ? 0 : s && !s.ask && !s.perm ? s.agents.length - 1 : 0;
+  if (s?.quest && !s.perm && ctx.part !== 'team') {     // a question waits for the page: its buttons answer, the rest of the tile is inert
+    const cur = questProgress(s.quest, ctx.quest), qq = s.quest.questions[cur.step];
+    const L = questLayout(leadRect(0, ctx.frameW, ctx.frameH), qq.options.length, qq.multi);
+    if (inside(L.terminal, x, y)) return { kind: 'questTerminal' };
+    if (L.send && inside(L.send, x, y)) return { kind: 'questSend' };
+    const i = L.opts.findIndex((r) => inside(r, x, y));
+    if (i >= 0) return { kind: 'questOpt', index: i };
+    return ctx.back && ctx.part === 'lead' && inside(backRectLow(leadRect(0, ctx.frameW, ctx.frameH)), x, y) ? { kind: 'back' } : { kind: 'none' };
+  }
+  const nSubs = ctx.part === 'lead' ? 0 : s && !s.ask && !s.perm && !s.quest ? s.agents.length - 1 : 0;
   if (ctx.back && ctx.part === 'lead' && inside(backRectLow(leadRect(0, ctx.frameW, ctx.frameH)), x, y)) return { kind: 'back' };
-  if (s && !s.ask && !s.perm && s.plan) {                          // a step of the plan bar (a taller target than the bar itself)
+  if (s && !s.ask && !s.perm && !s.quest && s.plan) {                          // a step of the plan bar (a taller target than the bar itself)
     const b = planBar(leadRect(nSubs, ctx.frameW, ctx.frameH), s.plan.total);
     if (x >= b.x && x < b.x + b.w && y >= b.y - 8 && y < b.y + b.h + 8) return { kind: 'planStep', index: Math.min(s.plan.total - 1, Math.floor((x - b.x) / b.step)) };
   }
@@ -248,7 +298,7 @@ export function renderScreen(screen, state, ui) {
     const s = sessions[sel];
     rule = matchRule(state.settings?.rules, s.cwd);
     const subs = s.agents.slice(1);
-    const asking = Boolean(s.ask || s.perm);
+    const asking = Boolean(s.ask || s.perm || s.quest);
     const panelSubs = asking || ui.menu || ui.part ? 0 : subs.length;
     const detailSlot = asking || ui.menu || ui.part === 'lead' || !ui.detail || ui.detail.session !== s.id ? 0 : subs.findIndex((a) => a.id === ui.detail.agent) + 1;
     if (!ui.bare) drawTopBar(sessions, sel);
@@ -329,6 +379,7 @@ export function renderScreen(screen, state, ui) {
     drawCtxRing(p, wide, tx, tw, s.ctx_pct, s.ctx_k, chip && !wide ? '' : lead.model, chip);
     if (chip && !wide) drawProjectChip(chip, tx, p.y + 44, tw - 30);
     if (s.perm) { drawPermission(s.perm, x, p.y + 68, w, p); return; }
+    if (s.quest) { drawQuest(s.quest, x, w, p); return; }
     if (s.ask) { drawQuestion(s.ask, x, p.y + 68, w, p); return; }
     const mode = state.settings?.done_excerpt ?? 'first';
     const reply = lead.state === 'your_turn' && mode !== 'off' ? lead[mode === 'last' ? 'reply_last' : 'reply_first'] : '';
@@ -431,6 +482,24 @@ export function renderScreen(screen, state, ui) {
       screen.fill(r.x, r.y, r.w, r.h, col);
       screen.text(r.x, r.y + 5, r.w, S16, COLOR.TEXT, col, label, 1);
     }
+  }
+
+  // A question held for the page: "k/n header" and the seconds left, TERMINAL (and SEND), the question, then one button per option.
+  // A picked option of a multi choice is filled in the accent color; once sent, the buttons wait for the state that follows.
+  function drawQuest(quest, x, w, p) {
+    const cur = questProgress(quest, ui.quest), qq = quest.questions[cur.step];
+    const L = questLayout(p, qq.options.length, qq.multi);
+    const left = Math.max(0, Math.ceil((quest.until - (ui.nowMs ?? Date.now())) / 1000));
+    const n = quest.questions.length;
+    const head = [n > 1 ? `${cur.step + 1}/${n}` : '', qq.header, `${left}s`].filter(Boolean).join('  ');
+    line(x, L.terminal.y + 2, (L.send ?? L.terminal).x - 6 - x, S16, COLOR.FAINT, COLOR.PANEL, head);
+    const btn = (r, label, bg, fg = COLOR.TEXT) => { screen.fill(r.x, r.y, r.w, r.h, bg); line(r.x + 4, r.y + (r.h - 18) / 2, r.w - 8, S16, fg, bg, label, 1); };
+    btn(L.terminal, cur.sent ? 'SENT' : 'TERMINAL', COLOR.CHIP);
+    const picked = cur.picks[cur.step];
+    if (L.send) btn(L.send, `SEND ${picked.length}`, picked.length && !cur.sent ? COLOR.WORKING : COLOR.CHIP, picked.length && !cur.sent ? COLOR.SCREEN : COLOR.FAINT);
+    const maxLines = Math.max(1, Math.floor((L.textBottom - L.textTop) / 18));
+    wrapText(qq.question, w, maxLines, m(S16)).forEach((l, i) => screen.text(x, L.textTop + i * 18, w, S16, COLOR.NEEDS, COLOR.PANEL, l));
+    L.opts.forEach((r, i) => btn(r, qq.options[i], picked.includes(i) ? COLOR.ACCENT : COLOR.CHIP, picked.includes(i) ? COLOR.SCREEN : COLOR.TEXT));
   }
 
   function drawQuestion(ask, x, y, w, p) {
