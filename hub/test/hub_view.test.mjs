@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
 import { placeItems, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
@@ -218,4 +218,36 @@ test('page_has_the_jump_arrow_for_a_full_screen_session', async () => {
   assert.doesNotMatch(html, /focus-alert/, 'the banner is gone');
   const page = fs.readFileSync(new URL('../web/hub_page.js', import.meta.url), 'utf8');
   assert.match(page, /renderFocusAlert\(sessions\)/);
+});
+
+test('auto_focus_opens_a_request_and_restores_the_view_before', () => {
+  const done = new Set();
+  const idle = [{ id: 'a' }, { id: 'b' }];
+  const asking = [{ id: 'a' }, { id: 'b', quest: { id: 'q1' } }];
+  let r = autoFocus(idle, null, null, done);
+  assert.deepEqual(r, { focus: null, auto: null }, 'nothing asks');
+  r = autoFocus(asking, null, null, done);
+  assert.deepEqual(r, { focus: 'b', auto: { id: 'b', req: 'qq1', from: null } }, 'the question opens full screen from the grid');
+  r = autoFocus(asking, r.focus, r.auto, done);
+  assert.equal(r.focus, 'b', 'stays while the question waits');
+  r = autoFocus(idle, r.focus, r.auto, done);
+  assert.deepEqual(r, { focus: null, auto: null }, 'answered: back to the grid');
+});
+
+test('auto_focus_returns_to_the_session_shown_before', () => {
+  const done = new Set();
+  let r = autoFocus([{ id: 'a' }, { id: 'b', perm: { id: 7 } }], 'a', null, done);
+  assert.deepEqual(r, { focus: 'b', auto: { id: 'b', req: 'p7', from: 'a' } });
+  r = autoFocus([{ id: 'a' }, { id: 'b' }], r.focus, r.auto, done);
+  assert.deepEqual(r, { focus: 'a', auto: null });
+});
+
+test('auto_focus_leaves_a_request_the_user_closed', () => {
+  const done = new Set();
+  const asking = [{ id: 'a' }, { id: 'b', quest: { id: 'q1' } }];
+  let r = autoFocus(asking, null, null, done);
+  r = autoFocus(asking, null, r.auto, done);                // Back pressed: focus null while the question still waits
+  assert.deepEqual(r, { focus: null, auto: null }, 'not opened again');
+  r = autoFocus([{ id: 'a', quest: { id: 'q2' } }, { id: 'b', quest: { id: 'q1' } }], null, null, done);
+  assert.equal(r.focus, 'a', 'a new request opens');
 });

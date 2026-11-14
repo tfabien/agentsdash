@@ -23,6 +23,8 @@ export const OPTIONS = [
     hint: 'First or last paragraph of the reply, in place of "Done, waiting for you"' },
   { key: 'rate_alert_k', label: 'Token rate alert', kind: 'choice', choices: [[0, 'Off'], [20, '20k'], [40, '40k'], [80, '80k']],
     hint: 'Tokens per minute where a tile readout turns orange (red at 3 times that)' },
+  { key: 'focus_on_ask', label: 'Full screen on a question', kind: 'toggle',
+    hint: 'A question or Allow/Deny opens its session full screen; the view before comes back after the answer' },
   { key: 'dim_idle', label: 'Grey out idle sessions', kind: 'toggle', hint: 'Idle sessions also go last in the grid' },
   { key: 'idle_minutes', label: 'Idle after', kind: 'choice', choices: [[1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min']],
     hint: 'Minutes a session waits for you before it counts as idle' },
