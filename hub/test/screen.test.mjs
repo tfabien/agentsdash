@@ -403,14 +403,25 @@ test('quest_tile_draws_the_second_question_with_send_and_picks', () => {
 });
 
 test('hit_test_quest_buttons', () => {
-  assert.deepEqual(hitTest(100, 215, questCtx()), { kind: 'questOpt', index: 0 });
-  assert.deepEqual(hitTest(300, 215, questCtx()), { kind: 'questOpt', index: 1 });
+  // 472x216: the 2 options of the first question stack full width right under its one line of text (y 154 and 188)
+  assert.deepEqual(hitTest(100, 165, questCtx()), { kind: 'questOpt', index: 0 });
+  assert.deepEqual(hitTest(400, 200, questCtx()), { kind: 'questOpt', index: 1 });
   assert.deepEqual(hitTest(400, 110, questCtx()), { kind: 'questTerminal' });
   assert.deepEqual(hitTest(100, 140, questCtx()), { kind: 'none' }, 'the question text is inert');
+  assert.deepEqual(hitTest(100, 230, questCtx()), { kind: 'none' }, 'nothing under the last option');
+  // 4 options do not fit stacked in a short panel: two per row, still right under the text
   const step2 = { id: 'q1', step: 1, picks: [[0], []], sent: false };
-  assert.deepEqual(hitTest(100, 180, questCtx(step2)), { kind: 'questOpt', index: 0 });
-  assert.deepEqual(hitTest(300, 215, questCtx(step2)), { kind: 'questOpt', index: 3 });
+  assert.deepEqual(hitTest(100, 165, questCtx(step2)), { kind: 'questOpt', index: 0 });
+  assert.deepEqual(hitTest(300, 200, questCtx(step2)), { kind: 'questOpt', index: 3 });
   assert.deepEqual(hitTest(320, 110, questCtx(step2)), { kind: 'questSend' });
+});
+
+test('hit_test_quest_buttons_stack_in_a_tall_tile', () => {
+  const step2 = { id: 'q1', step: 1, picks: [[0], []], sent: false };
+  const tall = { ...questCtx(step2), frameH: 400 };
+  assert.deepEqual(hitTest(400, 165, tall), { kind: 'questOpt', index: 0 }, 'full width');
+  assert.deepEqual(hitTest(100, 266, tall), { kind: 'questOpt', index: 3 }, 'fourth row: 154 + 3 x 34');
+  assert.deepEqual(hitTest(100, 330, tall), { kind: 'none' }, 'the bottom of the tile is free');
 });
 
 test('quest_tap_walks_the_questions_then_posts_the_picks', () => {
