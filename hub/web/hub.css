@@ -9,7 +9,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px "Segoe U
   color: var(--text); background: rgba(18, 26, 38, .72); border: 1px solid var(--edge); border-radius: 8px; cursor: pointer; }
 .nav:hover:not(:disabled) { background: var(--chip); }
 .nav:disabled { opacity: .25; cursor: default; }
-#prev { left: 0; }
+#prev, #back { left: 0; }
 #next { right: 0; }
 .nav[hidden], #pager[hidden], #focus-alert[hidden] { display: none; }
 #focus-alert { align-self: center; flex: none; max-width: 90%; padding: 6px 18px; font: inherit; font-size: 16px; font-weight: 600;

@@ -36,6 +36,7 @@ test('main_address_and_hub_alias_serve_the_one_page', async () => {
       assert.match(html, /<title>Agents Dash<\/title>/);
       assert.match(html, /hub_page\.js/);
       assert.match(html, /id="prev"/);                 // page arrows and dots
+      assert.match(html, /id="back" class="nav"/);     // a full-screen session returns to the grid with a button like the page arrows
       assert.match(html, /id="pager"/);
       assert.match(html, /<footer id="bar"/);          // the quota bar exists once, at the bottom
     }
