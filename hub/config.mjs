@@ -19,7 +19,7 @@ export function loadConfig(file = defaultConfigPath(), env = process.env) {
   const relay = data.relay && typeof data.relay === 'object' && typeof data.relay.mode === 'string' ? data.relay : { mode: 'none' };
   const window = Number.isInteger(data.context_window) && data.context_window > 0 ? data.context_window : 1000000;
   const wanted = Number(envVar('MAX_SESSIONS', env) ?? data.max_sessions);
-  const maxSessions = Number.isInteger(wanted) && wanted >= 1 && wanted <= 32 ? wanted : 12;
+  const maxSessions = Number.isInteger(wanted) && wanted >= 1 && wanted <= 32 ? wanted : 24;
   const lanData = data.lan && typeof data.lan === 'object' && !Array.isArray(data.lan) ? data.lan : {};
   const lan = {
     enabled: ['1', 'true'].includes(envVar('LAN', env)) || lanData.enabled === true,

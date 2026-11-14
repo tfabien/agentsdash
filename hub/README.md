@@ -35,7 +35,7 @@ Under the screen a line shows whether the relay reaches the gadget.
 - `needs_you` tiles are orange, `error` tiles red. The beeps follow the shared beeps setting (the bell chip cycles it).
 - Quotas and clock: once, in the bottom bar, with the pace colors of the screen. Tiles show the context fill, not the quotas.
 - Small tiles drop details through container queries: plan text first, then the command.
-- The hub keeps 12 sessions. `max_sessions` in the config file (or env `AGENTSDASH_MAX_SESSIONS`, 1 to 32) raises it; the relayed device keeps its own limit.
+- The hub keeps 24 sessions. `max_sessions` in the config file (or env `AGENTSDASH_MAX_SESSIONS`, 1 to 32) raises it; the relayed device keeps its own limit.
 
 The hub binds to `127.0.0.1` only and has no authentication.
 
@@ -59,7 +59,7 @@ and sub-agents, then the quotas. It follows `GET /events` and reconnects when th
 | `lan` | `{"enabled":false,"bind":"0.0.0.0"}` | `{"enabled":true}` (or env `AGENTSDASH_LAN=1`) lets a phone on the same Wi-Fi read the page, see below. |
 | `quotas` | `true` | Read by the Claude adapter, not by the hub: poll the 5-hour and weekly plan quotas (env `AGENTSDASH_QUOTAS=0` turns it off). |
 | `context_window` | `1000000` | Context window used for the context estimate (tokens). |
-| `max_sessions` | `12` | Sessions the hub keeps (1 to 32, env `AGENTSDASH_MAX_SESSIONS`). More than 5 only helps the `/hub` page. |
+| `max_sessions` | `24` | Sessions the hub keeps (1 to 32, env `AGENTSDASH_MAX_SESSIONS`). More than 5 only helps the `/hub` page. |
 
 ## Relay to a gadget (Wi-Fi)
 
