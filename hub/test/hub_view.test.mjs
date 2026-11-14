@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isIdle, waitsForYou, orderSessions, pageAlert, focusAlerts, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
 import { placeItems, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
@@ -203,10 +203,19 @@ test('focus_alerts_name_the_other_sessions_that_need_you', () => {
   assert.deepEqual(focusAlerts(ss.filter((s) => s.id === 'b' || s.id === 'e'), 'b'), []);
 });
 
-test('page_has_the_focus_banner', async () => {
+test('side_alerts_color_the_page_arrows_toward_a_session_that_needs_you', () => {
+  const p = (dot) => [{ id: dot, dot }];
+  const pages = [p('error'), p('working'), p('working'), p('needs_you')];
+  assert.deepEqual(sideAlerts(pages, 1), { prev: 'error', next: 'needs_you' });
+  assert.deepEqual(sideAlerts(pages, 3), { prev: 'error', next: '' }, 'the page on screen does not count');
+  assert.deepEqual(sideAlerts([p('working'), p('done')], 0), { prev: '', next: '' });
+});
+
+test('page_has_the_jump_arrow_for_a_full_screen_session', async () => {
   const fs = await import('node:fs');
   const html = fs.readFileSync(new URL('../web/hub.html', import.meta.url), 'utf8');
-  assert.match(html, /<button id="focus-alert" hidden>/);
+  assert.match(html, /<button id="jump" class="nav" hidden>/);
+  assert.doesNotMatch(html, /focus-alert/, 'the banner is gone');
   const page = fs.readFileSync(new URL('../web/hub_page.js', import.meta.url), 'utf8');
   assert.match(page, /renderFocusAlert\(sessions\)/);
 });

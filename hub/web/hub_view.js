@@ -29,14 +29,20 @@ export function orderSessions(sessions, rank, idle) {
 }
 
 
-/** The most urgent state of a page that deserves a dot of color in the pager: 'needs_you', 'error' or ''. */
-/** Sessions behind a full-screen one that need the user (a question, a permission, an error): needs you first. The banner names them. */
+/** Sessions behind a full-screen one that need the user (a question, a permission, an error): needs you first. The orange arrow at the right opens the first. */
 export function focusAlerts(sessions, focusId) {
   const rank = (s) => (s.dot === 'needs_you' ? 0 : s.dot === 'error' ? 1 : 2);
   return sessions.filter((s) => s.id !== focusId && rank(s) < 2).sort((a, b) => rank(a) - rank(b));
 }
 
+/** The most urgent state of a page that deserves a dot of color in the pager: 'needs_you', 'error' or ''. */
 export const pageAlert = (page) => (page.some((s) => s.dot === 'needs_you') ? 'needs_you' : page.some((s) => s.dot === 'error') ? 'error' : '');
+
+/** The most urgent alert on the pages before and after page `page`: the page arrows take its color, so a session that needs you is one tap away. */
+export function sideAlerts(pages, page) {
+  const worst = (list) => pageAlert(list.flat());
+  return { prev: worst(pages.slice(0, Math.max(0, page))), next: worst(pages.slice(page + 1)) };
+}
 
 const ctxLevel = (pct) => (pct === null || pct === undefined ? 'unknown' : pct >= 80 ? 'bad' : pct >= 60 ? 'warn' : 'ok');
 

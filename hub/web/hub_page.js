@@ -1,7 +1,7 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
-import { orderSessions, pageAlert, focusAlerts, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
+import { orderSessions, pageAlert, sideAlerts, focusAlerts, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, permAnswer, questTap, teamOrder, COLOR, rgb565 } from './screen.js';
@@ -234,7 +234,7 @@ const footer = mountFooter($('bar'), $('stage'), { onPreview: setPreview });
 
 // Pages: the sessions run in order (first seen first, idle ones last) and are cut into pages of `capacity()` cells. Arrows, dots, swipes and the
 // left and right keys turn the page; a dot is orange or red when a session on that page needs you or failed.
-const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager'), backBtn = $('back');      // Back: a session shown full screen returns to the grid
+const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager'), backBtn = $('back'), jumpBtn = $('jump');      // Back: a session shown full screen returns to the grid
 function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && preview && !e.defaultPrevented) backToThemes();
@@ -258,17 +258,18 @@ $('stage').addEventListener('touchend', (e) => {
 }, { passive: true });
 
 let pagerSig = '';
-/** A session shown full screen hides the others: a banner names the first one that needs you, a click shows it full screen instead. */
+/** A session shown full screen hides the others: an orange arrow at the right (red for an error) opens the first one that needs you, +N counts the others. */
 function renderFocusAlert(sessions) {
-  const banner = $('focus-alert');
-  const alerts = focusAlerts(sessions, focus);
-  banner.hidden = !focus || !alerts.length;
-  if (banner.hidden) return;
+  const alerts = focus ? focusAlerts(sessions, focus) : [];
+  jumpBtn.hidden = !alerts.length;
+  if (jumpBtn.hidden) { jumpBtn.onclick = null; return; }
   const first = alerts[0];
-  const name = first.title || first.project || first.id;
-  banner.className = first.dot;
-  banner.textContent = `${name} ${first.dot === 'needs_you' ? 'needs you' : 'has an error'}${alerts.length > 1 ? ` (+${alerts.length - 1})` : ''}`;
-  banner.onclick = () => { focus = first.id; render(); };
+  const label = `${first.title || first.project || first.id} ${first.dot === 'needs_you' ? 'needs you' : 'has an error'}`;
+  jumpBtn.className = `nav ${first.dot}`;
+  jumpBtn.title = label;
+  jumpBtn.setAttribute('aria-label', label);
+  if (alerts.length > 1) jumpBtn.dataset.more = `+${alerts.length - 1}`; else delete jumpBtn.dataset.more;
+  jumpBtn.onclick = () => { focus = first.id; render(); };
 }
 
 function renderPager() {
@@ -277,6 +278,9 @@ function renderPager() {
   backBtn.hidden = !focus;                             // a full-screen session is a page of one: Back takes the place of the left arrow
   prevBtn.disabled = page <= 0;
   nextBtn.disabled = page >= pages.length - 1;
+  const side = many ? sideAlerts(pages, page) : { prev: '', next: '' };      // an arrow toward a page with a session that needs you blinks orange
+  prevBtn.className = `nav ${side.prev}`.trim();
+  nextBtn.className = `nav ${side.next}`.trim();
   const sig = many ? `${page}|${pages.map(pageAlert).join(',')}` : '';
   if (sig === pagerSig) return;
   pagerSig = sig;

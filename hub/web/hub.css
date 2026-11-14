@@ -10,11 +10,17 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px "Segoe U
 .nav:hover:not(:disabled) { background: var(--chip); }
 .nav:disabled { opacity: .25; cursor: default; }
 #prev, #back { left: 0; }
-#next { right: 0; }
-.nav[hidden], #pager[hidden], #focus-alert[hidden] { display: none; }
-#focus-alert { align-self: center; flex: none; max-width: 90%; padding: 6px 18px; font: inherit; font-size: 16px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--bg); background: var(--needs); border: 0; border-radius: 18px; cursor: pointer; }   /* full screen: another session needs you (its own row above the tile, so it covers nothing) */
-#focus-alert.error { background: var(--error); }
+#next, #jump { right: 0; }
+.nav[hidden], #pager[hidden] { display: none; }
+/* An arrow toward a session that needs you (orange) or failed (red) blinks: the page arrows toward its page, the jump arrow of a full-screen session. */
+.nav.needs_you, .nav.error { color: var(--bg); background: var(--needs); border-color: var(--needs); animation: blink 1.2s ease-in-out infinite; }
+.nav.error { background: var(--error); border-color: var(--error); }
+.nav.needs_you:hover:not(:disabled), .nav.error:hover:not(:disabled) { background: var(--needs); filter: brightness(1.15); }
+.nav.error:hover:not(:disabled) { background: var(--error); }
+#jump[data-more]::after { content: attr(data-more); position: absolute; bottom: -10px; right: -4px; padding: 0 5px; font-size: 12px; font-weight: 600; line-height: 18px;
+  color: var(--bg); background: var(--needs); border: 1px solid var(--bg); border-radius: 9px; }   /* +N: more sessions wait */
+@keyframes blink { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .nav.needs_you, .nav.error { animation: none; } }
 #tiles.expandable .tile canvas { cursor: zoom-in; }
 #pager { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; gap: 12px; padding: 8px 14px;
   background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; }        /* half on the stage, half on the bottom bar */
