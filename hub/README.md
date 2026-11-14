@@ -27,7 +27,7 @@ Under the screen a line shows whether the relay reaches the gadget.
 
 <http://127.0.0.1:8765/> (also `/hub`) shows every session as a tile in a grid. It is the only page.
 
-- Files: `web/hub.html`, `hub.css`, `hub_page.js` (DOM), `hub_view.js` (pure logic: grid shape, pages, what a tile says, quota bars), `alerts.js` (beep rule).
+- Files: `web/hub.html`, `hub.css`, `hub_page.js` (DOM), `layout.js` (pure: grid shape, tile sizes, pages), `hub_view.js` (pure: what a tile says, quota bars), `alerts.js` (beep rule).
 - One `EventSource('/events')` feeds all tiles.
 - Tiles per page (setting `max_tiles`, 0 = Auto, 1 to 12; `?max=N` overrides it for one tab): Auto counts the tiles that fit the window at 0.8 times the gadget screen. 1 shows one session at a time; a session with sub-agents then shows its lead and team side by side, half a width each.
 - Sessions keep their first-seen order, idle ones (waiting for you 5 minutes) last. They are cut into pages in that order; a session (lead and team tiles) is never split across pages.

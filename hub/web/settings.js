@@ -3,8 +3,9 @@
 import { relayLabel } from './format.js';
 import { icon } from './icons.js';
 import { validRules } from './rules.js';
+import { MAX_TILES } from './layout.js';
 
-export const TILES_MIN = 0, TILES_MAX = 12;          // tiles per page; 0 is Auto (what fits the window)
+export const TILES_MIN = 0, TILES_MAX = MAX_TILES;          // tiles per page; 0 is Auto (what fits the window)
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
