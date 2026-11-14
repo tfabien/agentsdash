@@ -56,10 +56,10 @@ test('release_and_delay_resolve_null', async () => {
 test('wait_is_clamped_and_shown_as_until', () => {
   const { quests, timers } = fake();
   quests.open({ ...REQ, wait_s: 9999 });
-  assert.equal([...timers.values()][0].ms, 300000);
-  assert.equal(quests.view('abcd').until, 1000 + 300000);
+  assert.equal([...timers.values()][0].ms, 600000);
+  assert.equal(quests.view('abcd').until, 1000 + 600000);
   quests.open({ ...REQ, wait_s: 'x' });
-  assert.equal(quests.view('abcd').until, 1000 + 60000);
+  assert.equal(quests.view('abcd').until, 1000 + 600000, 'the default');
 });
 
 test('a_new_question_of_the_same_agent_replaces_the_old_one', async () => {

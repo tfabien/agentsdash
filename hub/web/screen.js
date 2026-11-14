@@ -480,14 +480,13 @@ export function renderScreen(screen, state, ui) {
     }
   }
 
-  // A question held for the page: "k/n header" and the seconds left, TERMINAL (and SEND), the question, then one button per option.
+  // A question held for the page: "k/n header", TERMINAL (and SEND), the question, then one button per option.
   // A picked option of a multi choice is filled in the accent color; once sent, the buttons wait for the state that follows.
   function drawQuest(quest, x, w, p) {
     const cur = questProgress(quest, ui.quest), qq = quest.questions[cur.step];
     const L = questLayout(p, qq.options.length, qq.multi, questLines(qq, p, screen.measure));
-    const left = Math.max(0, Math.ceil((quest.until - (ui.nowMs ?? Date.now())) / 1000));
     const n = quest.questions.length;
-    const head = [n > 1 ? `${cur.step + 1}/${n}` : '', qq.header, `${left}s`].filter(Boolean).join('  ');
+    const head = [n > 1 ? `${cur.step + 1}/${n}` : '', qq.header].filter(Boolean).join('  ');      // no countdown: the terminal or the app holds the question too
     line(x, L.terminal.y + 2, (L.send ?? L.terminal).x - 6 - x, S16, COLOR.FAINT, COLOR.PANEL, head);
     const btn = (r, label, bg, fg = COLOR.TEXT) => { screen.fill(r.x, r.y, r.w, r.h, bg); line(r.x + 4, r.y + (r.h - 18) / 2, r.w - 8, S16, fg, bg, label, 1); };
     btn(L.terminal, cur.sent ? 'SENT' : 'TERMINAL', COLOR.CHIP);

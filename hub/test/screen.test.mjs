@@ -387,7 +387,8 @@ const questCtx = (local) => ({ sessions: [questSession()], selected: 0, menu: fa
 test('quest_tile_draws_the_first_question_its_options_and_terminal', () => {
   const r = draw(state([questSession()]), ui({ nowMs: 1000 }));
   const all = texts(r);
-  assert.ok(all.some((t) => t.includes('1/2') && t.includes('Color') && t.includes('60s')), 'header line');
+  assert.ok(all.some((t) => t.includes('1/2') && t.includes('Color')), 'header line');
+  assert.ok(!all.some((t) => /\d+s$/.test(t)), 'no countdown');
   assert.ok(all.some((t) => t.includes('Which color?')), 'question');
   assert.ok(all.includes('Red') && all.includes('Blue') && all.includes('TERMINAL'), 'buttons');
   assert.ok(!all.some((t) => t.startsWith('SEND')), 'no SEND for a single choice');
