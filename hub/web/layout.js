@@ -19,27 +19,24 @@ export function tileSize(bw, bh, { focus = false, span = 1 } = {}) {
   return { k, fw: Math.min(bw / k, FRAME.w * (1 + (STRETCH - 1) * span)), fh: Math.min(bh / k, FRAME.h * STRETCH_H) };
 }
 
-/** Rows used by items of the given column `spans` placed in order in a grid of `cols` columns: an item that does not fit the rest of a row starts the next one. */
-export function packRows(spans, cols) {
-  let rows = 0, used = cols;
-  for (const sp of spans) { if (used + sp > cols) { rows++; used = 0; } used += sp; }
-  return rows;
-}
-
-/** Spans with the last single tile of each row widened to fill the free columns (3 tiles in 2 columns: the third one is double width;
- * a lone tile before a team is double width too). A team keeps its 2 columns. */
-export function fillRows(spans, cols) {
-  const out = [...spans];
-  let used = 0;
-  for (let i = 0; i < out.length; i++) {
-    if (used + out[i] > cols) {                                    // the row ends here: its last tile takes the free columns
-      if (out[i - 1] === 1) out[i - 1] += cols - used;
-      used = 0;
-    }
-    used += out[i];
-  }
-  if (out.length && out[out.length - 1] === 1 && used < cols) out[out.length - 1] += cols - used;
-  return out;
+/** Where items of the given column `spans` go in a grid of `cols` columns: each one takes the first row with room for it (a single tile after a
+ * team fills the hole beside an earlier single tile), and the rightmost single tile of a row that stays short widens to fill it (3 tiles in
+ * 2 columns: the third one is double width). A team keeps its 2 columns. Returns `cells` ({row, col, span}, 0-based) in the order of `spans`, and `rows`. */
+export function placeItems(spans, cols) {
+  const free = [];                                                 // free columns left in each row
+  const cells = spans.map((span) => {
+    let row = free.findIndex((f) => f >= span);
+    if (row < 0) { row = free.length; free.push(cols); }
+    const col = cols - free[row];
+    free[row] -= span;
+    return { row, col, span };
+  });
+  free.forEach((f, row) => {
+    if (!f) return;
+    const last = cells.filter((c) => c.row === row).reduce((a, c) => (c.col > a.col ? c : a));
+    if (last.span === 1) last.span += f;
+  });
+  return { cells, rows: free.length };
 }
 
 /** Columns and rows that give the biggest frames for items spanning 1 column (a session) or 2 (a session and its team, side by side)
@@ -47,10 +44,10 @@ export function fillRows(spans, cols) {
 export function bestLayout(spans, boxW, boxH, { gap = GAP, maxScale = MAX_SCALE } = {}) {
   if (!spans.length) return { cols: 1, rows: 1 };
   const total = spans.reduce((a, b) => a + b, 0), widest = Math.max(...spans);
-  if (total <= 1 || !(boxW > 0) || !(boxH > 0)) { const cols = Math.max(widest, Math.ceil(Math.sqrt(total))); return { cols, rows: packRows(spans, cols) }; }
+  if (total <= 1 || !(boxW > 0) || !(boxH > 0)) { const cols = Math.max(widest, Math.ceil(Math.sqrt(total))); return { cols, rows: placeItems(spans, cols).rows }; }
   let best = null;
   for (let cols = widest; cols <= Math.max(widest, total); cols++) {
-    const rows = packRows(spans, cols);
+    const rows = placeItems(spans, cols).rows;
     const k = Math.min((boxW - gap * (cols - 1)) / cols / FRAME.w, (boxH - gap * (rows - 1)) / rows / FRAME.h, maxScale);
     if (!best || k >= best.k - 1e-9) best = { cols, rows, k };
   }
