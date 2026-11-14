@@ -22,3 +22,28 @@ jobs:
       - name: Run tests
         shell: bash
         run: node --test hub/test/*.test.mjs
+
+  # The fixtures are copies of the events the adapters record. A failure here means an adapter changed
+  # what its hooks send: copy the file from the adapter repository (main) into hub/test/fixtures/.
+  adapter-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare with the adapters (main branch)
+        shell: bash
+        run: |
+          status=0
+          check() {
+            local url="https://raw.githubusercontent.com/tfabien/$1/main/$2" copy="$3"
+            curl -fsSL --retry 3 "$url" -o adapter.jsonl
+            if diff --strip-trailing-cr adapter.jsonl "$copy" > /dev/null; then
+              echo "ok: $copy matches $1/$2"
+            else
+              echo "::error file=$copy::$copy differs from $1/$2 on main. Copy that file here."
+              diff --strip-trailing-cr adapter.jsonl "$copy" | head -20 || true
+              status=1
+            fi
+          }
+          check agentsdash-claude plugin/test/fixtures/events.jsonl hub/test/fixtures/events.jsonl
+          check agentsdash-codex test/fixtures/events.jsonl hub/test/fixtures/events-codex.jsonl
+          exit $status
