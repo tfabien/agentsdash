@@ -330,7 +330,7 @@ export function renderScreen(screen, state, ui) {
     const lines = reply && !s.plan ? 5 + Math.floor((p.h - 204) / 18) : 2 + more;
     wrapText(reply || lead.cmd, w, lines, m(S16)).forEach((l, i) => screen.text(x, p.y + 68 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
     const y = p.y + 110 + more * 18;
-    if (s.plan) drawPlan(s.plan, x, y, w, p, s.id);
+    if (s.plan) drawPlan(s.plan, x, y, w, p, s.id, lead.state === 'needs_you' || lead.state === 'your_turn');
     else if (lead.prev && !reply) {
       screen.text(x, y, w, S16, COLOR.ACCENT, COLOR.PANEL, 'BEFORE');
       wrapText(lead.prev, w, 2 + more, m(S16)).forEach((l, i) => screen.text(x, y + 20 + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, l));
@@ -372,17 +372,19 @@ export function renderScreen(screen, state, ui) {
     if (label) line(tx, p.y + 46, tw - 28, S16, COLOR.LIGHT, COLOR.PANEL, label);
   }
 
-  function drawPlan(plan, x, y, w, p, sid) {
+  // `waiting`: the session waits for the user, so the running step is drawn in the NEEDS color (steady, no pulse) to show a move is due.
+  function drawPlan(plan, x, y, w, p, sid, waiting = false) {
     line(x, y, w, S16, COLOR.ACCENT, COLOR.PANEL, `PLAN ${plan.done}/${plan.total}`);
     const b = planBar(p, plan.total), by = b.y;
     const pick = ui.planStep && ui.planStep.session === sid ? ui.planStep.index : -1;
     if (plan.total <= 16) {
       const ph = ui.pulse % (2 * PULSE_STEPS);
       const level = ph < PULSE_STEPS ? ph : 2 * PULSE_STEPS - ph;
+      const runCol = waiting ? COLOR.NEEDS : lerp565(COLOR.ACCENT_DIM, COLOR.ACCENT, level, PULSE_STEPS);
       for (let i = 0; i < plan.total; i++) {
         let c;
-        if (planParallel(plan)) c = plan.state[i] === 'd' ? COLOR.WORKING : plan.state[i] === 'r' ? lerp565(COLOR.ACCENT_DIM, COLOR.ACCENT, level, PULSE_STEPS) : COLOR.CHIP;
-        else c = i < plan.done ? COLOR.WORKING : planRunning(plan, i) ? lerp565(COLOR.ACCENT_DIM, COLOR.ACCENT, level, PULSE_STEPS) : COLOR.CHIP;
+        if (planParallel(plan)) c = plan.state[i] === 'd' ? COLOR.WORKING : plan.state[i] === 'r' ? runCol : COLOR.CHIP;
+        else c = i < plan.done ? COLOR.WORKING : planRunning(plan, i) ? runCol : COLOR.CHIP;
         screen.fill(x + i * b.step, by, b.seg, 6, c);
       }
       if (pick >= 0) screen.rect(x + pick * b.step - 1, by - 2, b.seg + 2, 10, COLOR.TEXT);
