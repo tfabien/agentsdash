@@ -447,3 +447,11 @@ test('quest_tap_terminal_and_other_taps', () => {
   const stale = { id: 'old', step: 1, picks: [[0], [1]], sent: true };
   assert.deepEqual(questTap({ kind: 'questOpt', index: 0 }, s, stale).local.step, 1, 'progress of another question starts over');
 });
+
+test('full_screen_back_arrow_is_beside_the_answer_buttons', () => {
+  const back = { ...questCtx(), back: true };
+  assert.deepEqual(hitTest(450, 36 + 204 - 20, back), { kind: 'back' }, 'the arrow at the bottom right');
+  assert.deepEqual(hitTest(400, 36 + 204 - 20, back), { kind: 'questOpt', index: 1 }, 'the second option ends before the arrow');
+  const r = draw(state([questSession()]), ui({ nowMs: 1000, back: true, part: 'lead' }));
+  assert.ok(texts(r).includes('←') && texts(r).includes('Blue'));
+});

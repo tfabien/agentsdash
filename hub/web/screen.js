@@ -161,15 +161,16 @@ export const BACK_ROOM = 40;
 const backRectLow = (p) => ({ x: p.x + p.w - 38, y: p.y + p.h - 28, w: 32, h: 22 });
 const NEXT_ROOM = BACK_ROOM + 60;                      // the arrow and the rate readout (or the trash button) beside it
 // A question of AskUserQuestion held for the page: TERMINAL (and SEND for a multi choice) at the right of the header line,
-// the options as buttons, two per row, along the bottom of the lead panel. `nOpts` is the option count of the question on screen.
-const questLayout = (p, nOpts, multi) => {
+// the options as buttons, two per row, along the bottom of the lead panel. `nOpts` is the option count of the question on screen,
+// `room` the units left free at the right end (the back arrow of a session shown full screen).
+const questLayout = (p, nOpts, multi, room = 0) => {
   const x = p.x + 6, w = p.w - 12, y = p.y + 68;
   const terminal = { x: x + w - 96, y, w: 96, h: 22 };
   const send = multi ? { x: terminal.x - 86, y, w: 80, h: 22 } : null;
-  const rows = Math.ceil(nOpts / 2), bw = Math.trunc((p.w - 18) / 2);
+  const rows = Math.ceil(nOpts / 2), bw = Math.trunc((p.w - 18 - room) / 2);
   const opts = Array.from({ length: nOpts }, (_, i) => {
     const r = Math.floor(i / 2), last = i === nOpts - 1 && nOpts % 2 === 1;
-    return { x: p.x + 6 + (i % 2) * (bw + 6), y: p.y + p.h - 34 - (rows - 1 - r) * 34, w: last ? p.w - 12 : bw, h: 28 };
+    return { x: p.x + 6 + (i % 2) * (bw + 6), y: p.y + p.h - 34 - (rows - 1 - r) * 34, w: last ? p.w - 12 - room : bw, h: 28 };
   });
   return { terminal, send, opts, textTop: y + 26, textBottom: opts.length ? opts[0].y - 4 : p.y + p.h - 4 };
 };
@@ -250,7 +251,7 @@ export function hitTest(x, y, ctx) {
   }
   if (s?.quest && !s.perm && ctx.part !== 'team') {     // a question waits for the page: its buttons answer, the rest of the tile is inert
     const cur = questProgress(s.quest, ctx.quest), qq = s.quest.questions[cur.step];
-    const L = questLayout(leadRect(0, ctx.frameW, ctx.frameH), qq.options.length, qq.multi);
+    const L = questLayout(leadRect(0, ctx.frameW, ctx.frameH), qq.options.length, qq.multi, ctx.back && ctx.part === 'lead' ? BACK_ROOM : 0);
     if (inside(L.terminal, x, y)) return { kind: 'questTerminal' };
     if (L.send && inside(L.send, x, y)) return { kind: 'questSend' };
     const i = L.opts.findIndex((r) => inside(r, x, y));
@@ -488,7 +489,7 @@ export function renderScreen(screen, state, ui) {
   // A picked option of a multi choice is filled in the accent color; once sent, the buttons wait for the state that follows.
   function drawQuest(quest, x, w, p) {
     const cur = questProgress(quest, ui.quest), qq = quest.questions[cur.step];
-    const L = questLayout(p, qq.options.length, qq.multi);
+    const L = questLayout(p, qq.options.length, qq.multi, backLow() ? BACK_ROOM : 0);
     const left = Math.max(0, Math.ceil((quest.until - (ui.nowMs ?? Date.now())) / 1000));
     const n = quest.questions.length;
     const head = [n > 1 ? `${cur.step + 1}/${n}` : '', qq.header, `${left}s`].filter(Boolean).join('  ');
