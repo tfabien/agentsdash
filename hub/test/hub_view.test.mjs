@@ -165,4 +165,6 @@ test('a_team_takes_two_columns_and_wraps_to_the_next_row_with_its_lead', () => {
   assert.deepEqual(fillLastRow([1, 2, 1], 3), [1, 2, 3], 'a team keeps its width, a lone last tile takes its whole row');
   assert.deepEqual(fillLastRow([2, 1], 3), [2, 1]);
   assert.deepEqual(fillLastRow([1], 1), [1]);
+  assert.deepEqual(fillLastRow([1, 2], 2), [2, 2], 'a tile before a team that wraps takes the free column of its row');
+  assert.deepEqual(fillLastRow([1, 1, 2, 1], 3), [1, 2, 2, 1], 'rows 1+1 then 2+1: the second tile fills the first row');
 });
