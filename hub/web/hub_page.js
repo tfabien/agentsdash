@@ -5,7 +5,6 @@ import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, COLOR, rgb565 } from './screen.js';
-import { postSettings } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
@@ -14,8 +13,8 @@ import { applyTheme, setCatalog } from './themes.js';
 import { previewSessions } from './preview_state.js';
 import { onIconsLoaded } from './icon_packs.js';
 import { nextDelay } from './reconnect.js';
+import { el, postJson, call } from './dom.js';
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const maxParam = Number(params.get('max'));         // ?max=N overrides the setting for this tab
@@ -95,7 +94,7 @@ function tileFor(s, part = 'lead') {
         cache.forget(id);                                  // a session the hub no longer knows (404) would come back from the cache otherwise
         state = { ...state, sessions: state.sessions.filter((x) => x.id !== id) };
         render();
-        fetch('/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: id }) }).catch(() => {});
+        postJson('/dismiss', { session: id }).catch(() => {});
       };
       box.append(trash);
     }
@@ -147,14 +146,14 @@ function tap(t, e) {
   const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead0.quest, measure: (txt, font) => t.screen.measure(txt, font) });
   const answer = PHONE ? null : permAnswer(hit, s);      // the phone page only reads: the hub refuses its answers (403)
   if (answer) {                                           // Allow or Deny of a permission request: the state that follows redraws the tile
-    fetch('/permission/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(answer) }).catch(() => {});
+    postJson('/permission/answer', answer).catch(() => {});
     return;
   }
   const quest = PHONE ? null : questTap(hit, s, lead0.quest);
   if (quest) {                                            // a question for the page: the picks so far live on the lead tile, the last one posts them
     lead0.quest = quest.local;
     if (quest.post) {
-      fetch('/question/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(quest.post) })
+      postJson('/question/answer', quest.post)
         .then((r) => { if (!r.ok && lead0.quest?.id === quest.post.id) { lead0.quest = null; drawTile(s, lead0); } })    // refused (expired, answered elsewhere): start over
         .catch(() => {});
     }
@@ -239,11 +238,8 @@ function setPreview(spec, note) {
   applySaved();
   if (!spec) { footer.preview.hide(note); render(); return; }
   const apply = async () => {
-    if (spec.installed) await postSettings({ theme: spec.name, themeVariant: spec.variant ?? '' });
-    else {
-      const res = await fetch('/market/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: spec.source, name: spec.name }) });
-      if (!res.ok) throw new Error(await res.text());
-    }
+    if (spec.installed) await call('/settings', { theme: spec.name, themeVariant: spec.variant ?? '' });   // a refusal throws: the bar shows it, not "Applied"
+    else await call('/market/install', { source: spec.source, name: spec.name });
     setPreview(null, spec.installed ? `Applied ${spec.label}` : `Installed ${spec.label} and applied it`);
   };
   footer.preview.show(spec.label, spec.installed ? 'Apply' : 'Install and apply', spec.installed ? `Applying ${spec.label}…` : `Installing ${spec.label}…`, apply, backToThemes);

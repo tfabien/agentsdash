@@ -1,8 +1,8 @@
 // The QR button's panel: turns phone access on or off and shows the QR code that pairs a phone with the hub (docs/protocol.md, "LAN access").
 import { qrSvg } from './qr.js';
+import { el, postJson } from './dom.js';
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-const setLan = (enabled) => fetch('/lan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+const setLan = (enabled) => postJson('/lan', { enabled });
 
 /** @returns {{node: HTMLElement, refresh: () => Promise<void>}} `refresh` asks the hub for the state and the pairing address again. Empty node on the phone page itself. */
 export function createPhoneSection() {

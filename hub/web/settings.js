@@ -5,14 +5,12 @@ import { icon } from './icons.js';
 import { validRule } from './rules.js';
 import { isHex } from './theme_schema.js';
 import { MAX_TILES } from './layout.js';
+import { el, postJson } from './dom.js';
 
 export const TILES_MIN = 0, TILES_MAX = MAX_TILES;          // tiles per page; 0 is Auto (what fits the window)
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-
-export function postSettings(patch) {
-  return fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
-}
+/** POST /settings; resolves whatever the status (see `call` in dom.js for a refusal that throws). */
+export const postSettings = (patch) => postJson('/settings', patch);
 
 /** What the panel offers. `kind`: 'choice' (segmented buttons), 'stepper' (- n +), 'toggle'. `after`: runs once the hub has the new value. */
 export const OPTIONS = [
@@ -38,7 +36,6 @@ export function portOptions(ports, draftPort) {
   return [...paths].map((path) => { const label = listed.find((p) => p.path === path)?.label; return [path, label ? `${path} (${label})` : path]; });
 }
 
-const post = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
 const MODES = [['none', 'None'], ['http', 'Wi-Fi'], ['serial', 'USB']];
 
 /**
@@ -95,7 +92,7 @@ function createDeviceSection() {
   const say = (text, ok) => { result.textContent = text; result.className = `dresult ${ok ? 'ok' : 'down'}`; };
   apply.onclick = async () => {
     try {
-      const r = await post('/relay', { mode: draft.mode, host: draft.host, port: draft.port });
+      const r = await postJson('/relay', { mode: draft.mode, host: draft.host, port: draft.port });
       if (!r.ok) { say(await r.text(), false); return; }
       dirty = false;
       say((await r.json()).saved ? 'Applied and saved in the hub config' : 'Applied (could not save the file, lost at the next hub restart)', true);
@@ -105,7 +102,7 @@ function createDeviceSection() {
   test.onclick = async () => {
     test.disabled = true;
     say('Testing...', true);
-    try { const r = await (await post('/relay/test')).json(); say(r.ok ? `OK, ${r.detail}` : `Failed: ${r.error}`, r.ok); } catch { say('Failed: the hub did not answer', false); }
+    try { const r = await (await postJson('/relay/test')).json(); say(r.ok ? `OK, ${r.detail}` : `Failed: ${r.error}`, r.ok); } catch { say('Failed: the hub did not answer', false); }
     render();
   };
 

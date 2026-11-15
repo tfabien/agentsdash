@@ -1,6 +1,6 @@
 // A confirmation in the page's own look: a modal <dialog> in place of the browser's confirm() box. Escape, Cancel or a click outside the box
 // answer no; the action button answers yes. Keys pressed in the box do not reach the page (paging arrows, Escape of an open view).
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+import { el } from './dom.js';
 
 /**
  * Ask a yes/no question. `ok` names the action button (default "OK"); `danger` paints it red for a removal.
