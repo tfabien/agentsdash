@@ -30,6 +30,7 @@ export function relayLabel(relay) {
     const text = relay.released ? 'USB released' : relay.connected ? 'USB connected' : 'USB not connected';
     return { text, ok: Boolean(relay.connected), why: relay.lastError || '' };
   }
+  if (relay.locked) return { text: 'screen upload lock', ok: false, why: 'agent-gadget-tft.lock in the temp folder holds the queue' };
   return { text: relay.ok ? 'gadget connected' : 'gadget unreachable', ok: Boolean(relay.ok), why: relay.lastError || '' };
 }
 

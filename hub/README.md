@@ -64,8 +64,8 @@ and sub-agents, then the quotas. It follows `GET /events` and reconnects when th
 ## Relay to a gadget (Wi-Fi)
 
 With `"relay": {"mode": "http", "host": "192.168.1.100"}` every event and usage report the hub accepts is forwarded
-unchanged to the gadget (`POST /event`, `POST /usage`). `GET /relay` shows the state (`ok`, `lastError`, `queued`).
-If the gadget is down, the hub keeps working and retries after 3 seconds (only the latest event per agent is kept).
+unchanged to the gadget (`POST /event`, `POST /usage`). `GET /relay` shows the state (`ok`, `lastError`, `queued`, `locked`).
+If the gadget is down, the hub keeps working and retries after 3 seconds: a failed item stays queued, and only the latest item of each agent or session is kept.
 The gadget aborts a screen upload (`/tft`) on any other request: create the file `agent-gadget-tft.lock` (old name, kept for the firmware tools) in the temp
 folder before uploading and delete it afterwards, and the relay sends nothing meanwhile.
 

@@ -3,6 +3,7 @@
 // The hub owns the COM port: release() lets another tool (pio upload, hmi_bridge) take it, reopen() takes it back.
 // Needs the optional `serialport` package, loaded only when the port is opened.
 import { forDevice } from './ascii.mjs';
+import { deviceKey, latestPerKey } from './relay_queue.mjs';
 
 export const SETTLE_MS = 2500;      // opening the port resets the ESP32: it needs about 2.5 s before it reads again
 export const RETRY_MS = 5000;       // reconnect delay when the port is missing or lost
@@ -27,12 +28,15 @@ export async function listSerialPorts() {
 }
 
 /**
- * @param {{path: string, baud?: number, open?: (path: string, baud: number) => Promise<object>, settleMs?: number, retryMs?: number, maxQueue?: number}} opts
+ * @param {{path: string, baud?: number, open?: (path: string, baud: number) => Promise<object>, settleMs?: number, retryMs?: number, maxQueue?: number,
+ *   replay?: () => Array<{route: string, body: object}>}} opts
  * `open` returns a port with write(data, cb), close(cb) and on('error'|'close', fn).
+ * `replay` gives the hub's live state (settings, last event of each live agent): each open resets the ESP32, so these items
+ * go ahead of the queue once the port has settled, and a newer queued item of the same key still wins.
  * @returns {{start: () => void, send: (route: '/event'|'/usage', body: object) => void, release: () => void, reopen: () => void,
  *   status: () => {ok: boolean, connected: boolean, released: boolean, lastError: string, queued: number}}}
  */
-export function createSerialRelay({ path, baud = 115200, open = defaultOpen, settleMs = SETTLE_MS, retryMs = RETRY_MS, maxQueue = 50 }) {
+export function createSerialRelay({ path, baud = 115200, open = defaultOpen, settleMs = SETTLE_MS, retryMs = RETRY_MS, maxQueue = 50, replay = () => [] }) {
   let port = null;
   let connecting = false;
   let ready = false;                  // the settle time after open has passed
@@ -76,7 +80,13 @@ export function createSerialRelay({ path, baud = 115200, open = defaultOpen, set
       lastError = '';
       p.on('error', (e) => { if (port === p) drop(String(e?.message ?? e)); });
       p.on('close', () => { if (port === p) drop('port closed'); });
-      settleTimer = unref(setTimeout(() => { ready = true; flush(); }, settleMs));
+      settleTimer = unref(setTimeout(() => {
+        ready = true;
+        let back = [];
+        try { back = replay().map(({ route, body }) => itemOf(route, body)); } catch { /* nothing to replay */ }
+        queue = latestPerKey([...back, ...queue]);
+        flush();
+      }, settleMs));
     }).catch((e) => {
       connecting = false;
       lastError = String(e?.message ?? e);
@@ -84,19 +94,18 @@ export function createSerialRelay({ path, baud = 115200, open = defaultOpen, set
     });
   }
 
-  function coalesce() {               // keep the latest item per key, in order
-    const seen = new Set();
-    const kept = [];
-    for (let i = queue.length - 1; i >= 0; i--) if (!seen.has(queue[i].key)) { seen.add(queue[i].key); kept.push(queue[i]); }
-    queue = kept.reverse();
+  const coalesce = () => { queue = latestPerKey(queue); };
+
+  function itemOf(route, body) {
+    body = forDevice(route, body);          // ASCII only (the gadget fonts) and cut to the firmware's buffers
+    const type = route === '/usage' ? 'usage' : route === '/settings' ? 'settings' : route === '/dismiss' ? 'dismiss' : 'event';
+    return { type, body, key: deviceKey(route, body) };
   }
 
   return {
     start: connect,
     send(route, body) {
-      body = forDevice(route, body);          // ASCII only (the gadget fonts) and cut to the firmware's buffers
-      const type = route === '/usage' ? 'usage' : route === '/settings' ? 'settings' : route === '/dismiss' ? 'dismiss' : 'event';
-      queue.push({ type, body, key: type === 'usage' ? 'usage' : type === 'settings' ? 'settings' : type === 'dismiss' ? `dismiss:${body.session}` : `${body.session}:${body.agent}` });
+      queue.push(itemOf(route, body));
       if (queue.length > maxQueue) { coalesce(); if (queue.length > maxQueue) queue = queue.slice(-maxQueue); }
       flush();
     },

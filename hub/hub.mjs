@@ -461,12 +461,31 @@ export function startHub(opts = {}) {
   timer.unref();
 
   // Relay to a gadget (Wi-Fi or USB): every accepted event and usage report is forwarded as received. The taps read the current relay.
-  function buildRelay() {
-    serial = relayConf.mode === 'serial' && relayConf.port ? createSerialRelay({ path: relayConf.port, ...(opts.serial ?? {}) }) : null;
-    relay = serial ?? (relayConf.mode === 'http' && relayConf.host ? createHttpRelay({ host: relayConf.host, ...(opts.http ?? {}) }) : null);
-    relay?.send('/settings', { sound: settings.sound });   // the gadget buzzer follows the hub setting from the start
+  // The last event of each agent is kept so that a device that lost its state gets the live agents back: opening the serial
+  // port resets the ESP32, and a new relay starts with an empty device. Agents the model no longer lists (dismissed, pruned) are not replayed.
+  // Usage is not replayed: its reset times count from when it was posted, and the status line posts again within a minute.
+  const deviceEvents = new Map();                            // `<session>:<agent>` (model ids) -> last event body
+  function forgetGoneAgents() {
+    const live = new Set();
+    for (const s of model.toState(now()).sessions) for (const a of s.agents) live.add(`${s.id}:${a.id}`);
+    for (const key of [...deviceEvents.keys()]) if (!live.has(key)) deviceEvents.delete(key);
   }
-  eventTaps.push((body) => { const { plan_items: _items, ...forDevice } = body; relay?.send('/event', forDevice); });     // the gadget has no use for the plan list
+  function deviceReplay() {
+    forgetGoneAgents();
+    return [{ route: '/settings', body: { sound: settings.sound } }, ...[...deviceEvents.values()].map((body) => ({ route: '/event', body }))];
+  }
+  function buildRelay() {
+    serial = relayConf.mode === 'serial' && relayConf.port ? createSerialRelay({ path: relayConf.port, replay: deviceReplay, ...(opts.serial ?? {}) }) : null;
+    relay = serial ?? (relayConf.mode === 'http' && relayConf.host ? createHttpRelay({ host: relayConf.host, ...(opts.http ?? {}) }) : null);
+    if (relay && !serial) for (const { route, body } of deviceReplay()) relay.send(route, body);   // settings first: the buzzer follows the hub; the serial relay replays after each port open
+  }
+  eventTaps.push((body) => {
+    const key = `${idKey(body.session)}:${idKey(body.agent)}`;
+    deviceEvents.delete(key);                                // the newest agent goes last
+    deviceEvents.set(key, body);
+    if (deviceEvents.size > 100) forgetGoneAgents();         // bounded between replays
+    relay?.send('/event', body);                             // forDevice (ascii.mjs) drops the fields the gadget has no use for
+  });
   usageTaps.push((body) => relay?.send('/usage', body));
   dismissTaps.push((body) => relay?.send('/dismiss', body));
   settingsTaps.push((body) => relay?.send('/settings', body));

@@ -27,6 +27,7 @@ test('relay_label_says_whether_the_gadget_is_reachable', () => {
   assert.equal(relayLabel({ mode: 'serial', connected: true }).text, 'USB connected');
   assert.deepEqual(relayLabel({ mode: 'http', ok: false, lastError: 'timeout' }), { text: 'gadget unreachable', ok: false, why: 'timeout' });
   assert.equal(relayLabel({ mode: 'http', ok: true }).text, 'gadget connected');
+  assert.deepEqual([relayLabel({ mode: 'http', ok: true, locked: true }).text, relayLabel({ mode: 'http', ok: true, locked: true }).ok], ['screen upload lock', false]);
 });
 
 test('main_address_and_hub_alias_serve_the_one_page', async () => {
