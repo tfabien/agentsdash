@@ -56,9 +56,10 @@ export function validateTheme(raw) {
 
 /**
  * Keeps the valid parts of a palette fragment ({ colors, accent }): a theme, a variant or an override.
+ * `override`: the fragment is a user edit (`themeOverrides`), whose accent may also be 'none' (no accent, whatever the theme or variant says).
  * @returns {{colors: Record<string,string>, accent: string|undefined, ignored: string[]}}
  */
-export function validatePalettePart(raw) {
+export function validatePalettePart(raw, { override = false } = {}) {
   const ignored = [];
   const colors = {};
   const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
@@ -69,20 +70,28 @@ export function validatePalettePart(raw) {
     if (typeof v === 'string' && HEX.test(v)) colors[key] = v.toLowerCase(); else ignored.push(key);
   }
   let accent;
-  if (src.accent !== undefined) { if (typeof src.accent === 'string' && HEX.test(src.accent)) accent = src.accent.toLowerCase(); else ignored.push('accent'); }
+  if (src.accent !== undefined) {
+    if (typeof src.accent === 'string' && HEX.test(src.accent)) accent = src.accent.toLowerCase();
+    else if (override && src.accent === 'none') accent = 'none';
+    else ignored.push('accent');
+  }
   return { colors, accent, ignored };
 }
 
 /**
  * The colors and the icon accent of a theme under a variant and a user override. Order: theme, variant, override. An unknown variant is the base.
+ * An override accent 'none' removes the accent.
  * @returns {{colors: Record<string,string>, accent: string}}
  */
 export function resolvePalette(theme, variantKey, override) {
   const v = variantKey && theme.variants ? theme.variants[variantKey] : undefined;
   const colors = { ...theme.colors, ...(v?.colors ?? {}), ...(override?.colors ?? {}) };
-  const accent = override?.accent || v?.accent || theme.accent || '';
+  const accent = override?.accent === 'none' ? '' : override?.accent || v?.accent || theme.accent || '';
   return { colors, accent };
 }
+
+/** The `themeOverrides` key of `theme` under `variantKey`: `<theme>/<variant>`, or `<theme>` when the theme has no such variant (it is drawn as the base). */
+export const overrideKeyOf = (theme, variantKey) => (variantKey && theme.variants?.[variantKey] ? `${theme.name}/${variantKey}` : theme.name);
 
 /**
  * The looks agents are drawn with, in declaration order: the `chosen` keys when they name an existing look, else the theme's `defaultLooks`, else all of them.

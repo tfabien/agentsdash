@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, cellsOf, tileModel, quotaBars, summaryText } from '../web/hub_view.js';
+import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, cellsOf, tileModel, quotaBars, summaryText, gotoPage } from '../web/hub_view.js';
 import { placeItems, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
@@ -250,4 +250,11 @@ test('auto_focus_leaves_a_request_the_user_closed', () => {
   assert.deepEqual(r, { focus: null, auto: null }, 'not opened again');
   r = autoFocus([{ id: 'a', quest: { id: 'q2' } }, { id: 'b', quest: { id: 'q1' } }], null, null, done);
   assert.equal(r.focus, 'a', 'a new request opens');
+});
+
+test('goto_page_keeps_the_grid_page_while_a_session_is_full_screen', () => {
+  assert.equal(gotoPage(3, 2, 1, true), 2, 'arrow or swipe in full screen: the grid page stays');
+  assert.equal(gotoPage(3, 2, 4, false), 3);
+  assert.equal(gotoPage(9, 2, 4, false), 3);
+  assert.equal(gotoPage(-1, 0, 4, false), 0);
 });

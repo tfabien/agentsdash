@@ -127,3 +127,8 @@ export function summaryText(sessions) {
   const n = `${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
   return needs ? `${n}, ${needs} ${needs === 1 ? 'needs' : 'need'} you` : n;
 }
+
+/** The grid page after a jump to `n` (arrows, swipe, pager) out of `count` pages. A session shown full screen keeps the grid page: Back returns to it. */
+export function gotoPage(n, page, count, fullScreen) {
+  return fullScreen ? page : Math.max(0, Math.min(n, count - 1));
+}

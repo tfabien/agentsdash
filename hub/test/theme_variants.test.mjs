@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateTheme, resolvePalette, hueOf, contrastRatio } from '../web/theme_schema.js';
+import { validateTheme, validatePalettePart, resolvePalette, overrideKeyOf, hueOf, contrastRatio } from '../web/theme_schema.js';
 
 const base = { name: 'cat', colors: { TEXT: '#ffffff', FRAME: '#112233' } };
 
@@ -151,4 +151,27 @@ test('validatePalettes_limits_palettes_and_replacements', () => {
   assert.equal(r.errors.length, 2);
   const big = Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`#${i.toString(16).padStart(6, '0')}`, '#ffffff']));
   assert.equal(validatePalettes({ ok: Object.fromEntries(Object.entries(big).slice(0, 32)), big }).errors.length, 1);
+});
+
+test('override_accent_none_removes_the_theme_and_variant_accent', () => {
+  const t = { colors: {}, accent: '#ff0000', variants: { dark: { colors: {}, accent: '#00ff00' } } };
+  assert.equal(resolvePalette(t, '', { colors: {}, accent: 'none' }).accent, '');
+  assert.equal(resolvePalette(t, 'dark', { colors: {}, accent: 'none' }).accent, '');
+  assert.equal(resolvePalette(t, 'dark', { colors: {} }).accent, '#00ff00', 'no override accent: the variant accent');
+  assert.deepEqual(validatePalettePart({ accent: 'none' }, { override: true }).ignored, []);
+  assert.equal(validatePalettePart({ accent: 'none' }, { override: true }).accent, 'none');
+  assert.deepEqual(validatePalettePart({ accent: 'none' }).ignored, ['accent'], 'a theme or a variant cannot say none');
+  assert.equal(validateTheme({ ...base, accent: 'none' }).theme.accent, '');
+});
+
+test('override_key_names_a_variant_only_when_the_theme_has_it', () => {
+  const t = { name: 'vt', variants: { dark: {} } };
+  assert.equal(overrideKeyOf(t, 'dark'), 'vt/dark');
+  assert.equal(overrideKeyOf(t, 'gone'), 'vt');
+  assert.equal(overrideKeyOf(t, ''), 'vt');
+  assert.equal(overrideKeyOf({ name: 'plain' }, 'dark'), 'plain');
+});
+
+test('toHex_lowercases_an_uppercase_color', () => {
+  assert.equal(toHex('#FFFFFF'), '#ffffff');
 });

@@ -1,7 +1,7 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
-import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
+import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as idleFor, waitsForYou, hasTeam, cellsOf, gotoPage } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, COLOR, rgb565 } from './screen.js';
@@ -224,8 +224,8 @@ let savedTheme = 'default';
 let savedVariant = '';
 let savedOverrides = {};
 let savedLooks = {};
-// What the tiles draw: the preview shows a theme (and variant) as authored, the saved choice also carries the user's color edits.
-const applySaved = () => (preview ? applyTheme(preview.name, preview.variant ?? '') : applyTheme(savedTheme, savedVariant, savedOverrides, savedLooks[savedTheme]));
+// What the tiles draw: the preview shows a theme (and variant) as authored with the looks ticked on its card, the saved choice also carries the user's color edits.
+const applySaved = () => (preview ? applyTheme(preview.name, preview.variant ?? '', {}, savedLooks[preview.name]) : applyTheme(savedTheme, savedVariant, savedOverrides, savedLooks[savedTheme]));
 let realCatalog = { themes: [], packs: [], errors: [] };
 const pageCatalog = () => (preview && !preview.installed
   ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: [...realCatalog.packs.filter((p) => p.name !== preview.theme.iconPack), { name: preview.theme.iconPack, roles: preview.roles }] }
@@ -253,7 +253,7 @@ const footer = mountFooter($('bar'), $('stage'), { onPreview: setPreview });
 // Pages: the sessions run in order (first seen first, idle ones last) and are cut into pages of `capacity()` cells. Arrows, dots, swipes and the
 // left and right keys turn the page; a dot is orange or red when a session on that page needs you or failed.
 const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager'), backBtn = $('back'), jumpBtn = $('jump');      // Back: a session shown full screen returns to the grid
-function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
+function goto(n) { const p = gotoPage(n, page, pages.length, !!focus); if (p !== page) { page = p; render(); } }
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && preview && !e.defaultPrevented) backToThemes();
   else if (e.key === 'Escape' && focus && !e.defaultPrevented) { focus = null; render(); }

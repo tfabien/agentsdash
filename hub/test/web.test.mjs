@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTokens, formatAge, fmtDuration, relayLabel } from '../web/format.js';
+import { formatTokens, formatAge, fmtDuration, relayLabel, modelLabel } from '../web/format.js';
 import { startHub } from '../hub.mjs';
 import { tmpUserDir } from './tmp_dirs.mjs';
-import { OPTIONS } from '../web/settings.js';
+import { OPTIONS, portOptions } from '../web/settings.js';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,4 +65,21 @@ test('every_stylesheet_in_web_is_linked_by_a_page', () => {
 test('settings_panel_offers_the_rate_glow_options', () => {
   const keys = OPTIONS.map((o) => o.key);
   assert.ok(keys.includes('rate_alert_k'));
+});
+
+test('model_label_reads_dated_ids', () => {
+  assert.equal(modelLabel('claude-opus-4-20250514'), 'Opus 4');
+  assert.equal(modelLabel('claude-sonnet-4-20250514'), 'Sonnet 4');
+  assert.equal(modelLabel('claude-opus-4-1-20250805'), 'Opus 4.1');
+  assert.equal(modelLabel('claude-opus-4-7[1m]'), 'Opus 4.7');
+  assert.equal(modelLabel('claude-3-5-sonnet-20241022'), 'Sonnet 3.5');
+  assert.equal(modelLabel('claude-haiku-4-5-20251001'), 'Haiku 4.5');
+  assert.equal(modelLabel('gpt-5'), 'gpt-5');
+});
+
+test('port_options_label_the_listed_ports_and_keep_the_draft_port', () => {
+  const ports = { ports: [{ path: 'COM3', label: 'CH340' }, { path: 'COM4' }] };
+  assert.deepEqual(portOptions(ports, 'COM4'), [['COM3', 'COM3 (CH340)'], ['COM4', 'COM4']]);
+  assert.deepEqual(portOptions(ports, 'COM9'), [['COM3', 'COM3 (CH340)'], ['COM4', 'COM4'], ['COM9', 'COM9']], 'a saved port that is not listed stays');
+  assert.deepEqual(portOptions(null, ''), []);
 });
