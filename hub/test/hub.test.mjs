@@ -604,6 +604,42 @@ test('first_run_installs_the_configured_theme_and_applies_it', async () => {
   }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: twoThemes(), firstRunTheme: true, config: { relay: { mode: 'none' }, quotas: false, first_theme: 'fox' } });
 });
 
+test('first_run_downloads_a_theme_when_only_a_built_in_theme_exists', async () => {
+  const d = catalogDirs();
+  fs.mkdirSync(path.join(d.builtinDir, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(d.builtinDir, 'themes', 'line.json'), mt('line'));
+  await withHub(async (hub) => {
+    const st = await stateWhen(hub, (s) => s.catalog.themes.some((t) => t.name === 'fox'));
+    assert.deepEqual(st.catalog.themes.map((t) => t.name).sort(), ['fox', 'line']);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: twoThemes(), firstRunTheme: true, config: { relay: { mode: 'none' }, quotas: false, first_theme: 'fox' } });
+});
+
+test('market_install_lists_the_source_again_before_installing', async () => {
+  const d = catalogDirs();
+  let icon = 'a';
+  const proxy = (url, init) => fakeGitHub({ [DEFAULT_SOURCE]: { files: { 'cat/theme.json': mt('cat'), [`cat/icons/lead${icon === 'a' ? '' : '-blink'}.png`]: 'png' } } })(url, init);
+  await withHub(async (hub) => {
+    await get(hub, '/market');                                     // caches a listing with icons/lead.png
+    icon = 'b';                                                    // the repository now holds icons/lead-blink.png only
+    const r = await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' });
+    assert.equal(r.status, 200, await r.text());
+    assert.deepEqual(fs.readdirSync(path.join(d.userDir, 'icons', 'cat')), ['lead-blink.png']);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
+});
+
+test('market_install_works_from_the_cached_listing_when_the_github_api_fails', async () => {
+  const d = catalogDirs();
+  let apiDown = false;
+  const gh = market();
+  const proxy = (url, init) => (apiDown && url.startsWith('https://api.github.com/') ? Promise.resolve(new Response('rate limit', { status: 403 })) : gh(url, init));
+  await withHub(async (hub) => {
+    await get(hub, '/market');
+    apiDown = true;
+    const r = await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' });
+    assert.equal(r.status, 200, await r.text());
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
+});
+
 test('first_run_keeps_a_theme_the_user_chose', async () => {
   const d = catalogDirs();
   const settingsFile = path.join(d.root, 'settings.json');

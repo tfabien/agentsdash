@@ -93,9 +93,9 @@ test('a_listing_survives_in_the_store_and_a_failed_listing_is_not_kept', async (
   assert.equal(n, 1);
   assert.deepEqual(second.refreshedAt(['o/r', 'x/y']), { 'o/r': 5000, 'x/y': 0 });
   disk = {};
-  const failing = make(['o/r: HTTP 403']);
+  const failing = createUpdater({ store, getInstalled: () => ({}), list: async () => { n++; return { themes: [], errors: ['o/r: HTTP 403'], sourceError: true }; }, install: async () => {}, now: () => 5000 });
   await failing.list('o/r'); await failing.list('o/r');
-  assert.equal(n, 3, 'a listing with errors is fetched again every time');
+  assert.equal(n, 3, 'a listing that failed at source level is fetched again every time');
   first.forget();
   assert.deepEqual(disk, {});
 });
@@ -106,4 +106,66 @@ test('a_stored_listing_of_an_older_format_is_fetched_again', async () => {
   const u = createUpdater({ store, getInstalled: () => ({}), list: async () => { n++; return { themes: [], errors: [] }; }, install: async () => {}, now: () => 6000 });
   await u.list('o/r');
   assert.equal(n, 1);
+});
+
+test('a_listing_with_only_theme_errors_is_cached', async () => {
+  let n = 0;
+  const u = createUpdater({ getInstalled: () => ({}), list: async () => { n++; return { themes: [listed('a', '1.0.0')], errors: ['o/r/bad: name'] }; }, install: async () => {} });
+  await u.list('o/r');
+  const again = await u.list('o/r');
+  assert.equal(n, 1);
+  assert.deepEqual(again.errors, ['o/r/bad: name']);
+});
+
+test('parallel_asks_share_one_fetch', async () => {
+  let n = 0;
+  const u = createUpdater({ getInstalled: () => ({}), list: async () => { n++; await new Promise((r) => setTimeout(r, 5)); return { themes: [], errors: [] }; }, install: async () => {} });
+  await Promise.all([u.list('o/r'), u.list('o/r')]);
+  assert.equal(n, 1);
+});
+
+test('a_source_failure_serves_the_expired_listing_with_the_error', async () => {
+  let t = 1000;
+  let fail = false;
+  let n = 0;
+  const u = createUpdater({ getInstalled: () => ({}), now: () => t, install: async () => {},
+    list: async () => { n++; return fail ? { themes: [], errors: ['o/r: HTTP 403'], sourceError: true } : { themes: [listed('a', '1.0.0')], errors: [] }; } });
+  await u.list('o/r');
+  t += 25 * 3600 * 1000;
+  fail = true;
+  const r = await u.list('o/r');
+  assert.deepEqual(r.themes.map((x) => x.name), ['a']);
+  assert.deepEqual(r.errors, ['o/r: HTTP 403']);
+  await u.list('o/r');
+  assert.equal(n, 3, 'the expired listing is kept as it was: the next ask fetches again');
+});
+
+test('a_fresh_list_fetches_again_and_falls_back_on_a_source_failure', async () => {
+  let fail = false;
+  let n = 0;
+  const u = createUpdater({ getInstalled: () => ({}), install: async () => {},
+    list: async () => { n++; return fail ? { themes: [], errors: ['o/r: HTTP 403'], sourceError: true } : { themes: [listed('a', '1.0.0')], errors: [] }; } });
+  await u.list('o/r');
+  await u.list('o/r', { fresh: true });
+  assert.equal(n, 2);
+  fail = true;
+  assert.deepEqual((await u.list('o/r', { fresh: true })).themes.map((x) => x.name), ['a']);
+});
+
+test('an_inactive_start_checks_on_the_first_activity', async () => {
+  const { u, calls } = setup({ installed: { a: rec('1.0.0') }, themes: [listed('a', '2.0.0')] });
+  calls.active = false;
+  u.start();
+  await new Promise((r) => setImmediate(r));
+  u.poke();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(calls.installed, [], 'still inactive: nothing');
+  calls.active = true;
+  u.poke();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(calls.installed, ['a']);
+  u.poke();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(calls.installed, ['a'], 'one missed check gives one check');
+  u.stop();
 });

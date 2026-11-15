@@ -98,3 +98,32 @@ test('a_listed_theme_carries_its_colors_and_the_best_icon_url_per_role', async (
   assert.deepEqual(t.colors, { FRAME: '#112233' });
   assert.deepEqual(t.roles, { lead: `${RAW}/cat/icons/lead.png`, 'lead-blink': `${RAW}/cat/icons/lead-blink.webp`, 'explore-2': `${RAW}/cat/icons/explore-2.gif` });
 });
+
+test('source_level_failures_are_flagged_and_theme_failures_are_not', async () => {
+  assert.equal((await listSource('o/r', fakeGitHub({ tree: [], treeStatus: 403 }))).sourceError, true);
+  assert.equal((await listSource('o/r', fakeGitHub({ tree: ['a/'], truncated: true }))).sourceError, true);
+  const r = await listSource('o/r', fakeGitHub({ tree: ['a/', 'a/theme.json'], raw: { 'a/theme.json': '{not json' } }));
+  assert.equal(r.errors.length, 1);
+  assert.equal(r.sourceError, undefined);
+});
+
+test('theme_json_size_is_counted_in_bytes', async () => {
+  const big = themeJson('cat', { description: '\u20ac'.repeat(140000) });       // 140 K characters, 420 KB in UTF-8
+  const r = await listSource('o/r', fakeGitHub({ tree: ['cat/', 'cat/theme.json'], raw: { 'cat/theme.json': big } }));
+  assert.deepEqual(r.themes, []);
+  assert.match(r.errors[0], /over 256 KB/);
+});
+
+test('a_branch_with_a_hash_is_encoded_in_raw_urls', async () => {
+  const urls = [];
+  const f = async (url) => {
+    urls.push(url);
+    if (url === 'https://api.github.com/repos/o/r') return new Response(JSON.stringify({ default_branch: 'a#b' }));
+    if (url.startsWith('https://api.github.com/repos/o/r/git/trees/')) return new Response(JSON.stringify({ tree: [{ path: 'cat/theme.json', type: 'blob' }, { path: 'cat/icons/lead.png', type: 'blob' }] }));
+    return new Response(themeJson('cat'));
+  };
+  const r = await listSource('o/r', f);
+  assert.deepEqual(r.errors, []);
+  assert.equal(urls[2], 'https://raw.githubusercontent.com/o/r/a%23b/cat/theme.json');
+  assert.equal(r.themes[0].roles.lead, 'https://raw.githubusercontent.com/o/r/a%23b/cat/icons/lead.png');
+});

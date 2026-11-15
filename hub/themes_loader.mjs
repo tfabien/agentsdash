@@ -30,7 +30,7 @@ function scanThemes(dir, errors) {
 }
 
 const TINTS = ['svg', 'hue', 'none'];
-const MAX_PACK_JSON = 4096;
+export const MAX_PACK_JSON = 4096;
 
 /** The tint mode of a pack from its optional pack.json: { tint: 'svg'|'hue'|'none', hue: 0..359 }. A bad file keeps the defaults and is listed in `errors`. */
 function readPackJson(file, errors) {

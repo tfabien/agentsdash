@@ -83,7 +83,74 @@ test('remove_deletes_a_hand_made_theme_and_keeps_a_pack_another_theme_uses', () 
   assert.equal(removeTheme({ name: 'one', userDir }), true);
   assert.equal(fs.existsSync(path.join(userDir, 'icons', 'shared', 'lead.png')), true, 'two still uses the pack');
   assert.equal(removeTheme({ name: 'two', userDir }), true);
-  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'shared')), false);
+  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'shared', 'lead.png')), true, 'a pack named unlike the theme is not the theme\'s own: it stays');
+});
+
+test('a_swap_that_fails_restores_the_old_icons_and_version', async () => {
+  const userDir = tmp();
+  await installTheme({ theme: entry('cat', ['icons/lead.png']), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat', '1.0.0'), 'cat/icons/lead.png': 'old' }) });
+  fs.rmSync(path.join(userDir, 'themes', 'cat.json'));
+  fs.mkdirSync(path.join(userDir, 'themes', 'cat.json'));          // copyFileSync onto a folder throws (EPERM on Windows, EISDIR on Linux)
+  const f = fakeRaw({ 'cat/theme.json': themeJson('cat', '1.1.0'), 'cat/icons/lead.png': 'new' });
+  await assert.rejects(installTheme({ theme: entry('cat', ['icons/lead.png'], '1.1.0'), userDir, builtinNames: none, fetchFn: f }));
+  assert.equal(fs.readFileSync(path.join(userDir, 'icons', 'cat', 'lead.png'), 'utf8'), 'old');
+  assert.equal(readInstalled(userDir).cat.version, '1.0.0');
+  assert.deepEqual(fs.readdirSync(path.join(userDir, 'icons')), ['cat']);
+  assert.deepEqual(fs.readdirSync(userDir).filter((n) => n.startsWith('.market-tmp')), []);
+});
+
+test('an_icon_less_install_uses_robot_and_makes_no_icon_folder', async () => {
+  const userDir = tmp();
+  await installTheme({ theme: entry('cat', []), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat') }) });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(userDir, 'themes', 'cat.json'), 'utf8')).iconPack, 'robot');
+  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'cat')), false);
+});
+
+test('an_update_that_drops_its_icons_removes_the_old_icon_folder', async () => {
+  const userDir = tmp();
+  await installTheme({ theme: entry('cat', ['icons/lead.png']), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat'), 'cat/icons/lead.png': 'a' }) });
+  await installTheme({ theme: entry('cat', [], '1.1.0'), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat', '1.1.0') }) });
+  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'cat')), false);
+  assert.equal(readInstalled(userDir).cat.version, '1.1.0');
+});
+
+test('removing_an_icon_less_theme_keeps_the_users_robot_pack', async () => {
+  const userDir = tmp();
+  fs.mkdirSync(path.join(userDir, 'icons', 'robot'), { recursive: true });
+  fs.writeFileSync(path.join(userDir, 'icons', 'robot', 'lead.svg'), '<svg/>');
+  await installTheme({ theme: entry('plain', []), userDir, builtinNames: none, fetchFn: fakeRaw({ 'plain/theme.json': themeJson('plain') }) });
+  assert.equal(removeTheme({ name: 'plain', userDir }), true);
+  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'robot', 'lead.svg')), true);
+  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'plain')), false);
+});
+
+test('remove_keeps_a_pack_a_rule_uses', async () => {
+  const userDir = tmp();
+  await installTheme({ theme: entry('cat', ['icons/lead.png']), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat'), 'cat/icons/lead.png': 'a' }) });
+  assert.equal(removeTheme({ name: 'cat', userDir, keepPacks: new Set(['cat']) }), true);
+  assert.equal(fs.existsSync(path.join(userDir, 'icons', 'cat', 'lead.png')), true);
+});
+
+test('a_failed_cleanup_after_the_swap_still_records_the_new_version', async (t) => {
+  const userDir = tmp();
+  await installTheme({ theme: entry('cat', ['icons/lead.png']), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat', '1.0.0'), 'cat/icons/lead.png': 'old' }) });
+  const real = fs.rmSync;
+  t.mock.method(fs, 'rmSync', (p, o) => { if (String(p).includes('.old-')) throw Object.assign(new Error('busy'), { code: 'EBUSY' }); return real(p, o); });
+  const r = await installTheme({ theme: entry('cat', ['icons/lead.png'], '1.1.0'), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat', '1.1.0'), 'cat/icons/lead.png': 'new' }) });
+  assert.deepEqual(r, { version: '1.1.0' });
+  assert.equal(readInstalled(userDir).cat.version, '1.1.0');
+  assert.equal(fs.readFileSync(path.join(userDir, 'icons', 'cat', 'lead.png'), 'utf8'), 'new');
+  t.mock.restoreAll();
+  await installTheme({ theme: entry('cat', ['icons/lead.png'], '1.2.0'), userDir, builtinNames: none, fetchFn: fakeRaw({ 'cat/theme.json': themeJson('cat', '1.2.0'), 'cat/icons/lead.png': 'newer' }) });
+  assert.deepEqual(fs.readdirSync(path.join(userDir, 'icons')), ['cat'], 'the next install sweeps the leftover .old- folder');
+});
+
+test('a_branch_with_a_hash_is_encoded_in_the_raw_url', async () => {
+  const userDir = tmp();
+  const urls = [];
+  const f = async (url) => { urls.push(url); return url.endsWith('/theme.json') ? new Response(themeJson('cat')) : new Response('png'); };
+  await installTheme({ theme: { ...entry('cat', ['icons/lead.png']), branch: 'a#b' }, userDir, builtinNames: none, fetchFn: f });
+  assert.deepEqual(urls, ['https://raw.githubusercontent.com/o/r/a%23b/cat/theme.json', 'https://raw.githubusercontent.com/o/r/a%23b/cat/icons/lead.png']);
 });
 
 test('remove_refuses_a_built_in_name_and_a_bad_name', () => {
