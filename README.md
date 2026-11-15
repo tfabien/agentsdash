@@ -69,6 +69,15 @@ The hub in this repository is a small Node.js server that draws the screen **in 
 ## On any screen
 
 The page needs nothing but a browser, so any screen near you can show it.
+An old phone or a tablet on a stand next to the keyboard becomes a dedicated screen: your agents stay in sight while the monitor keeps your code.
+
+<p>
+<img src="docs/images/screen-phone-desk.jpg" width="32%" alt="A phone on a stand beside the keyboard shows a session and its 4 sub-agents">
+<img src="docs/images/screen-tablet.jpg" width="32%" alt="A tablet on the desk shows the same session">
+<img src="docs/images/screen-phone-bench.jpg" width="32%" alt="A phone on an electronics workbench shows the same session">
+</p>
+
+Illustrations of the idea: the screen drawn in them is simpler than the real page (see the tour above).
 
 | Screen | How | What it does |
 |---|---|---|
