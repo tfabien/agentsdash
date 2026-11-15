@@ -14,25 +14,47 @@ export function annotate(themes, installed) {
 }
 
 /**
- * @param {{ store?: {read: () => object, write: (data: object) => void}, getInstalled: () => object, install: (theme: object) => Promise<unknown>, list: (source: string) => Promise<{themes: object[], errors: string[]}>,
+ * @param {{ store?: {read: () => object, write: (data: object) => void}, getInstalled: () => object, install: (theme: object) => Promise<unknown>, list: (source: string) => Promise<{themes: object[], errors: string[], sourceError?: true}>,
  *   isActive?: () => boolean, onDone?: (r: {updated: string[], errors: string[]}) => void, intervalMs?: number, now?: () => number,
  *   setTimer?: typeof setInterval, clearTimer?: typeof clearInterval }} o
  */
 export function createUpdater({ store = { read: () => ({}), write: () => {} }, getInstalled, install, list, isActive = () => true, onDone = () => {}, intervalMs = SIX_HOURS, now = Date.now, setTimer = setInterval, clearTimer = clearInterval }) {
   const cache = new Map();                                       // source -> { at, result }
+  const pending = new Map();                                     // source -> the listing being fetched: parallel asks share it
   let last = 0;
   let timer = null;
+  let due = false;                                               // a timer tick found the hub idle: the next activity checks
 
-  // A listing younger than 24 hours is reused, also after a hub restart (the disk store). A listing with errors is never kept: the next ask retries.
+  // A listing younger than 24 hours is reused, also after a hub restart (the disk store). A listing whose themes partly failed is kept
+  // (Refresh fetches it again); one whose repository failed (HTTP, network) is not: the older listing is served with the error and the next ask retries.
   const entry = (source) => cache.get(source) ?? store.read()[source];
-  async function listCached(source) {
-    const hit = entry(source);
-    if (hit && hit.v === CACHE_FORMAT && now() - hit.at < CACHE_MS) { cache.set(source, hit); return hit.result; }
+  async function fetchListing(source) {
     const result = await list(source);
-    if (!result.errors.length) { const fresh = { v: CACHE_FORMAT, at: now(), result }; cache.set(source, fresh); store.write({ ...store.read(), [source]: fresh }); }
-    return result;
+    if (!result.sourceError) {
+      const fresh = { v: CACHE_FORMAT, at: now(), result };
+      cache.set(source, fresh);
+      store.write({ ...store.read(), [source]: fresh });
+      return result;
+    }
+    const old = entry(source);
+    return old?.v === CACHE_FORMAT ? { themes: old.result.themes, errors: result.errors } : result;
   }
-  function forget() { cache.clear(); store.write({}); }
+  function listCached(source) {
+    const hit = entry(source);
+    if (hit && hit.v === CACHE_FORMAT && now() - hit.at < CACHE_MS) { cache.set(source, hit); return Promise.resolve(hit.result); }
+    if (pending.has(source)) return pending.get(source);
+    const p = fetchListing(source).finally(() => { if (pending.get(source) === p) pending.delete(source); });
+    pending.set(source, p);
+    return p;
+  }
+  /** Drops every listing, or only the listing of `source`. */
+  function forget(source) {
+    if (source === undefined) { cache.clear(); pending.clear(); store.write({}); return; }
+    cache.delete(source);
+    pending.delete(source);
+    const { [source]: _gone, ...rest } = store.read();
+    store.write(rest);
+  }
 
   /** Installs the newer version of every installed theme (or of `name` only). Lists are read fresh. */
   async function check(name) {
@@ -54,7 +76,7 @@ export function createUpdater({ store = { read: () => ({}), write: () => {} }, g
     return { updated, errors };
   }
 
-  const tick = () => { if (isActive()) check().catch(() => {}); };
+  const tick = () => { if (isActive()) { due = false; check().catch(() => {}); } else due = true; };
   return {
     check,
     list: listCached,
@@ -62,6 +84,8 @@ export function createUpdater({ store = { read: () => ({}), write: () => {} }, g
     refreshedAt: (sources) => Object.fromEntries(sources.map((s) => [s, entry(s)?.at ?? 0])),
     lastCheck: () => last,
     start() { if (timer) return; timer = setTimer(tick, intervalMs); timer?.unref?.(); tick(); },
+    /** Activity (a page opens, an event arrives): runs the check a tick skipped while the hub was idle, the one at start included. */
+    poke() { if (due && timer && isActive()) tick(); },
     stop() { if (timer) clearTimer(timer); timer = null; },
   };
 }

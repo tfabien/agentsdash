@@ -1,5 +1,5 @@
-// First launch: with no theme installed anywhere, downloads one default theme from the first marketplace source.
-// Nothing is shipped with the plugin; until the download works the page draws the built-in vector robots.
+// First launch: with no theme in the user folder, downloads one default theme from the first marketplace source.
+// The core ships the built-in line theme only; the caller's `hasTheme` leaves it out, so the first launch still downloads one.
 
 export const FIRST_THEME = 'robot';
 

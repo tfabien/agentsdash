@@ -168,12 +168,14 @@ export function startHub(opts = {}) {
     onDone: () => { reloadCatalog(); publish(); },
   });
   updater.start();
-  // First launch (only when asked: the hub process, not the tests): no theme at all, so one is downloaded and applied. Retried every 10 minutes while none exists.
+  // First launch (only when asked: the hub process, not the tests): no theme in the user folder (the built-in line theme does not count), so one is
+  // downloaded and applied. Retried every 10 minutes while none exists.
+  const hasUserTheme = () => loadCatalog({ builtinDir: null, userDir: catalogDirs.userDir }).themes.some((t) => !builtinNames().has(t.name));
   const firstTheme = async () => {
     const name = await installFirstTheme({
       sources: settings.marketSources,
       preferred: config.first_theme,
-      hasTheme: () => catalog.themes.length > 0,
+      hasTheme: hasUserTheme,
       list: (source) => updater.list(source),
       install: (theme) => installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }),
     });
@@ -182,7 +184,7 @@ export function startHub(opts = {}) {
     if (settings.theme === 'default') saveSettings({ theme: name });
     publish();
   };
-  const firstThemeTimer = opts.firstRunTheme ? setInterval(() => { if (catalog.themes.length === 0) firstTheme(); }, 10 * 60 * 1000) : null;
+  const firstThemeTimer = opts.firstRunTheme ? setInterval(() => { if (!hasUserTheme()) firstTheme(); }, 10 * 60 * 1000) : null;
   firstThemeTimer?.unref?.();
   if (opts.firstRunTheme) setTimeout(firstTheme, 0);
   const withPerm = (st) => ({ ...st, sessions: st.sessions.map((s) => ({ ...s, perm: perms.view(s.id), quest: quests.view(s.id) })) });
@@ -295,6 +297,7 @@ export function startHub(opts = {}) {
         const body = await jsonBody(req, res);
         if (!body) return undefined;
         if (!settings.marketSources.includes(body.source)) return text(res, 400, 'unknown source');
+        updater.forget(body.source);                 // a fresh listing: files and branch may have changed since the cached one
         const theme = (await updater.list(body.source)).themes.find((t) => t.name === body.name);
         if (!theme) return text(res, 400, 'unknown theme');
         try { await installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }); } catch (err) { return text(res, 400, err.message); }
@@ -307,7 +310,7 @@ export function startHub(opts = {}) {
         const body = await jsonBody(req, res);
         if (!body) return undefined;
         const name = String(body.name ?? '');
-        try { if (!removeTheme({ name, userDir: catalogDirs.userDir, builtinNames: builtinNames() })) return text(res, 404, 'no such theme in the user folder'); } catch (err) { return text(res, 400, err.message); }
+        try { if (!removeTheme({ name, userDir: catalogDirs.userDir, builtinNames: builtinNames(), keepPacks: new Set(settings.rules.map((r) => r.iconPack).filter(Boolean)) })) return text(res, 404, 'no such theme in the user folder'); } catch (err) { return text(res, 400, err.message); }
         if (settings.theme === name) saveSettings({ theme: 'default', themeVariant: '' });
         const kept = Object.fromEntries(Object.entries(settings.themeOverrides).filter(([k]) => k !== name && !k.startsWith(`${name}/`)));
         if (Object.keys(kept).length !== Object.keys(settings.themeOverrides).length) saveSettings({ themeOverrides: kept });
@@ -360,6 +363,7 @@ export function startHub(opts = {}) {
         res.write(`data: ${JSON.stringify(stateJson())}\n\n`);
         clients.add(res);
         req.on('close', () => clients.delete(res));
+        updater.poke();                              // a theme check skipped while the hub was idle runs now
         return undefined;
       }
       case 'POST /permission': {                    // a PermissionRequest hook waits here for Allow or Deny (loopback only)
@@ -416,6 +420,7 @@ export function startHub(opts = {}) {
           else if (CLEARING_EVTS.has(body.evt)) perms.clear(session, agent);
           if (QUEST_CLEARING_EVTS.has(body.evt)) quests.clear(session, agent);
           for (const fn of eventTaps) { try { fn(body); } catch { /* tap errors stay local */ } }
+          updater.poke();
         } else if (route === 'POST /usage') {
           if (typeof body.v !== 'number') return text(res, 400, 'v is required');
           model.applyUsage(body, now());

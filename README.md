@@ -132,7 +132,7 @@ A few of the themes of [agentsdash-themes](https://github.com/tfabien/agentsdash
 | **fantasy-rpg** | **office-retro** |
 | ![The fantasy-rpg theme](docs/images/theme-fantasy-rpg.png) | ![The office-retro theme](docs/images/theme-office-retro.png) |
 
-agentsdash ships no theme: the hub downloads one at its first launch from [tfabien/agentsdash-themes](https://github.com/tfabien/agentsdash-themes), which holds the themes (robot, cat, lemmings, office, pirates, spelunky, yokai...), how to install them and the format to create your own.
+agentsdash ships one built-in theme (`line`); the hub downloads another at its first launch from [tfabien/agentsdash-themes](https://github.com/tfabien/agentsdash-themes), which holds the themes (robot, cat, lemmings, office, pirates, spelunky, yokai...), how to install them and the format to create your own.
 
 Hub side (folders, project rules, marketplace): [docs/hub-themes.md](docs/hub-themes.md).
 
