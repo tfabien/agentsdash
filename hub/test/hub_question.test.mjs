@@ -124,3 +124,15 @@ test('foreign_origin_is_refused', () => withHub(async (hub) => {
   const r = await post(hub, '/question/answer', { id: 'x', terminal: true }, { headers: { 'Content-Type': 'application/json', Origin: 'http://evil.example' } });
   assert.equal(r.status, 403);
 }));
+
+test('each_end_of_turn_event_of_the_agent_returns_none', async () => {
+  for (const [evt, st] of [['UserPromptSubmit', 'working'], ['StopFailure', 'error'], ['SessionEnd', 'done']]) {
+    await withHub(async (hub) => {
+      await post(hub, '/event', EV);
+      const held = post(hub, '/question', REQ);
+      await questOf(hub);
+      assert.equal((await post(hub, '/event', { ...EV, evt, state: st, question: '', options: '' })).status, 200, evt);
+      assert.deepEqual(await (await held).json(), { none: true }, evt);
+    });
+  }
+});

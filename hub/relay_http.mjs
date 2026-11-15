@@ -10,12 +10,12 @@ export const defaultLockFile = () => path.join(os.tmpdir(), 'agent-gadget-tft.lo
 const FAILURE_PAUSE_MS = 3000;
 
 /**
- * @param {{host: string, timeoutMs?: number, lockFile?: string, retryMs?: number, maxQueue?: number, fetchImpl?: Function}} opts
+ * @param {{host: string, timeoutMs?: number, lockFile?: string, retryMs?: number, pauseMs?: number, maxQueue?: number, fetchImpl?: Function}} opts
  * While `lockFile` exists (a screen .tft upload is running: the gadget aborts it on any other request) nothing is sent.
- * After a failure the relay waits 3 s, keeping only the latest queued item of each agent.
+ * After a failure the relay waits `pauseMs` (3 s), keeping only the latest queued item of each agent.
  * @returns {{send: (route: '/event'|'/usage'|'/dismiss'|'/settings', body: object) => void, stop: () => void, status: () => {ok: boolean, lastError: string, queued: number}}}
  */
-export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLockFile(), retryMs = 1000, maxQueue = 50, fetchImpl = globalThis.fetch }) {
+export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLockFile(), retryMs = 1000, pauseMs = FAILURE_PAUSE_MS, maxQueue = 50, fetchImpl = globalThis.fetch }) {
   let queue = [];
   let running = false;
   let ok = true;
@@ -59,7 +59,7 @@ export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLock
         } catch (e) {
           ok = false;
           lastError = String(e?.cause?.code ?? e?.message ?? e);
-          pauseUntil = Date.now() + FAILURE_PAUSE_MS;
+          pauseUntil = Date.now() + pauseMs;
           coalesce();
         }
       }

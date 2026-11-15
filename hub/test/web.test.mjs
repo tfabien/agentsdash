@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { formatTokens, formatAge, fmtDuration, relayLabel } from '../web/format.js';
 import { startHub } from '../hub.mjs';
+import { tmpUserDir } from './tmp_dirs.mjs';
 import { OPTIONS } from '../web/settings.js';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,7 +30,7 @@ test('relay_label_says_whether_the_gadget_is_reachable', () => {
 });
 
 test('main_address_and_hub_alias_serve_the_one_page', async () => {
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: { relay: { mode: 'none' }, quotas: false } });
   try {
     const base = `http://127.0.0.1:${hub.port}`;
     for (const p of ['/', '/hub', '/hub/']) {

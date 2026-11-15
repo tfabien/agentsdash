@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderAnsi, runTui } from '../tui.mjs';
 import { startHub } from '../hub.mjs';
+import { tmpUserDir } from './tmp_dirs.mjs';
 
 const strip = (s) => s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
 const agent = (over = {}) => ({ tok: 0, id: 'lead', parent: '', role: 'lead', state: 'working', cmd: 'Edit a.js', detail: '', prev: '', prev_age: 0, age: 5, ...over });
@@ -69,7 +70,7 @@ test('clock_shows_at_the_right_of_the_title_line_when_given', () => {
 });
 
 test('tui_follows_the_hub_over_sse', async () => {
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: { relay: { mode: 'none' }, quotas: false } });
   const writes = [];
   const tui = runTui({ host: `127.0.0.1:${hub.port}`, write: (s) => writes.push(s), columns: 80, alternateScreen: false });
   try {
@@ -82,7 +83,7 @@ test('tui_follows_the_hub_over_sse', async () => {
 });
 
 test('tui_prints_the_pairing_address_only_when_there_is_one', async () => {
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: { relay: { mode: 'none' }, quotas: false } });
   const withUrl = [], without = [];
   const a = runTui({ host: `127.0.0.1:${hub.port}`, write: (s) => withUrl.push(s), columns: 80, alternateScreen: false, pairUrl: 'http://192.168.1.5:8765/pair?t=abc' });
   const b = runTui({ host: `127.0.0.1:${hub.port}`, write: (s) => without.push(s), columns: 80, alternateScreen: false, pairUrl: null });

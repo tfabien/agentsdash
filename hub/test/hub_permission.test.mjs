@@ -109,3 +109,23 @@ test('missing_fields_is_400', () => withHub(async (hub) => {
   assert.equal((await post(hub, '/permission', { session: 'abcd', agent: 'lead' })).status, 400);
   assert.equal((await post(hub, '/permission', null, '{not json')).status, 400);
 }));
+
+test('each_event_that_moves_the_session_on_returns_none', async () => {
+  for (const [evt, st] of [['PostToolUseFailure', 'error'], ['PermissionDenied', 'working'], ['Stop', 'your_turn'], ['SessionEnd', 'done']]) {
+    await withHub(async (hub) => {
+      await post(hub, '/event', EV);
+      const held = post(hub, '/permission', REQ);
+      await permOf(hub);
+      assert.equal((await post(hub, '/event', { ...EV, evt, state: st, cmd: '' })).status, 200, evt);
+      assert.deepEqual(await (await held).json(), { decision: 'none' }, evt);
+    });
+  }
+});
+
+test('a_sub_agent_tool_end_clears_the_lead_request_too', () => withHub(async (hub) => {
+  await post(hub, '/event', EV);
+  const held = post(hub, '/permission', REQ);
+  await permOf(hub);
+  await post(hub, '/event', { ...EV, agent: 'ab12', role: 'Explore', evt: 'PostToolUse', state: 'working', cmd: 'Read x' });
+  assert.deepEqual(await (await held).json(), { decision: 'none' }, 'the clear is session-wide (docs/protocol.md)');
+}));

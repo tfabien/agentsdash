@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startHub } from '../hub.mjs';
 import { loadConfig } from '../config.mjs';
 import { forDevice } from '../ascii.mjs';
@@ -569,3 +570,81 @@ test('rate_alert_setting_validates_and_defaults', () => withHub(async (hub) => {
   assert.equal((await post(hub, '/settings', { rate_alert_k: 50 })).status, 400);
   assert.equal((await (await get(hub, '/state')).json()).settings.rate_alert_k, 0);
 }));
+
+test('every_test_hub_gets_a_temp_user_folder', () => {
+  // Without userDir a hub loads the themes and packs of the developer's real ~/.agentsdash, so test results would depend on that folder.
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const missing = [];
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.test.mjs'))) {
+    fs.readFileSync(path.join(dir, f), 'latin1').split('\n').forEach((line, i) => {
+      if (/startHub\(\{/.test(line) && !/userDir/.test(line) && !/^\s*(\/\/|\*)/.test(line)) missing.push(`${f}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(missing, []);
+});
+
+/** Polls /state until `fn` holds; returns that state. */
+async function stateWhen(hub, fn, ms = 3000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    const st = await (await get(hub, '/state')).json();
+    if (fn(st) || Date.now() > end) return st;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+const twoThemes = () => fakeGitHub({ [DEFAULT_SOURCE]: { files: { 'cat/theme.json': mt('cat'), 'cat/icons/lead.png': 'png', 'fox/theme.json': mt('fox'), 'fox/icons/lead.png': 'png' } } });
+
+test('first_run_installs_the_configured_theme_and_applies_it', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    const st = await stateWhen(hub, (s) => s.settings.theme === 'fox');
+    assert.equal(st.settings.theme, 'fox', 'config.first_theme picks the theme');
+    assert.deepEqual(st.catalog.themes.map((t) => t.name), ['fox'], 'the catalog is reloaded after the install');
+    assert.ok(fs.existsSync(path.join(d.userDir, 'themes', 'fox.json')), 'installed into the user folder');
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: twoThemes(), firstRunTheme: true, config: { relay: { mode: 'none' }, quotas: false, first_theme: 'fox' } });
+});
+
+test('first_run_keeps_a_theme_the_user_chose', async () => {
+  const d = catalogDirs();
+  const settingsFile = path.join(d.root, 'settings.json');
+  fs.writeFileSync(settingsFile, JSON.stringify({ theme: 'mine' }));
+  await withHub(async (hub) => {
+    const st = await stateWhen(hub, (s) => s.catalog.themes.length > 0);
+    assert.deepEqual(st.catalog.themes.map((t) => t.name), ['cat']);
+    assert.equal(st.settings.theme, 'mine', 'only a hub still on the default theme switches');
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, settingsFile, fetch: market(), firstRunTheme: true });
+});
+
+test('settings_file_drops_bad_entries_and_a_corrupt_file_gives_the_defaults', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hubset-'));
+  const file = path.join(dir, 'settings.json');
+  fs.writeFileSync(file, JSON.stringify({ sound: 'loud', max_tiles: 4, idle_minutes: 3 }));
+  await withHub(async (hub) => {
+    const s = (await (await get(hub, '/state')).json()).settings;
+    assert.deepEqual([s.sound, s.max_tiles, s.idle_minutes], ['ask', 4, 5], 'a bad entry falls back to its default, the rest is kept');
+  }, { settingsFile: file });
+  fs.writeFileSync(file, '{broken');
+  await withHub(async (hub) => {
+    const s = (await (await get(hub, '/state')).json()).settings;
+    assert.deepEqual([s.sound, s.max_tiles, s.idle_minutes, s.done_excerpt], ['ask', 0, 5, 'first']);
+  }, { settingsFile: file });
+});
+
+test('settings_accept_idle_minutes_done_excerpt_and_an_empty_variant', () => withHub(async (hub) => {
+  assert.equal((await post(hub, '/settings', { idle_minutes: 2, done_excerpt: 'last', themeVariant: '' })).status, 200);
+  const s = (await (await get(hub, '/state')).json()).settings;
+  assert.deepEqual([s.idle_minutes, s.done_excerpt, s.themeVariant], [2, 'last', '']);
+  assert.equal((await post(hub, '/settings', { idle_minutes: 3 })).status, 400);
+  assert.equal((await post(hub, '/settings', { done_excerpt: 'mid' })).status, 400);
+}));
+
+test('market_sources_stop_at_ten', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    for (let i = 1; i <= 9; i++) assert.equal((await postJson(hub, '/market/sources', { add: `o/r${i}` })).status, 200, `source ${i + 1}`);
+    assert.equal((await (await get(hub, '/state')).json()).settings.marketSources.length, 10);
+    const r = await postJson(hub, '/market/sources', { add: 'o/r10' });
+    assert.equal(r.status, 400);
+    assert.equal(await r.text(), 'at most 10 sources');
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
