@@ -1,25 +1,32 @@
 # agentsdash
 
-One page that shows what your coding agents are doing.
+A dashboard for your coding agents (**Claude Code**, **Codex**): every session on one screen, the ones waiting for you in orange, answered with one click.
 
-Every session, every sub-agent, how far each plan has come, and which agent is waiting for you.
-Answer its question or allow its command with one click on the page.
-
-It works with **Claude Code** and **Codex**, in your browser, with nothing to buy and nothing to flash.
-Put the page on a second monitor, or on a phone or a tablet next to the keyboard.
-
-## On any screen
-
-The page needs nothing but a browser, so any screen near you can show it.
-An old phone or a tablet on a stand next to the keyboard becomes a dedicated screen: your agents stay in sight while the monitor keeps your code.
+Put it on a tablet or an old phone next to the keyboard: your agents stay in sight while the monitor keeps your code.
 
 <p>
-<img src="docs/images/screen-phone-desk.jpg" width="32%" alt="A phone on a stand beside the keyboard shows a session and its 4 sub-agents">
-<img src="docs/images/screen-tablet.jpg" width="32%" alt="A tablet on the desk shows the same session">
+<img src="docs/images/screen-tablet.jpg" width="32%" alt="A tablet on the desk shows a session and its 4 sub-agents">
+<img src="docs/images/screen-phone-desk.jpg" width="32%" alt="A phone on a stand beside the keyboard shows the same session">
 <img src="docs/images/screen-phone-bench.jpg" width="32%" alt="A phone on an electronics workbench shows the same session">
 </p>
 
-Illustrations of the idea: the screen drawn in them is simpler than the real page (see the tour below).
+<sub>Illustrations of the idea. The real page is in the tour below.</sub>
+
+## Goals
+
+Run several agents at once without watching every terminal.
+
+- **Keep your focus**: a question or a permission prompt turns its tile orange and beeps.
+- **Answer without switching windows**: click an option, or Allow or Deny, right on the tile.
+- **Know where every task stands**: the current step, the steps done and the ones left, for every session.
+- **Follow your agents at work**: sub-agents, current action, context used, quota left.
+- **Come back at the right moment**: the last reply of each agent is on its tile.
+
+![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question answered on the page, a command allowed on the page, an error, a session is done, then the same view on a monitor and a phone](docs/images/tour.gif)
+
+## On any screen
+
+The page needs nothing but a browser: nothing to buy, nothing to flash.
 
 | Screen | How | What it does |
 |---|---|---|
@@ -60,34 +67,6 @@ Details and manual install: [agentsdash-codex](https://github.com/tfabien/agents
 Start a new session (hooks load when a session starts) and open **<http://127.0.0.1:8765/>**. Node.js 18 or later is needed.
 
 Running the hub alone, updates and troubleshooting: [INSTALL.md](INSTALL.md).
-
-## Goals
-
-Run several agents at once and stay productive, without watching every terminal.
-
-1. **Keep your focus**: start your agents, work on something else, and let the page tell you when one needs you.
-
-   A question or a permission prompt turns its tile orange and beeps, so no agent sits blocked for an hour without you noticing.
-
-2. **Answer without switching windows**: the options of a question and the Allow and Deny buttons of a permission prompt are on the tile.
-
-   One click sends the answer to the agent, which goes on while you stay where you were.
-
-3. **Know where every task stands**: one glance gives, for each session, the step that runs now, the steps done and the ones left.
-
-   No more scrolling a terminal to find out whether a plan is at step 2 or step 7.
-
-4. **Follow your agents at work**: every session, its sub-agents, what each one is doing, how much context it has used and how much of your quota is left.
-
-   Like a stand-up meeting of your agents, on one screen.
-
-5. **Get your answers faster**: the last reply of each agent is on its tile, and a finished session says so.
-
-   You come back to the right session at the right moment.
-
-![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question answered on the page, a command allowed on the page, an error, a session is done, then the same view on a monitor and a phone](docs/images/tour.gif)
-
-The hub in this repository is a small Node.js server that draws the screen **in your browser**, fed by adapters that watch your agents.
 
 ## What you see
 
