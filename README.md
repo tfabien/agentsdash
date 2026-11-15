@@ -137,7 +137,7 @@ The palette button of the bar opens the theme dialog: install themes from the ma
 
 Project rules (settings menu) give the sessions of some folders their own badge color or icon pack, for example a red badge on `prod-*` folders.
 
-A few of the themes of [agentsdash-themes](https://github.com/tfabien/agentsdash-themes), on the same four sessions:
+A few of the themes of [agentsdash-themes](https://github.com/tfabien/agentsdash-themes), on the same session full screen with its plan and 4 sub-agents (`node hub/tools/page_screenshots.mjs --themes robot,cat-minimal,fantasy-rpg,office-retro`):
 
 | robot | cat-minimal |
 |---|---|
