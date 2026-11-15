@@ -30,7 +30,10 @@ export function createPhoneSection() {
     } else if (info.url) {
       const qr = el('div', 'sqr');
       qr.innerHTML = qrSvg(info.url);                   // markup built by qr.js from the module grid only, never from the address
-      body.push(el('div', 'shint', 'Scan with the phone camera, on the same Wi-Fi.'), qr, el('code', 'surl', info.url), button('Turn off phone access', () => setLan(false)));
+      body.push(el('div', 'shint', 'Scan with the phone camera, on the same Wi-Fi.'), qr, el('code', 'surl', info.url));
+      const others = (Array.isArray(info.urls) ? info.urls : []).filter((u) => u !== info.url);
+      if (others.length) body.push(el('div', 'shint', 'The phone cannot open it? Try another address of this computer:'), ...others.map((u) => el('code', 'surl', u)));
+      body.push(button('Turn off phone access', () => setLan(false)));
     } else {
       body.push(el('div', 'shint', 'Phone access is on, but this computer has no private network address. Connect to Wi-Fi, then open this panel again.'), button('Turn off phone access', () => setLan(false)));
     }

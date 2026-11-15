@@ -145,7 +145,7 @@ Rescans the theme and icon folders.
 ## LAN access (phone)
 
 Off by default. `lan.enabled` in the config file (or `AGENTSDASH_LAN=1`) binds the hub to `lan.bind` (default `0.0.0.0`). A client that does not connect from loopback must carry the cookie `agentsdash_token`, else 401.
-It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/health` and the static files and icons the page loads (anything else: 403), and its `Host` must be a private address or the name of the machine. The token lives in `~/.agentsdash/lan-token`.
+It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/health` and the static files and icons the page loads (anything else: 403), and its `Host` must be a private address or the name of the machine (any case). The token lives in `~/.agentsdash/lan-token`.
 
 ### GET /pair
 
@@ -153,11 +153,12 @@ It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/h
 
 ### GET /pair-info
 
-Loopback only. Answers `{ "enabled": <bool>, "url": "http://<private ip>:<port>/pair?t=<token>" }`; `url` is `null` when phone access is off or the machine has no private address.
+Loopback only. Answers `{ "enabled": <bool>, "url": "http://<private ip>:<port>/pair?t=<token>", "urls": [...] }`; `url` is `null` and `urls` empty when phone access is off or the machine has no private address.
+`urls` holds a pairing URL for every private address, ranked: real adapters before virtual ones (WSL, Hyper-V, Docker, VMware, VirtualBox), then 192.168/16, 10/8, 172.16/12. `url` is the first.
 
 ### POST /lan
 
-Loopback only. Body `{ "enabled": true|false }` (else 400). Turns phone access on or off while the hub runs: the hub writes `lan.enabled` to the config file, creates the token when needed and moves its listener to `lan.bind` (on) or `127.0.0.1` (off); open connections stay. Answers `{ "ok": true, "enabled": <bool> }`.
+Loopback only. Body `{ "enabled": true|false }` (else 400). Turns phone access on or off while the hub runs: the hub writes `lan.enabled` to the config file, creates the token when needed and moves its listener to `lan.bind` (on) or `127.0.0.1` (off); open connections stay, and a request from a non-loopback client gets 403 while phone access is off. Answers `{ "ok": true, "enabled": <bool> }` once the listener has moved: when `lan.bind` cannot be bound, the hub stays on `127.0.0.1`, writes `lan.enabled: false` and answers `enabled: false`.
 
 ## Hub management routes
 

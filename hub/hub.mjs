@@ -22,7 +22,7 @@ import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
 import { stateDir, userDir, migrateUserDir } from './paths.mjs';
 import { webFingerprint } from './web_fingerprint.mjs';
-import { COOKIE, setLan, isLoopback, loadOrCreateToken, tokenMatches, lanHosts, privateAddresses, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
+import { COOKIE, setLan, isLoopback, loadOrCreateToken, tokenMatches, rankPairAddresses, lanHosts, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
@@ -208,14 +208,16 @@ export function startHub(opts = {}) {
   async function handle(req, res) {
     // No CORS: other web pages cannot read the state. A request must name this hub in Host (DNS rebinding) and, when it carries
     // an Origin (a browser POST from another page), that Origin must be the hub itself. The plugin sends no Origin.
-    const port = server.address().port;
+    const port = boundPort;                       // server.address() is null while a rebind is under way
     const url = new URL(req.url, 'http://x');
     const route = `${req.method} ${url.pathname}`;
     // A LAN client (phone): same Host and Origin rule over the LAN names, then the pairing cookie, then read-only routes (lan.mjs).
-    const remote = lan.enabled && (lan.treatAllAsRemote || !isLoopback(req.socket.remoteAddress));
+    // Remote is decided by the socket alone: a LAN socket opened while phone access was on is still refused once it is off.
+    const remote = lan.treatAllAsRemote || !isLoopback(req.socket.remoteAddress);
+    if (remote && !lan.enabled) return text(res, 403, 'forbidden');
     const self = remote ? lanHosts(port, lan.hosts) : new Set(['127.0.0.1', 'localhost', '[::1]'].map((h) => `${h}:${port}`));
-    if (!self.has(req.headers.host)) return text(res, 403, 'forbidden host');
-    if (req.headers.origin !== undefined && !self.has(String(req.headers.origin).replace(/^http:\/\//, ''))) return text(res, 403, 'forbidden origin');
+    if (!self.has(String(req.headers.host).toLowerCase())) return text(res, 403, 'forbidden host');
+    if (req.headers.origin !== undefined && !self.has(String(req.headers.origin).replace(/^http:\/\//i, '').toLowerCase())) return text(res, 403, 'forbidden origin');
     if (remote && route !== 'GET /pair') {
       if (!tokenMatches(parseCookie(req.headers.cookie, COOKIE), lanToken)) return text(res, 401, 'unauthorized');
       if (!REMOTE_ROUTES.has(route) && !(req.method === 'GET' && isRemoteStatic(url.pathname))) return text(res, 403, 'forbidden');
@@ -226,14 +228,14 @@ export function startHub(opts = {}) {
         res.writeHead(302, { Location: '/phone', 'Set-Cookie': `${COOKIE}=${lanToken}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000` });
         return res.end();
       case 'GET /pair-info': {                      // loopback only (a remote client is stopped above)
-        const ip = privateAddresses()[0];
-        return json(res, { enabled: lan.enabled, url: lanToken && ip ? `http://${ip}:${port}/pair?t=${lanToken}` : null });
+        const urls = lanToken ? rankPairAddresses().map((ip) => `http://${ip}:${port}/pair?t=${lanToken}`) : [];
+        return json(res, { enabled: lan.enabled, url: urls[0] ?? null, urls });
       }
       case 'POST /lan': {                           // loopback only: the page and pair.mjs turn phone access on or off while the hub runs
         const body = await jsonBody(req, res);
         if (!body) return undefined;
         if (typeof body.enabled !== 'boolean') return text(res, 400, 'enabled must be true or false');
-        setLanEnabled(body.enabled);
+        await setLanEnabled(body.enabled);          // after the rebind: a bind that failed answers enabled false
         return json(res, { ok: true, enabled: lan.enabled });
       }
       case 'GET /health': return json(res, { ok: true, version: pluginVersion, core: pluginVersion, protocol: PROTOCOL_VERSION, script: realScript, startedAt });
@@ -496,26 +498,41 @@ export function startHub(opts = {}) {
 
   let started = false;
   let boundPort = wantedPort;
-  /** Phone access on or off: the config file, the token, and the listening address (open connections stay, new ones use the new address). */
+  let rebindDone = null;                                     // resolves the pending setLanEnabled once the new listener is up or given up
+  const saveLan = (enabled) => { if (opts.configFile) { try { setLan(opts.configFile, enabled); } catch { /* it still holds until the hub stops */ } } };
+  /**
+   * Phone access on or off: the config file, the token, and the listening address (open connections stay, new ones use the new address).
+   * Resolves once the listener has moved; `lan.enabled` is then false when the bind failed.
+   */
   function setLanEnabled(enabled) {
     lan.enabled = enabled;
     lanToken = enabled ? (lanToken ?? loadOrCreateToken(tokenFile)) : null;
-    if (opts.configFile) { try { setLan(opts.configFile, enabled); } catch { /* it still holds until the hub stops */ } }
-    if (opts.host) return;                                   // an explicit host (tests) is never moved
+    saveLan(enabled);
+    if (opts.host) return Promise.resolve();                 // an explicit host (tests) is never moved
     const next = enabled ? lan.bind : '127.0.0.1';
-    if (next === host || !started) return;
+    if (next === host || !started) return Promise.resolve();
     host = next;
     server.close();
+    const done = new Promise((resolve) => { rebindDone = resolve; });
     server.listen(boundPort, host);
+    return done;
   }
+  server.on('listening', () => { rebindDone?.(); rebindDone = null; });
 
   return new Promise((resolve, reject) => {
     server.on('error', (e) => {
       if (!started) { clearInterval(timer); clearInterval(firstThemeTimer); updater.stop(); reject(e); return; }
+      if (host === '127.0.0.1') {                            // the fallback failed too: stop here, no listen loop
+        process.stderr.write(`agentsdash hub: cannot listen on 127.0.0.1 (${e.code ?? e.message}), no listener left
+`);
+        rebindDone?.(); rebindDone = null;
+        return;
+      }
       process.stderr.write(`agentsdash hub: cannot listen on ${host} (${e.code ?? e.message}), back to 127.0.0.1
 `);   // a rebind that failed
       lan.enabled = false; lanToken = null; host = '127.0.0.1';
-      try { server.listen(boundPort, host); } catch { /* the hub keeps running without a listener */ }
+      saveLan(false);                                        // else the next start tries the same bind and exits
+      try { server.listen(boundPort, host); } catch { rebindDone?.(); rebindDone = null; }
     });
     server.listen(wantedPort, host, () => {
       started = true;
