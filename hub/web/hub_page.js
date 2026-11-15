@@ -13,6 +13,7 @@ import { askConfirm } from './confirm_dialog.js';
 import { applyTheme, setCatalog } from './themes.js';
 import { previewSessions } from './preview_state.js';
 import { onIconsLoaded } from './icon_packs.js';
+import { nextDelay } from './reconnect.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const $ = (id) => document.getElementById(id);
@@ -144,12 +145,12 @@ function tap(t, e) {
   const lead0 = tiles.get(s.id) ?? t;
   const detailOpen = Boolean(lead0.detail && s.agents.some((a) => a.id === lead0.detail.agent));
   const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead0.quest, measure: (txt, font) => t.screen.measure(txt, font) });
-  const answer = permAnswer(hit, s);
+  const answer = PHONE ? null : permAnswer(hit, s);      // the phone page only reads: the hub refuses its answers (403)
   if (answer) {                                           // Allow or Deny of a permission request: the state that follows redraws the tile
     fetch('/permission/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(answer) }).catch(() => {});
     return;
   }
-  const quest = questTap(hit, s, lead0.quest);
+  const quest = PHONE ? null : questTap(hit, s, lead0.quest);
   if (quest) {                                            // a question for the page: the picks so far live on the lead tile, the last one posts them
     lead0.quest = quest.local;
     if (quest.post) {
@@ -389,18 +390,29 @@ function showState(next) {
   receivedAt = performance.now();
 }
 
-const es = new EventSource('/events');                // the only stream: every tile reads the same state
+// The only stream: every tile reads the same state. A browser EventSource stays closed for good after a non-200 answer, so on any
+// error the page closes it and opens a new one after 1 s, doubling up to 10 s. The first message of a new stream is the full state.
 let webSeen = null;                                   // fingerprint of the page's files on the hub that served this page
-es.onmessage = (m) => {
-  const raw = JSON.parse(m.data);
-  if (raw.web) {                                      // a hub restarted on newer page files: load them instead of drawing with old code
-    if (webSeen === null) webSeen = raw.web;
-    else if (raw.web !== webSeen) { location.reload(); return; }
-  }
-  const next = cache.merge(raw); showState(next); render(); flashChanged(next);
-};
-es.onerror = () => document.body.classList.add('offline');
-es.onopen = () => document.body.classList.remove('offline');
+let retryDelay = 0;
+function connect() {
+  const es = new EventSource('/events');
+  es.onmessage = (m) => {
+    const raw = JSON.parse(m.data);
+    if (raw.web) {                                    // a hub restarted on newer page files: load them instead of drawing with old code
+      if (webSeen === null) webSeen = raw.web;
+      else if (raw.web !== webSeen) { location.reload(); return; }
+    }
+    const next = cache.merge(raw); showState(next); render(); flashChanged(next);
+  };
+  es.onopen = () => { retryDelay = 0; document.body.classList.remove('offline'); };
+  es.onerror = () => {
+    document.body.classList.add('offline');            // greys the tiles; the phone page also shows its "hub unreachable" banner
+    es.close();
+    retryDelay = nextDelay(retryDelay);
+    setTimeout(connect, retryDelay);
+  };
+}
+connect();
 setInterval(render, 1000);                            // ages and the clock run on between events
 setInterval(draw, FRAME_MS);
 onIconsLoaded(draw);                                  // an SVG icon that just loaded replaces the robot at once

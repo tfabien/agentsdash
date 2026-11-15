@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startHub } from '../hub.mjs';
 import { nextDelay } from '../web/reconnect.js';
 
@@ -42,4 +43,42 @@ test('manifest_is_standalone_with_existing_icons', () => withHub(async (get) => 
 
 test('phone_assets_are_served', () => withHub(async (get) => {
   for (const f of ['/phone.js', '/phone.css', '/reconnect.js']) assert.equal((await get(f)).status, 200, f);
+}));
+
+const WEB = fileURLToPath(new URL('../web/', import.meta.url));
+const webFile = (f) => fs.readFileSync(path.join(WEB, f), 'utf8');
+
+test('both_pages_carry_every_element_hub_page_reads', () => withHub(async (get) => {
+  const ids = [...new Set([...webFile('hub_page.js').matchAll(/\$\('([\w-]+)'\)/g)].map((m) => m[1]))];
+  assert.ok(ids.includes('back') && ids.includes('jump'));
+  for (const page of ['/', '/phone']) {
+    const html = await (await get(page)).text();
+    const missing = ids.filter((id) => !html.includes(`id="${id}"`));
+    assert.deepEqual(missing, [], page);
+  }
+}));
+
+test('phone_taps_answer_no_permission_nor_question', () => {
+  const src = webFile('hub_page.js');
+  assert.match(src, /PHONE \? null : permAnswer\(/);
+  assert.match(src, /PHONE \? null : questTap\(/);
+});
+
+// The modules a page loads: its module scripts and their static imports, under web/.
+function moduleGraph(html) {
+  const seen = new Set();
+  const visit = (f) => {
+    if (seen.has(f)) return;
+    seen.add(f);
+    for (const m of webFile(f).matchAll(/^import\s[^;]*?from\s+'\.\/([\w.-]+)'/gm)) visit(m[1]);
+  };
+  for (const m of html.matchAll(/<script type="module" src="\/([\w.-]+)"/g)) visit(m[1]);
+  return [...seen];
+}
+
+test('phone_page_opens_one_event_stream', () => withHub(async (get) => {
+  const mods = moduleGraph(await (await get('/phone')).text());
+  assert.ok(mods.includes('phone.js') && mods.includes('hub_page.js'));
+  assert.deepEqual(mods.filter((f) => webFile(f).includes('new EventSource(')), ['hub_page.js']);
+  assert.match(webFile('hub_page.js'), /import \{ nextDelay \} from '\.\/reconnect\.js'/);
 }));
