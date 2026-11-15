@@ -1,4 +1,4 @@
-// Reconnect delay of the phone page: 1 s at first, doubling up to 10 s.
+// Reconnect delay of the page's event stream (hub_page.js): 1 s at first, doubling up to 10 s.
 export const MIN_DELAY = 1000;
 export const MAX_DELAY = 10000;
 

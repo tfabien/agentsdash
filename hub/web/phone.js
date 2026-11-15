@@ -1,7 +1,5 @@
-// Phone page extras: keeps the screen on, shows "hub unreachable" and reloads once the hub is back.
-import { nextDelay } from './reconnect.js';
-
-const banner = document.getElementById('hub-down');
+// Phone page extras: keeps the screen on and offers full screen. The page's one event stream lives in hub_page.js, which sets
+// body.offline while the hub is unreachable; phone.css shows the "hub unreachable" banner from that class.
 
 // Screen Wake Lock: asked after the first touch (browsers require a gesture) and again when the page comes back to the front.
 let lock = null;
@@ -43,26 +41,6 @@ document.getElementById('onboard-ok').onclick = () => {
 fsButton.onclick = enterFullscreen;
 document.addEventListener('fullscreenchange', render);
 render();
-
-// Own watcher stream: the banner follows it; when it reopens after a drop the page reloads, so the tiles read a fresh state.
-let delay = 0;
-let wasDown = false;
-function watch() {
-  const es = new EventSource('/events');
-  es.onopen = () => {
-    delay = 0;
-    banner.hidden = true;
-    if (wasDown) location.reload();
-  };
-  es.onerror = () => {
-    wasDown = true;
-    banner.hidden = false;
-    es.close();                                  // one retry loop of our own, whatever the browser would do
-    delay = nextDelay(delay);
-    setTimeout(watch, delay);
-  };
-}
-watch();
 
 // /phone?debug prints what the phone measures (the page has no developer console on a phone).
 if (new URLSearchParams(location.search).has('debug')) {
