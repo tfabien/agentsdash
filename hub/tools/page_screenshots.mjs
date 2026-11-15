@@ -2,6 +2,7 @@
 // Real screenshots of the hub page for the README: starts a demo hub (demo_seed.mjs), drives a headless Edge or Chrome through the DevTools protocol
 // (click the real buttons, wait, capture) and saves docs/images/page-<shot>.png.
 //   node hub/tools/page_screenshots.mjs [--out docs/images] [--width 1280] [--height 800] [shot ...]
+//   node hub/tools/page_screenshots.mjs --themes robot,cat-minimal,fantasy-rpg,office-retro   (theme-<name>.png: one session full screen with its team)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +34,8 @@ export const SHOTS = {
 };
 // What the README uses (the default run), in the order of its sections.
 const DEFAULT_SHOTS = ['hub', 'plan', 'question', 'permission', 'subs3', 'compact', 'detail', 'quotas'];
+// The theme gallery of the README: each marketplace theme on the same session, full screen with its plan and 4 sub-agents.
+const THEME_SHOT = { scene: 'plan', clip: ONE };
 
 /** The rectangle around every element matching `selector`, 12 px of margin (so a frame is not cut), kept inside the window. */
 async function selectorRect(cdp, selector) {
@@ -57,22 +60,29 @@ async function main() {
   const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : dflt; };
   const out = path.resolve(opt('--out', path.join(HERE, '..', '..', 'docs', 'images')));
   const width = Number(opt('--width', 1280)), height = Number(opt('--height', 680));
+  const themes = opt('--themes', '').split(',').filter(Boolean);
   const names = args.length ? args : DEFAULT_SHOTS;
   fs.mkdirSync(out, { recursive: true });
   const { cdp, close } = await openPage({ width, height });
   let demo;
   try {
-    demo = await startDemoHub({ themes: (process.env.DEMO_THEMES ?? 'office').split(',').filter(Boolean) });
-    for (const name of names) {
-      const shot = SHOTS[name];
+    demo = await startDemoHub({ themes: themes.length ? themes : (process.env.DEMO_THEMES ?? 'office').split(',').filter(Boolean) });
+    const jobs = themes.length
+      ? themes.map((theme) => ({ shot: THEME_SHOT, theme, file: `theme-${theme}.png` }))
+      : names.map((name) => ({ shot: SHOTS[name], name, file: `page-${name}.png` }));
+    for (const { shot, name, theme, file: base } of jobs) {
       if (!shot) throw new Error(`unknown shot ${name}: ${Object.keys(SHOTS).join(', ')}`);
+      if (theme) {
+        const r = await fetch(`http://127.0.0.1:${demo.hub.port}/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme }) });
+        if (!r.ok) throw new Error(`apply theme ${theme}: ${r.status} ${await r.text()}`);
+      }
       await applyScene(demo.hub, shot.scene);
       await cdp.send('Page.navigate', { url: `http://127.0.0.1:${demo.hub.port}/` });
       await sleep(2500);                                          // the page connects, loads the theme images and draws
       for (const step of shot.steps ?? []) await runStep(cdp, step);
       const clip = typeof shot.clip === 'string' ? await clipRect(cdp, shot.clip) : shot.clip;
       const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 } } : {}) });
-      const file = path.join(out, `page-${name}.png`);
+      const file = path.join(out, base);
       fs.writeFileSync(file, Buffer.from(data, 'base64'));
       console.log('wrote', file);
     }
