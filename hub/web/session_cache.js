@@ -18,6 +18,12 @@ export function createSessionCache(storage, now = Date.now) {
     if (Array.isArray(saved)) entries = new Map(saved.filter((e) => e && e.session?.id).map((e) => [e.session.id, e]));
   } catch { /* no cache */ }
 
+  // The stale copy of a cached session at time t: every agent age moves on by the seconds since the last confirmation.
+  const carry = (e, t) => {
+    const gone = Math.floor((t - e.seen) / 1000);
+    return { ...e.session, stale: true, agents: e.session.agents.map((a) => ({ ...a, age: a.age + gone })) };
+  };
+
   const save = () => { try { storage?.setItem(KEY, JSON.stringify([...entries.values()])); } catch { /* quota or private mode */ } };
 
   /** The state to show: the hub's sessions, then the cached ones the hub does not know yet (marked `stale`, ages moved on). */
@@ -30,8 +36,7 @@ export function createSessionCache(storage, now = Date.now) {
       if (live.has(id)) continue;
       const lost = e.boot === boot || boot === null;                // confirmed by this very hub before: it ended or was dismissed
       if (lost || t - e.seen > STALE_MS) { entries.delete(id); continue; }
-      const gone = Math.floor((t - e.seen) / 1000);
-      carried.push({ ...e.session, stale: true, agents: e.session.agents.map((a) => ({ ...a, age: a.age + gone })) });
+      carried.push(carry(e, t));
     }
     for (const s of next.sessions) entries.set(s.id, { session: s, seen: t, boot });
     save();
@@ -41,10 +46,7 @@ export function createSessionCache(storage, now = Date.now) {
   /** Right after a page load, before any hub state: the cached sessions still inside the time limit, all stale. */
   function restore() {
     const t = now();
-    return [...entries.values()].filter((e) => t - e.seen <= STALE_MS).map((e) => {
-      const gone = Math.floor((t - e.seen) / 1000);
-      return { ...e.session, stale: true, agents: e.session.agents.map((a) => ({ ...a, age: a.age + gone })) };
-    });
+    return [...entries.values()].filter((e) => t - e.seen <= STALE_MS).map((e) => carry(e, t));
   }
 
   /** The user dismissed a session on the page: it does not come back from the cache. */
