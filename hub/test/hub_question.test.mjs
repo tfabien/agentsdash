@@ -114,7 +114,20 @@ test('dismiss_and_reset_clear_the_question', () => withHub(async (hub) => {
   assert.deepEqual(await (await b).json(), { none: true });
 }));
 
-test('bad_bodies_get_400', () => withHub(async (hub) => {
+test('a_long_session_id_is_cut_like_the_event_so_the_tile_shows_the_question', () => withHub(async (hub) => {
+  const long = { session: 'abcdef', agent: 'leadXX' };
+  await post(hub, '/event', { ...EV, ...long });
+  const held = post(hub, '/question', { ...REQ, ...long });
+  assert.equal((await questOf(hub)).questions.length, 2, 'tile abcd shows the question of session abcdef');
+  await post(hub, '/event', { ...EV, ...long, evt: 'Stop', state: 'your_turn', question: '', options: '' });
+  assert.deepEqual(await (await held).json(), { none: true }, 'the Stop matches the cut ids too');
+  const again = post(hub, '/question', { ...REQ, ...long });
+  await questOf(hub);
+  assert.equal((await post(hub, '/question/release', long)).status, 200);
+  assert.deepEqual(await (await again).json(), { none: true }, 'the release matches the cut ids too');
+}));
+
+test('bad_bodies_get_400',() => withHub(async (hub) => {
   assert.equal((await post(hub, '/question', { session: 'abcd', agent: 'lead' })).status, 400);
   assert.equal((await post(hub, '/question', { ...REQ, questions: [{ question: 'q', options: ['only'] }] })).status, 400);
   assert.equal((await fetch(`http://127.0.0.1:${hub.port}/question`, { method: 'POST', body: '{nope' })).status, 400);

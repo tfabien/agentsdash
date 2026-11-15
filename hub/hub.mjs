@@ -61,6 +61,17 @@ const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
 const pluginVersion = (() => { try { return JSON.parse(fs.readFileSync(path.join(HUB_DIR, 'package.json'), 'utf8')).version ?? ''; } catch { return ''; } })();
 const realScript = (() => { try { return fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return fileURLToPath(import.meta.url); } })();
 const str = (v) => (typeof v === 'string' ? v : '');
+// A session or agent id as the model keeps it (clean() in model.mjs, ID_LEN 4): tab and newline become a space, other control
+// characters go, cut to 4 characters. Held requests and their clearing events use it, so they match the tile id.
+const idKey = (v) => {
+  let out = '';
+  for (const ch of String(v ?? '')) {
+    const c = ch.codePointAt(0);
+    if (c === 10 || c === 9) out += ' ';
+    else if (c >= 32 && c !== 127 && !(c >= 0x80 && c < 0xa0)) out += ch;
+  }
+  return out.slice(0, 4);
+};
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 
 function readBody(req) {
@@ -105,7 +116,9 @@ export function startHub(opts = {}) {
   // Permission requests held for the page (POST /permission): the hook waits, a click on the page answers.
   const perms = createPermissions();
   perms.onChange(() => publish());
-  const CLEARING_EVTS = new Set(['PostToolUse', 'PostToolUseFailure', 'PermissionDenied', 'Stop', 'SessionEnd']);    // the terminal moved on
+  // The terminal moved on: an event of the same session and agent ends that agent's request (a parallel sub-agent or the lead's
+  // Stop leaves a sub-agent's request alone); SessionEnd ends every request of the session.
+  const CLEARING_EVTS = new Set(['PostToolUse', 'PostToolUseFailure', 'PermissionDenied', 'Stop', 'SubagentStop']);
   // Questions of AskUserQuestion held for the page (POST /question). The terminal shows nothing while the hook waits, so only the
   // end of the turn clears one (a parallel tool's PostToolUse must not): a new prompt, Stop, StopFailure, SessionEnd of the same agent.
   const quests = createQuestions();
@@ -353,7 +366,7 @@ export function startHub(opts = {}) {
         const body = await jsonBody(req, res);
         if (!body) return undefined;
         if (!str(body.session) || !str(body.agent) || !str(body.tool)) return text(res, 400, 'session, agent and tool are required');
-        const { id, promise } = perms.open({ session: str(body.session), agent: str(body.agent), tool: str(body.tool), cmd: str(body.cmd), detail: str(body.detail), wait_s: body.wait_s });
+        const { id, promise } = perms.open({ session: idKey(str(body.session)), agent: idKey(str(body.agent)), tool: str(body.tool), cmd: str(body.cmd), detail: str(body.detail), wait_s: body.wait_s });
         res.on('close', () => perms.cancel(id));     // the hook went away: nothing to answer any more
         return json(res, { decision: await promise });
       }
@@ -368,7 +381,7 @@ export function startHub(opts = {}) {
         if (!body) return undefined;
         const questions = cleanQuestions(body.questions);
         if (!str(body.session) || !str(body.agent) || !questions) return text(res, 400, 'session, agent and 1 to 4 questions of 2 to 4 options are required');
-        const { id, promise } = quests.open({ session: str(body.session), agent: str(body.agent), questions, wait_s: body.wait_s });
+        const { id, promise } = quests.open({ session: idKey(str(body.session)), agent: idKey(str(body.agent)), questions, wait_s: body.wait_s });
         res.on('close', () => quests.release(id));   // the hook went away: nothing to answer any more
         const picks = await promise;
         return json(res, picks ? { picks } : { none: true });
@@ -385,7 +398,7 @@ export function startHub(opts = {}) {
         const body = await jsonBody(req, res);
         if (!body) return undefined;
         if (!body.session || !body.agent) return text(res, 400, 'session and agent are required');
-        quests.clear(String(body.session), String(body.agent));
+        quests.clear(idKey(body.session), idKey(body.agent));
         return text(res, 200, 'ok');
       }
       case 'POST /event':
@@ -398,8 +411,10 @@ export function startHub(opts = {}) {
         if (!body) return undefined;
         if (route === 'POST /event') {
           if (!model.applyEvent(body, now())) return text(res, 400, 'session, agent and a valid state are required');
-          if (CLEARING_EVTS.has(body.evt)) perms.clearSession(String(body.session));
-          if (QUEST_CLEARING_EVTS.has(body.evt)) quests.clear(String(body.session), String(body.agent));
+          const session = idKey(body.session), agent = idKey(body.agent);
+          if (body.evt === 'SessionEnd') perms.clear(session);
+          else if (CLEARING_EVTS.has(body.evt)) perms.clear(session, agent);
+          if (QUEST_CLEARING_EVTS.has(body.evt)) quests.clear(session, agent);
           for (const fn of eventTaps) { try { fn(body); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /usage') {
           if (typeof body.v !== 'number') return text(res, 400, 'v is required');
@@ -408,7 +423,7 @@ export function startHub(opts = {}) {
         } else if (route === 'POST /dismiss') {
           const id = String(body.session ?? '');
           if (!model.dismiss(id)) return text(res, 404, 'unknown session');
-          perms.clearSession(id);
+          perms.clear(id);
           quests.clear(id);
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {

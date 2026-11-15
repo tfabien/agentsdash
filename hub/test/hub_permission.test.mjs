@@ -122,12 +122,39 @@ test('each_event_that_moves_the_session_on_returns_none', async () => {
   }
 });
 
-test('a_sub_agent_tool_end_clears_the_lead_request_too', () => withHub(async (hub) => {
+test('a_sub_agent_tool_end_keeps_the_lead_request', () => withHub(async (hub) => {
   await post(hub, '/event', EV);
-  const held = post(hub, '/permission', REQ);
+  let settled = false;
+  const held = post(hub, '/permission', REQ).then((r) => { settled = true; return r; });
   await permOf(hub);
   await post(hub, '/event', { ...EV, agent: 'ab12', role: 'Explore', evt: 'PostToolUse', state: 'working', cmd: 'Read x' });
-  assert.deepEqual(await (await held).json(), { decision: 'none' }, 'the clear is session-wide (docs/protocol.md)');
+  await post(hub, '/event', { ...EV, agent: 'ab12', role: 'Explore', evt: 'SubagentStop', state: 'done', cmd: 'Done.' });
+  await sleep(50);
+  assert.equal(settled, false, 'another agent of the session does not end the request');
+  assert.ok(await permOf(hub), 'the tile keeps Allow/Deny');
+  await post(hub, '/event', { ...EV, evt: 'PostToolUse', state: 'working', cmd: 'Bash git status' });
+  assert.deepEqual(await (await held).json(), { decision: 'none' }, 'the same agent moving on ends it');
+}));
+
+test('the_lead_stop_keeps_a_sub_agent_request_until_its_subagent_stop', () => withHub(async (hub) => {
+  await post(hub, '/event', EV);
+  await post(hub, '/event', { ...EV, agent: 'ab12', role: 'Explore' });
+  let settled = false;
+  const held = post(hub, '/permission', { ...REQ, agent: 'ab12' }).then((r) => { settled = true; return r; });
+  await permOf(hub);
+  await post(hub, '/event', { ...EV, evt: 'Stop', state: 'your_turn', cmd: '' });
+  await sleep(50);
+  assert.equal(settled, false, 'the lead Stop leaves a background sub-agent request alone');
+  await post(hub, '/event', { ...EV, agent: 'ab12', role: 'Explore', evt: 'SubagentStop', state: 'done', cmd: 'Done.' });
+  assert.deepEqual(await (await held).json(), { decision: 'none' });
+}));
+
+test('a_long_session_id_is_cut_like_the_event_so_the_tile_shows_the_request', () => withHub(async (hub) => {
+  await post(hub, '/event', { ...EV, session: 'abcdef', agent: 'leadXX' });
+  const held = post(hub, '/permission', { ...REQ, session: 'abcdef', agent: 'leadXX' });
+  assert.equal((await permOf(hub)).tool, 'Bash', 'tile abcd shows the request of session abcdef');
+  await post(hub, '/event', { ...EV, session: 'abcdef', agent: 'leadXX', evt: 'PostToolUse', state: 'working', cmd: 'Bash git status' });
+  assert.deepEqual(await (await held).json(), { decision: 'none' }, 'the clearing event matches the cut ids too');
 }));
 
 test('permission_routes_answer_413_for_a_body_too_large_and_400_for_null', () => withHub(async (hub) => {

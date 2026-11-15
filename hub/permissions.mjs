@@ -48,9 +48,10 @@ export function createPermissions(opts = {}) {
     if (finish(id, 'none')) changed();
   }
 
-  function clearSession(session) {
+  /** Ends the requests of one agent of a session (or every agent when `agent` is left out). */
+  function clear(session, agent) {
     let any = false;
-    for (const p of [...pending.values()]) if (p.session === session) any = finish(p.id, 'none') || any;
+    for (const p of [...pending.values()]) if (p.session === session && (agent === undefined || p.agent === agent)) any = finish(p.id, 'none') || any;
     if (any) changed();
     return any;
   }
@@ -68,5 +69,5 @@ export function createPermissions(opts = {}) {
     return last && { id: last.id, tool: last.tool, cmd: last.cmd, detail: last.detail, until: last.until };
   }
 
-  return { open, answer, cancel, clearSession, clearAll, view, onChange: (fn) => { listeners.push(fn); } };
+  return { open, answer, cancel, clear, clearAll, view, onChange: (fn) => { listeners.push(fn); } };
 }
