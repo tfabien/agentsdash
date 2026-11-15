@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { formatTokens, formatAge, fmtDuration, relayLabel } from '../web/format.js';
 import { startHub } from '../hub.mjs';
 import { OPTIONS } from '../web/settings.js';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 
 test('format_helpers_match_firmware', () => {
@@ -46,6 +49,15 @@ test('main_address_and_hub_alias_serve_the_one_page', async () => {
     assert.equal((await fetch(`${base}/app.js`)).status, 404, 'the one-session page is gone');
     assert.equal((await fetch(`${base}/..%2fhub.mjs`)).status, 404);
   } finally { await hub.close(); }
+});
+
+test('every_stylesheet_in_web_is_linked_by_a_page', () => {
+  const web = fileURLToPath(new URL('../web/', import.meta.url));
+  const files = readdirSync(web);
+  const html = files.filter((f) => f.endsWith('.html')).map((f) => readFileSync(join(web, f), 'utf8')).join('\n');
+  for (const css of files.filter((f) => f.endsWith('.css'))) {
+    assert.match(html, new RegExp(`<link[^>]+href="/?${css.replace('.', '\\.')}"`), `${css} is linked by no page`);
+  }
 });
 
 test('settings_panel_offers_the_rate_glow_options', () => {
