@@ -231,7 +231,9 @@ let accent = '';                                             // `#rrggbb` icon t
 /** Sets the icon accent (see themes.js). Packs with tint mode `svg` or `hue` draw with it; `none` packs ignore it. */
 export function setAccent(hex) { accent = typeof hex === 'string' ? hex : ''; }
 
-// Tint mode `svg`: the file text is fetched once, `currentColor` becomes the accent, and the result is drawn from a blob URL.
+// Tint mode `svg`: the file text is fetched once per URL, `currentColor` becomes the accent, and the result is drawn from a blob URL
+// (freed once the image is decoded).
+const texts = new Map();                                     // url -> Promise<string> of the file text
 const tinted = new Map();                                    // url + accent -> Image | 'loading'
 function tintedImage(url, color) {
   const key = `${url}|${color}`;
@@ -239,16 +241,24 @@ function tintedImage(url, color) {
   if (hit === 'loading') return null;
   if (hit) return hit;
   tinted.set(key, 'loading');
-  fetch(url).then((r) => r.text()).then((svg) => {
+  let text = texts.get(url);
+  if (!text) {
+    text = fetch(url).then((r) => r.text());
+    text.catch(() => texts.delete(url));                     // a failed fetch is tried again at the next draw
+    texts.set(url, text);
+  }
+  text.then((svg) => {
     const img = new Image();
-    img.onload = () => { tinted.set(key, img); for (const cb of [...loadedListeners]) cb(); };
-    img.src = URL.createObjectURL(new Blob([svg.replace(/currentColor/gi, color)], { type: 'image/svg+xml' }));
+    const blob = URL.createObjectURL(new Blob([svg.replace(/currentColor/gi, color)], { type: 'image/svg+xml' }));
+    img.onload = () => { URL.revokeObjectURL(blob); tinted.set(key, img); for (const cb of [...loadedListeners]) cb(); };
+    img.onerror = () => { URL.revokeObjectURL(blob); tinted.delete(key); };
+    img.src = blob;
   }).catch(() => tinted.delete(key));
   return null;
 }
 
 /** Forgets the loaded images so the next draw fetches every SVG again (after the hub rescanned the icon folders). */
-export function clearIconCache() { images.clear(); animations.clear(); tinted.clear(); swapped.clear(); }
+export function clearIconCache() { images.clear(); animations.clear(); texts.clear(); tinted.clear(); swapped.clear(); }
 
 // Palette swaps: exact RGB replacements on the decoded pixels of a static raster image, at its own resolution. Alpha is never touched.
 const swapped = new Map();                                   // url + palette name -> canvas | 'failed'

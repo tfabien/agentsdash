@@ -477,6 +477,9 @@ test('settings_accept_theme_variant_and_overrides_and_refuse_invalid_ones', () =
   await postJson(hub, '/settings', { themeOverrides: { 'Bad Key': {} }, themeVariant: 'Not Ok' });
   st = (await (await get(hub, '/state')).json()).settings;
   assert.deepEqual([st.themeVariant, Object.keys(st.themeOverrides)], ['dark', ['cat/dark']]);
+  assert.equal((await postJson(hub, '/settings', { themeOverrides: { cat: { colors: {}, accent: 'none' } } })).status, 200, 'no accent is a valid edit');
+  st = (await (await get(hub, '/state')).json()).settings;
+  assert.equal(st.themeOverrides.cat.accent, 'none');
 }));
 
 test('post_themes_writes_a_user_theme_and_applies_it', async () => {

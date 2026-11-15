@@ -5,7 +5,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config.mjs';
-import { formatAge, formatTokens } from './web/format.js';
+import { formatAge, formatTokens, fmtDuration } from './web/format.js';
 
 const COLOR = { needs_you: 208, error: 196, your_turn: 41, working: 75, waiting_subs: 141, done: 245 };
 const LABEL = { needs_you: 'NEEDS YOU', error: 'error', your_turn: 'your turn', working: 'working', waiting_subs: 'waiting', done: 'done' };
@@ -70,7 +70,7 @@ export function renderAnsi(state, width = 80, clock = '') {
   if (state.more_sessions > 0) lines.push(compose(width, [{ text: `+${state.more_sessions} more sessions`, color: DIM }]));
   lines.push('');
   const u = state.usage;
-  const quota = (k, label) => (u && u[`${k}_pct`] !== undefined ? `${label} ${u[`${k}_pct`]}% ${formatAge(u[`${k}_reset_s`] ?? 0)}` : '');
+  const quota = (k, label) => (u && u[`${k}_pct`] !== undefined ? `${label} ${u[`${k}_pct`]}% ${fmtDuration(u[`${k}_reset_s`] ?? 0)}` : '');
   const q = [quota('h5', '5h'), quota('d7', '7d')].filter(Boolean).join('  ');
   lines.push(compose(width, [{ text: q || 'quotas unknown', color: DIM }]));
   return lines.join('\n');

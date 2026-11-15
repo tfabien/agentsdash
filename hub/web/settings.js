@@ -30,6 +30,13 @@ export const OPTIONS = [
     hint: 'Minutes a session waits for you before it counts as idle' },
 ];
 
+/** The USB port choices: [path, text] per listed port ("COM3 (CH340)" when it has a label), plus `draftPort` when the list lacks it. */
+export function portOptions(ports, draftPort) {
+  const listed = ports?.ports ?? [];
+  const paths = new Set([...listed.map((p) => p.path), ...(draftPort ? [draftPort] : [])]);
+  return [...paths].map((path) => { const label = listed.find((p) => p.path === path)?.label; return [path, label ? `${path} (${label})` : path]; });
+}
+
 const post = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
 const MODES = [['none', 'None'], ['http', 'Wi-Fi'], ['serial', 'USB']];
 
@@ -56,6 +63,7 @@ function createDeviceSection() {
   let dirty = false;
   let known = {};
   let ports = null;                                      // {ports, error} once listed
+  let portSig = '';                                      // the option list on screen: rebuilt only when it changes (an open dropdown stays open)
 
   const modeRow = el('div', 'sctl'), actionRow = el('div', 'sctl');
   modeRow.append(...modes.values());
@@ -72,9 +80,9 @@ function createDeviceSection() {
     host.hidden = draft.mode !== 'http';
     port.hidden = portNote.hidden = draft.mode !== 'serial';
     if (document.activeElement !== host) host.value = draft.host;
-    const paths = new Set([...(ports?.ports ?? []).map((p) => p.path), ...(draft.port ? [draft.port] : [])]);
-    port.replaceChildren(...[...paths].map((path) => { const o = el('option', '', (ports?.ports ?? []).find((p) => p.path === path)?.label ? `${path} (${ports.ports.find((p) => p.path === path).label})` : path); o.value = path; return o; }));
-    if (draft.port) port.value = draft.port; else if (paths.size) draft.port = port.value;
+    const opts = portOptions(ports, draft.port), sig = JSON.stringify(opts);
+    if (sig !== portSig) { portSig = sig; port.replaceChildren(...opts.map(([path, text]) => { const o = el('option', '', text); o.value = path; return o; })); }
+    if (draft.port) { if (port.value !== draft.port) port.value = draft.port; } else if (opts.length) draft.port = port.value;
     portNote.textContent = ports?.error ?? (ports && !ports.ports.length ? 'No serial port found' : '');
     apply.disabled = !dirty;
     test.disabled = known.mode === undefined || known.mode === 'none';
@@ -85,10 +93,12 @@ function createDeviceSection() {
 
   const say = (text, ok) => { result.textContent = text; result.className = `dresult ${ok ? 'ok' : 'down'}`; };
   apply.onclick = async () => {
-    const r = await post('/relay', { mode: draft.mode, host: draft.host, port: draft.port });
-    if (!r.ok) { say(await r.text(), false); return; }
-    dirty = false;
-    say((await r.json()).saved ? 'Applied and saved in agent-gadget.json' : 'Applied (could not save the file, lost at the next hub restart)', true);
+    try {
+      const r = await post('/relay', { mode: draft.mode, host: draft.host, port: draft.port });
+      if (!r.ok) { say(await r.text(), false); return; }
+      dirty = false;
+      say((await r.json()).saved ? 'Applied and saved in the hub config' : 'Applied (could not save the file, lost at the next hub restart)', true);
+    } catch { say('Failed: the hub did not answer', false); }
     render();
   };
   test.onclick = async () => {

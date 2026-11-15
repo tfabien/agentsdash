@@ -5,12 +5,12 @@ import { COLOR_KEYS, resolvePalette, contrastRatio } from './theme_schema.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const NAME = /^[a-z0-9-]{1,32}$/;
-const HEX = /^#[0-9a-f]{6}$/;
+const HEX = /^#[0-9a-f]{6}$/i;
 const MIN_CONTRAST = 4.5;
 
 /** `#rrggbb` of a CSS color given as `#rrggbb` or `rgb(r,g,b)` (what themeColor returns for a built-in color). */
 export function toHex(css) {
-  if (HEX.test(css)) return css;
+  if (HEX.test(css)) return css.toLowerCase();
   const m = /^rgb\((\d+),(\d+),(\d+)\)$/.exec(css);
   return m ? `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('')}` : '#000000';
 }
@@ -60,7 +60,7 @@ export function createThemeEditor({ draw, themeColor, onChange, onReset, onSave 
     grid.append(row);
   }
   accentInput.oninput = () => { draft.accent = accentInput.value; refresh(); push(); };
-  accentOff.onclick = () => { draft.accent = ''; accentInput.value = '#ffffff'; refresh(); push(); };
+  accentOff.onclick = () => { draft.accent = 'none'; accentInput.value = '#ffffff'; refresh(); push(); };   // 'none' beats the theme's own accent ('' would inherit it)
   reset.onclick = () => { clearTimeout(timer); onReset(); };
   save.onclick = async () => {
     if (!NAME.test(nameInput.value)) { note.textContent = 'The name is 1 to 32 characters among a-z, 0-9 and -.'; return; }

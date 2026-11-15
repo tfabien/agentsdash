@@ -47,7 +47,7 @@ test('shows_plan_context_subagents_and_quotas', () => {
   assert.match(out, /plan 2\/5 Task 3/);
   assert.match(out, /explore\s+working\s+Grep foo/);
   assert.match(out, /\+2 more/);
-  assert.match(out, /5h 40% 1h30m/);
+  assert.match(out, /5h 40% 1h30\b/);
   assert.match(out, /7d 12%/);
 });
 
@@ -93,4 +93,9 @@ test('tui_prints_the_pairing_address_only_when_there_is_one', async () => {
     assert.ok(withUrl.some((w) => strip(w).includes('Phone: http://192.168.1.5:8765/pair?t=abc')));
     assert.ok(!without.some((w) => strip(w).includes('Phone:')));
   } finally { a.stop(); b.stop(); await hub.close(); }
+});
+
+test('quota_resets_use_days_like_the_page', () => {
+  const out = strip(renderAnsi(state([session()], { usage: { age_s: 1, d7_pct: 40, d7_reset_s: 259200 } }), 100));
+  assert.match(out, /7d 40% 3d00h/);
 });

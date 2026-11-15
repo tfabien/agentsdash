@@ -31,7 +31,7 @@ const SOUNDS = ['all', 'ask', 'off'];
 const OVERRIDE_KEY = /^[a-z0-9-]{1,32}(\/[a-z0-9-]{1,32})?$/;
 /** `{ "<theme>" | "<theme>/<variant>": { colors?, accent? } }`: the user's color edits. The whole value is refused when any entry is invalid. */
 const validOverrides = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 64
-  && Object.entries(v).every(([k, o]) => OVERRIDE_KEY.test(k) && o && typeof o === 'object' && !Array.isArray(o) && validatePalettePart(o).ignored.length === 0);
+  && Object.entries(v).every(([k, o]) => OVERRIDE_KEY.test(k) && o && typeof o === 'object' && !Array.isArray(o) && validatePalettePart(o, { override: true }).ignored.length === 0);
 /** `{ "<theme>": ["lookKey", ...] }`: the looks the user ticked per theme. The whole value is refused when any entry is invalid. */
 const validLooks = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 64
   && Object.entries(v).every(([k, l]) => /^[a-z0-9-]{1,32}$/.test(k) && Array.isArray(l) && l.length <= 12 && l.every((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)));
@@ -324,7 +324,7 @@ export function startHub(opts = {}) {
         if (!body) return undefined;
         const base = catalog.themes.find((t) => t.name === body.theme);
         if (!base) return text(res, 400, 'unknown theme');
-        const override = validatePalettePart(body.override);
+        const override = validatePalettePart(body.override, { override: true });
         try {
           saveUserTheme({ name: String(body.name ?? ''), label: typeof body.label === 'string' ? body.label : undefined, theme: base, variant: typeof body.variant === 'string' ? body.variant : '', override, looks: Array.isArray(body.looks) ? body.looks : undefined, userDir: catalogDirs.userDir, builtinNames: builtinNames(), overwrite: body.overwrite === true });
         } catch (err) { return text(res, /exists$/.test(err.message) ? 409 : 400, err.message); }

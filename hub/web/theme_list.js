@@ -55,3 +55,12 @@ export function tagCounts(cards) {
   for (const c of cards) for (const k of new Set(c.keywords)) n.set(k, (n.get(k) ?? 0) + 1);
   return [...n.entries()].sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
 }
+
+/**
+ * The variant a card shows and applies: the one picked on the card, else the saved variant for the active card, else the base ('').
+ * @param {Map<string, string>} picked card name -> variant key chosen on the card
+ */
+export function cardVariant(picked, card, savedVariant) {
+  if (!card.variants.length) return '';
+  return picked.get(card.name) ?? (card.active ? savedVariant : '');
+}

@@ -272,6 +272,35 @@ test('svgPack_none_mode_never_sets_a_filter', () => {
   delete globalThis.Image;
 });
 
+test('svgPack_svg_tint_fetches_a_file_once_for_every_color_and_frees_the_blob_urls', async () => {
+  clearIconCache();
+  const real = { fetch: globalThis.fetch, create: URL.createObjectURL, revoke: URL.revokeObjectURL, Image: globalThis.Image };
+  let fetches = 0;
+  const blobs = new Map(), revoked = [];
+  globalThis.fetch = async () => { fetches += 1; return { text: async () => '<svg fill="currentColor"/>' }; };
+  URL.createObjectURL = (b) => { const u = `blob:${blobs.size}`; blobs.set(u, b); return u; };
+  URL.revokeObjectURL = (u) => { revoked.push(u); };
+  globalThis.Image = class { constructor() { this.complete = true; this.naturalWidth = 36; } set src(v) { this._src = v; queueMicrotask(() => this.onload?.()); } get src() { return this._src; } };
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  try {
+    const pack = svgPack('p', { lead: '/l.svg' }, { tint: 'svg' });
+    const draw = async (hex) => { setAccent(hex); pack.draw(recordingCtx().ctx, 0, false); await flush(); await flush(); };
+    await draw('#ff0000');
+    await draw('#00ff00');
+    assert.equal(fetches, 1, 'the file text is fetched once');
+    assert.equal(blobs.size, 2);
+    assert.match(await [...blobs.values()][1].text(), /#00ff00/);
+    assert.deepEqual(revoked, [...blobs.keys()], 'each blob URL is freed once its image has loaded');
+    clearIconCache();
+    await draw('#00ff00');
+    assert.equal(fetches, 2, 'a cleared cache fetches the file again');
+  } finally {
+    globalThis.fetch = real.fetch; URL.createObjectURL = real.create; URL.revokeObjectURL = real.revoke;
+    if (real.Image) globalThis.Image = real.Image; else delete globalThis.Image;
+    setAccent(''); clearIconCache();
+  }
+});
+
 // ---- looks ----
 const looksTheme = { name: 'lt', label: 'lt', author: 't', version: '1', iconPack: 'robot', colors: {},
   looks: { a: { label: 'A', sprite: null, accent: '' }, b: { label: 'B', sprite: 2, accent: '#0000ff' }, c: { label: 'C', sprite: null, accent: '#ff0000' } }, defaultLooks: ['a', 'b'] };

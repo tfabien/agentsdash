@@ -3,11 +3,11 @@
 // settings behind a button. The choice is the `theme` setting of the hub, so every page follows (see themes.js).
 import { listThemes, themeColor, activeAccent } from './themes.js';
 import { iconPackFor, onIconsLoaded, clearIconCache, setAccent, setLooks, currentLooks } from './icon_packs.js';
-import { resolvePalette, activeLooks } from './theme_schema.js';
+import { resolvePalette, activeLooks, overrideKeyOf } from './theme_schema.js';
 import { createThemeEditor } from './theme_editor.js';
 import { postSettings } from './settings.js';
 import { icon } from './icons.js';
-import { mergeCards, filterCards, tagCounts, STATUSES } from './theme_list.js';
+import { mergeCards, filterCards, tagCounts, cardVariant, STATUSES } from './theme_list.js';
 import { askConfirm } from './confirm_dialog.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -63,6 +63,7 @@ export function createThemeMenu({ onPreview } = {}) {
   const tags = new Set();
   let previews = [];                                           // [{canvas, theme, accent}] of the cards on screen
   let savedVariant = '', overrides = {}, savedLooks = {}, editing = false;
+  let edited = null;                                           // { name, variant, key } of the theme the editor opened on (the key of its edits in themeOverrides)
   const picked = new Map();                                    // card name -> variant key chosen on the card ('' is the base)
   let catalogKey = '';
 
@@ -100,18 +101,18 @@ export function createThemeMenu({ onPreview } = {}) {
   const settingsStatus = el('div', 'mstatus shint');
   settingsBox.append(el('div', 'tname', 'Marketplaces'), el('div', 'shint', 'GitHub repositories with one folder per theme. The listings are kept for 24 hours.'),
     sourcesRow, addRow, autoRow, actionRow, refreshed, settingsStatus);
-  const overrideKey = () => (savedVariant ? `${active}/${savedVariant}` : active);
   const editor = createThemeEditor({
     draw: drawPreview, themeColor,
-    onChange: (draft) => postSettings({ themeOverrides: { ...overrides, [overrideKey()]: draft } }),
+    onChange: (draft) => { if (edited) postSettings({ themeOverrides: { ...overrides, [edited.key]: draft } }); },
     onReset: async () => {
-      const { [overrideKey()]: _gone, ...rest } = overrides;
+      if (!edited) return;
+      const { [edited.key]: _gone, ...rest } = overrides;
       await postSettings({ themeOverrides: rest });
       overrides = rest;
       openEditor();
     },
     onSave: async ({ name, label, override }) => {
-      const send = (overwrite) => fetch('/themes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, label, theme: active, variant: savedVariant, override, overwrite }) });
+      const send = (overwrite) => fetch('/themes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, label, theme: edited.name, variant: edited.variant, override, overwrite }) });
       let res = await send(false);
       if (res.status === 409 && (await askConfirm(`The theme ${name} exists. Replace it?`, { ok: 'Replace', danger: true }))) res = await send(true);
       if (!res.ok) throw new Error(await res.text());
@@ -122,7 +123,8 @@ export function createThemeMenu({ onPreview } = {}) {
   function openEditor() {
     const theme = listThemes().find((t) => t.name === active);
     if (!theme) return;
-    editor.open(theme, savedVariant, overrides[overrideKey()]);
+    edited = { name: theme.name, variant: savedVariant, key: overrideKeyOf(theme, savedVariant) };     // the key the tiles read (an unknown variant is the base)
+    editor.open(theme, savedVariant, overrides[edited.key]);
     editing = true;
     render();
   }
@@ -161,7 +163,7 @@ export function createThemeMenu({ onPreview } = {}) {
   function card(c) {
     const theme = c.installed ? listThemes().find((t) => t.name === c.name) : null;
     const root = el('div', `tcard mcard${c.active ? ' on' : ''}`);
-    const variantKey = c.variants.length ? (picked.get(c.name) ?? (c.active ? savedVariant : '')) : '';
+    const variantKey = cardVariant(picked, c, savedVariant);
     const look = theme ? resolvePalette(theme, variantKey) : null;      // the card shows the variant picked on it, as authored
     if (theme) {
       const canvas = el('canvas', 'tpreview');
@@ -221,7 +223,7 @@ export function createThemeMenu({ onPreview } = {}) {
       if (c.active) { const e = el('button', 'chip', 'Edit colors'); e.title = 'Change the colors and the icon accent, then save them as a theme'; e.onclick = openEditor; actions.append(e); }
       if (!c.installed) btn('Install', { busy: 'Installing…', done: `Installed ${c.label} and applied it`, title: 'Install and apply' }, async () => { await call('/market/install', { source: c.source, name: c.name }); active = c.name; await load(); });
       else {
-        if (!c.active) btn('Apply', { busy: 'Applying…', done: `Applied ${c.label}` }, async () => { active = c.name; await postSettings({ theme: c.name, themeVariant: variantKey }); });
+        if (!c.active) btn('Apply', { busy: 'Applying…', done: `Applied ${c.label}` }, async () => { await call('/settings', { theme: c.name, themeVariant: variantKey }); });   // the state echo marks the card active
         if (c.updatable) btn(`Update to ${c.availableVersion}`, { busy: 'Updating…', done: `Updated ${c.label} to ${c.availableVersion}` }, async () => { await call('/market/update', { name: c.name }); await load(); });
         if (c.deletable) btn('Delete', { busy: 'Deleting…', done: `Deleted ${c.label}`, confirm: `Delete the theme ${c.label}? Its files are removed.` }, async () => { await call('/market/remove', { name: c.name }); await load(); });
       }
@@ -245,8 +247,8 @@ export function createThemeMenu({ onPreview } = {}) {
   }
 
   function render() {
+    previews = [];                                             // a closed view keeps no card to redraw
     if (!panel.isConnected) { catalogKey = ''; return; }
-    previews = [];
     const cards = mergeCards({ catalog: listThemes(), market, active, looks: savedLooks });
     const counts = { all: cards.length, installed: cards.filter((c) => c.installed).length, available: cards.filter((c) => !c.installed).length, updates: cards.filter((c) => c.updatable).length };
     statusRow.replaceChildren(...STATUSES.map((s) => {
@@ -307,7 +309,11 @@ export function createThemeMenu({ onPreview } = {}) {
     if (r.updated.length) setNotice(true, `Updated ${r.updated.join(', ')}`); else if (r.errors.length) setNotice(false, r.errors.join(' · ')); else setNotice(true, 'Everything is up to date.');
   });
   auto.onclick = () => act(auto, async () => { await postSettings({ themeAutoUpdate: !(market?.autoUpdate ?? true) }); await load(); });
-  onIconsLoaded(() => { for (const p of previews) drawPreview(p.canvas, p.theme, p.accent, p.looks); editor.redraw(); });
+  onIconsLoaded(() => {                                     // an animated frame or a loaded file; nothing to draw while the view is closed
+    if (!panel.isConnected) return;
+    for (const p of previews) drawPreview(p.canvas, p.theme, p.accent, p.looks);
+    editor.redraw();
+  });
 
   return {
     button, panel,
@@ -316,9 +322,11 @@ export function createThemeMenu({ onPreview } = {}) {
       const key = `${name}|${variant}|${JSON.stringify(edits)}|${JSON.stringify(looks)}|${listThemes().map((t) => `${t.name}${t.version}${t.iconPack}${Object.keys(t.variants ?? {})}`).join()}`;
       if (key === catalogKey) return;
       catalogKey = key;
+      const before = `${active}|${savedVariant}`;
       active = name && listThemes().some((t) => t.name === name) ? name : 'default';
       savedVariant = variant; overrides = edits; savedLooks = looks;
-      picked.clear();
+      if (`${active}|${savedVariant}` !== before) editing = false;    // another theme or variant: the editor's draft belongs to the old one
+      picked.delete(active);                                          // the active card follows the saved variant; picks on the other cards stay
       render();
     },
   };

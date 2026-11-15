@@ -3,7 +3,7 @@
 // built-in value, a missing or unknown icon pack gives the robots. The active theme is global (setting `theme`, kept by the hub).
 import { COLOR } from './screen.js';
 import { iconPackFor, setCatalogPacks, setAccent, setLooks } from './icon_packs.js';
-import { validateTheme, resolvePalette, activeLooks } from './theme_schema.js';
+import { validateTheme, resolvePalette, activeLooks, overrideKeyOf } from './theme_schema.js';
 
 const BASE = { ...COLOR };                                   // the palette of ui_theme.h, as RGB565
 const to565 = (hex) => { const n = parseInt(hex.slice(1), 16); return (((n >> 19) & 31) << 11) | (((n >> 10) & 63) << 5) | ((n >> 3) & 31); };
@@ -80,7 +80,7 @@ const findTheme = (name) => catalogThemes?.get(name) ?? THEMES[name];
 export function applyTheme(theme, variantKey = '', overrides = {}, chosenLooks) {
   const t = (typeof theme === 'string' ? findTheme(theme) : theme) ?? THEMES[DEFAULT_THEME];
   const variant = variantKey && t.variants?.[variantKey] ? variantKey : '';
-  const { colors, accent } = resolvePalette(t, variant, overrides?.[variant ? `${t.name}/${variant}` : t.name]);
+  const { colors, accent } = resolvePalette(t, variant, overrides?.[overrideKeyOf(t, variant)]);
   Object.assign(COLOR, BASE);
   for (const [key, hex] of Object.entries(colors)) if (key in BASE && HEX.test(hex)) COLOR[key] = to565(hex);
   active = t;
