@@ -519,11 +519,12 @@ test('quest_tap_terminal_and_other_taps', () => {
 
 
 test('avatar motion follows working state and respects reduced motion', () => {
-  const lead = (s, options) => pics(draw(state([s]), ui(options))).find((o) => o.id === 27 || o.id === 63);
+  const big = 27 + activityIndex('lead', agent().cmd);                     // the lead's big sprite follows its current tool
+  const lead = (s, options) => pics(draw(state([s]), ui(options))).find((o) => o.id === big || o.id === big + 36);
   assert.equal(lead(session(), { motionTime: 500 }).compression, 0.045);
   assert.equal(lead(session(), { motionTime: 1500 }).compression, undefined);
   assert.equal(lead(session({ agents: [agent({ state: 'needs_you' })] }), { motionTime: 500 }).compression, undefined);
   const reduced = lead(session(), { motionTime: 500, tick: 0, reduceMotion: true });
-  assert.equal(reduced.id, 27);
+  assert.equal(reduced.id, big);
   assert.equal(reduced.compression, undefined);
 });
