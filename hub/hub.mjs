@@ -19,6 +19,7 @@ import { MAX_TILES } from './web/layout.js';
 import { annotate, createUpdater } from './market_update.mjs';
 import { installFirstTheme } from './market_bootstrap.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
+import { readJsonObject, writeJsonFile, writeJsonAtomic } from './json_file.mjs';
 import { createHttpRelay, defaultLockFile } from './relay_http.mjs';
 import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
@@ -157,8 +158,8 @@ export function startHub(opts = {}) {
   const builtinNames = () => new Set(loadCatalog({ builtinDir: catalogDirs.builtinDir, userDir: null }).themes.map((t) => t.name));
   const cacheFile = path.join(catalogDirs.userDir, 'market-cache.json');
   const store = {
-    read: () => { try { const d = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); return d && typeof d === 'object' && !Array.isArray(d) ? d : {}; } catch { return {}; } },
-    write: (data) => { try { fs.mkdirSync(catalogDirs.userDir, { recursive: true }); fs.writeFileSync(cacheFile, JSON.stringify(data), 'utf8'); } catch { /* the listing is only fetched again */ } },
+    read: () => readJsonObject(cacheFile),
+    write: (data) => { try { writeJsonAtomic(cacheFile, data, { compact: true }); } catch { /* the listing is only fetched again */ } },
   };
   const updater = createUpdater({
     store,
@@ -508,11 +509,7 @@ export function startHub(opts = {}) {
     }
     if (!opts.configFile) return false;
     try {
-      let data = {};
-      try { const parsed = JSON.parse(fs.readFileSync(opts.configFile, 'utf8')); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed; } catch { /* a new file */ }
-      fs.mkdirSync(path.dirname(opts.configFile), { recursive: true });
-      fs.writeFileSync(opts.configFile, `${JSON.stringify({ ...data, relay: next }, null, 2)}
-`, 'utf8');
+      writeJsonFile(opts.configFile, { ...readJsonObject(opts.configFile), relay: next });
       return true;
     } catch { return false; }                // the choice still holds until the hub stops
   }

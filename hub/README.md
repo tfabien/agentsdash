@@ -112,6 +112,7 @@ change and every second), `GET /health` and `GET /` (the page).
 - `relay_http.mjs`, `relay_serial.mjs` forward events to a gadget (Wi-Fi, USB); `relay_config.mjs` validates a relay chosen from the page.
 - `tui.mjs` terminal view.
 - `paths.mjs` names and folders: `AGENTSDASH_*` variables with the old names as fallback, config file, state folder, user folder.
+- `json_file.mjs` JSON files: `readJsonObject` ({} for a missing, broken or non-object file), `writeJsonFile` (in place, for the user's config.json) and `writeJsonAtomic` (`.tmp` then rename, for market.json, market-cache.json and user themes).
 - The hub does not poll quotas: the Claude adapter's `quota_poller.mjs` (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed) posts them to `/usage`.
 - Release: a `v*` tag packs this folder (without `test/` and `tools/`) as `agentsdash-core-<version>-p<protocol>.tar.gz` (the protocol is in `package.json`) with a `.sha256` file; run it with `node hub.mjs` or point the hooks at it with `AGENTSDASH_CORE_DIR`.
 - `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `hub_page.js` wires SSE, taps, pages and beeps.
