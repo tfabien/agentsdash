@@ -8,6 +8,29 @@ Answer its question or allow its command with one click on the page.
 It works with **Claude Code** and **Codex**, in your browser, with nothing to buy and nothing to flash.
 Put the page on a second monitor, or on a phone or a tablet next to the keyboard.
 
+## On any screen
+
+The page needs nothing but a browser, so any screen near you can show it.
+An old phone or a tablet on a stand next to the keyboard becomes a dedicated screen: your agents stay in sight while the monitor keeps your code.
+
+<p>
+<img src="docs/images/screen-phone-desk.jpg" width="32%" alt="A phone on a stand beside the keyboard shows a session and its 4 sub-agents">
+<img src="docs/images/screen-tablet.jpg" width="32%" alt="A tablet on the desk shows the same session">
+<img src="docs/images/screen-phone-bench.jpg" width="32%" alt="A phone on an electronics workbench shows the same session">
+</p>
+
+Illustrations of the idea: the screen drawn in them is simpler than the real page (see the tour below).
+
+| Screen | How | What it does |
+|---|---|---|
+| Second monitor | Open <http://127.0.0.1:8765/> in a window on that monitor, full screen with F11. | Everything: the grid, answers, settings, themes. |
+| Phone or tablet | Click the phone button of the bottom bar, turn on phone access, scan the QR code on the same Wi-Fi. | One session per page, full screen, live. Read-only: answers stay on the PC. |
+| ESP32 gadget | A relay in `~/.agentsdash/config.json` sends every event to it. | The same screen on real hardware, with a buzzer. See [Devices](#devices-optional). |
+
+The phone page keeps the screen awake and says "Hub unreachable, retrying" when the PC sleeps.
+Phone access is off by default; the QR code carries a token, and the link is plain http, so use it on a network you trust.
+Details: [hub/README.md](hub/README.md#phone-pwa).
+
 ## Install
 
 You install an adapter, never this repository: the adapter downloads the hub by itself on first use.
@@ -65,29 +88,6 @@ Run several agents at once and stay productive, without watching every terminal.
 ![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question answered on the page, a command allowed on the page, an error, a session is done, then the same view on a monitor and a phone](docs/images/tour.gif)
 
 The hub in this repository is a small Node.js server that draws the screen **in your browser**, fed by adapters that watch your agents.
-
-## On any screen
-
-The page needs nothing but a browser, so any screen near you can show it.
-An old phone or a tablet on a stand next to the keyboard becomes a dedicated screen: your agents stay in sight while the monitor keeps your code.
-
-<p>
-<img src="docs/images/screen-phone-desk.jpg" width="32%" alt="A phone on a stand beside the keyboard shows a session and its 4 sub-agents">
-<img src="docs/images/screen-tablet.jpg" width="32%" alt="A tablet on the desk shows the same session">
-<img src="docs/images/screen-phone-bench.jpg" width="32%" alt="A phone on an electronics workbench shows the same session">
-</p>
-
-Illustrations of the idea: the screen drawn in them is simpler than the real page (see the tour above).
-
-| Screen | How | What it does |
-|---|---|---|
-| Second monitor | Open <http://127.0.0.1:8765/> in a window on that monitor, full screen with F11. | Everything: the grid, answers, settings, themes. |
-| Phone or tablet | Click the phone button of the bottom bar, turn on phone access, scan the QR code on the same Wi-Fi. | One session per page, full screen, live. Read-only: answers stay on the PC. |
-| ESP32 gadget | A relay in `~/.agentsdash/config.json` sends every event to it. | The same screen on real hardware, with a buzzer. See [Devices](#devices-optional). |
-
-The phone page keeps the screen awake and says "Hub unreachable, retrying" when the PC sleeps.
-Phone access is off by default; the QR code carries a token, and the link is plain http, so use it on a network you trust.
-Details: [hub/README.md](hub/README.md#phone-pwa).
 
 ## What you see
 
