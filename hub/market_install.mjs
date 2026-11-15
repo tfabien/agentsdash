@@ -5,6 +5,7 @@ import path from 'node:path';
 import { ICON_TYPES, ICON_NAME, MAX_BYTES, MAX_RASTER_BYTES, MAX_PACK_JSON } from './themes_loader.mjs';
 import { validateTheme, resolvePalette, activeLooks } from './web/theme_schema.js';
 import { fetchOk, rawBase } from './market_source.mjs';
+import { readJsonObject, writeJsonAtomic } from './json_file.mjs';
 
 const MAX_FILES = 100;
 const MAX_TOTAL = 20 * 1024 * 1024;
@@ -12,15 +13,11 @@ const LOG = 'market.json';
 
 /** @returns {Record<string, {source: string, version: string, installedAt: string}>} {} when the file is missing or corrupt. */
 export function readInstalled(userDir) {
-  try {
-    const data = JSON.parse(fs.readFileSync(path.join(userDir, LOG), 'utf8'));
-    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
-  } catch { return {}; }
+  return readJsonObject(path.join(userDir, LOG));
 }
 
 function writeInstalled(userDir, data) {
-  fs.mkdirSync(userDir, { recursive: true });
-  fs.writeFileSync(path.join(userDir, LOG), `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(path.join(userDir, LOG), data);   // a crash mid-write keeps the old log, so no installed theme loses its Update and Remove buttons
 }
 
 /** The icon files of a theme that the loader would accept: `icons/<role>[-N][-blink].<ext>`, no sub-folder. */
@@ -88,12 +85,11 @@ export function installTheme({ theme, userDir, builtinNames, fetchFn = fetch }) 
       fs.mkdirSync(path.join(userDir, 'themes'), { recursive: true });
       fs.mkdirSync(path.join(userDir, 'icons'), { recursive: true });
       const next = { ...JSON.parse(json.toString('utf8')), iconPack: icons.length ? name : 'robot' };
-      fs.writeFileSync(path.join(tmp, 'theme.json'), JSON.stringify(next, null, 2), 'utf8');
       const hadIcons = fs.existsSync(iconDir);
       if (hadIcons) fs.renameSync(iconDir, old);
       try {
         if (icons.length) fs.renameSync(path.join(tmp, 'icons'), iconDir);   // an icon-less theme uses robot: no icons/<name> folder
-        fs.copyFileSync(path.join(tmp, 'theme.json'), themeFile);
+        writeJsonAtomic(themeFile, next);
       } catch (err) {
         fs.rmSync(iconDir, { recursive: true, force: true });
         if (hadIcons) fs.renameSync(old, iconDir);
@@ -148,10 +144,6 @@ export function saveUserTheme({ name, label, theme, variant = '', override, look
     out.looks = Object.fromEntries(active.map((l) => [l.key, { label: theme.looks[l.key].label, ...(l.sprite ? { sprite: l.sprite } : {}), ...(l.accent ? { accent: l.accent } : {}), ...(l.palette ? { palette: l.palette } : {}) }]));
     out.defaultLooks = active.map((l) => l.key);
   }
-  fs.mkdirSync(path.join(userDir, 'themes'), { recursive: true });
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(out, null, 2)}
-`, 'utf8');
-  fs.renameSync(tmp, file);
+  writeJsonAtomic(file, out);
   return { path: file };
 }

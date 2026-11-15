@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readJsonObject, writeJsonFile } from './json_file.mjs';
 
 export const COOKIE = 'agentsdash_token';
 
@@ -25,16 +26,10 @@ export function loadOrCreateToken(file) {
 
 /** Sets `lan.enabled` in the config file, keeping every other key. @returns {boolean} true when the file changed. */
 export function setLan(file, enabled) {
-  let data = {};
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;
-  } catch { /* a missing or broken file starts from nothing */ }
+  const data = readJsonObject(file);         // a missing or broken file starts from nothing
   if ((data.lan?.enabled === true) === enabled) return false;
   data.lan = { ...(data.lan && typeof data.lan === 'object' ? data.lan : {}), enabled };
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}
-`);
+  writeJsonFile(file, data);
   return true;
 }
 

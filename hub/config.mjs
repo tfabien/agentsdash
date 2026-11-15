@@ -1,6 +1,6 @@
 // Configuration of the hub: ~/.agentsdash/config.json (the old ~/.claude/agent-gadget.json as a fallback), overridden by environment variables.
-import fs from 'node:fs';
 import { configPath, envVar } from './paths.mjs';
+import { readJsonObject } from './json_file.mjs';
 
 export const DEFAULT_HOST = '127.0.0.1:8765';
 
@@ -11,11 +11,7 @@ export const defaultConfigPath = configPath;
  * Never throws: a missing or broken file gives the defaults.
  */
 export function loadConfig(file = defaultConfigPath(), env = process.env) {
-  let data = {};
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;
-  } catch { /* defaults */ }
+  const data = readJsonObject(file);
   const relay = data.relay && typeof data.relay === 'object' && typeof data.relay.mode === 'string' ? data.relay : { mode: 'none' };
   const window = Number.isInteger(data.context_window) && data.context_window > 0 ? data.context_window : 1000000;
   const wanted = Number(envVar('MAX_SESSIONS', env) ?? data.max_sessions);
