@@ -2,15 +2,15 @@
 // Line: {"type":"event"|"usage"|"dismiss"|"settings","body":{...}}\n  (body = the POST body, same wire format as over Wi-Fi).
 // The hub owns the COM port: release() lets another tool (pio upload, hmi_bridge) take it, reopen() takes it back.
 // Needs the optional `serialport` package, loaded only when the port is opened.
-import { forDevice } from './ascii.mjs';
-import { deviceKey, latestPerKey } from './relay_queue.mjs';
+import { capQueue, latestPerKey, queueItem } from './relay_queue.mjs';
 
 export const SETTLE_MS = 2500;      // opening the port resets the ESP32: it needs about 2.5 s before it reads again
 export const RETRY_MS = 5000;       // reconnect delay when the port is missing or lost
+const NO_SERIALPORT = 'serialport package not installed (run: npm install serialport, in hub)';
 
 async function defaultOpen(path, baud) {
   let mod;
-  try { mod = await import('serialport'); } catch { throw new Error('serialport package not installed (run: npm install serialport, in hub)'); }
+  try { mod = await import('serialport'); } catch { throw new Error(NO_SERIALPORT); }
   return new Promise((resolve, reject) => {
     const port = new mod.SerialPort({ path, baudRate: baud, autoOpen: false });
     port.open((err) => (err ? reject(err) : resolve(port)));
@@ -20,7 +20,7 @@ async function defaultOpen(path, baud) {
 /** Serial ports of this computer, for the settings page. `error` says why there is no list (serialport missing). */
 export async function listSerialPorts() {
   let mod;
-  try { mod = await import('serialport'); } catch { return { ports: [], error: 'serialport package not installed (run: npm install serialport, in hub)' }; }
+  try { mod = await import('serialport'); } catch { return { ports: [], error: NO_SERIALPORT }; }
   try {
     const found = await mod.SerialPort.list();
     return { ports: found.map((p) => ({ path: p.path, label: [p.friendlyName, p.manufacturer].filter(Boolean).join(' - ') })) };
@@ -94,19 +94,16 @@ export function createSerialRelay({ path, baud = 115200, open = defaultOpen, set
     });
   }
 
-  const coalesce = () => { queue = latestPerKey(queue); };
-
   function itemOf(route, body) {
-    body = forDevice(route, body);          // ASCII only (the gadget fonts) and cut to the firmware's buffers
     const type = route === '/usage' ? 'usage' : route === '/settings' ? 'settings' : route === '/dismiss' ? 'dismiss' : 'event';
-    return { type, body, key: deviceKey(route, body) };
+    return { ...queueItem(route, body), type };     // ASCII only (the gadget fonts) and cut to the firmware's buffers
   }
 
   return {
     start: connect,
     send(route, body) {
       queue.push(itemOf(route, body));
-      if (queue.length > maxQueue) { coalesce(); if (queue.length > maxQueue) queue = queue.slice(-maxQueue); }
+      queue = capQueue(queue, maxQueue);
       flush();
     },
     release() {
