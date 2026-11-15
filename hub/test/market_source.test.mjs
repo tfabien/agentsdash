@@ -127,3 +127,31 @@ test('a_branch_with_a_hash_is_encoded_in_raw_urls', async () => {
   assert.equal(urls[2], 'https://raw.githubusercontent.com/o/r/a%23b/cat/theme.json');
   assert.equal(r.themes[0].roles.lead, 'https://raw.githubusercontent.com/o/r/a%23b/cat/icons/lead.png');
 });
+
+test('the_listing_carries_accent_variants_looks_and_the_pack_tint_for_the_preview', async () => {
+  const extra = { accent: '#ff0000', variants: { dark: { label: 'Dark', colors: { FRAME: '#000000' } } }, looks: { hat: { label: 'Hat', sprite: 2 } }, defaultLooks: ['hat'] };
+  const pack = JSON.stringify({ tint: 'svg', hue: 400, palettes: { warm: { '#ff0000': '#00ff00' } } });
+  const f = fakeGitHub({
+    tree: ['cat/', 'cat/theme.json', 'cat/icons/lead.svg', 'cat/icons/pack.json', 'dog/', 'dog/theme.json', 'dog/icons/lead.svg'],
+    raw: { 'cat/theme.json': themeJson('cat', extra), 'cat/icons/pack.json': pack, 'dog/theme.json': themeJson('dog') },
+  });
+  const r = await listSource('o/r', f);
+  const [cat, dog] = r.themes;
+  assert.equal(cat.accent, '#ff0000');
+  assert.deepEqual(Object.keys(cat.variants), ['dark']);
+  assert.deepEqual(Object.keys(cat.looks), ['hat']);
+  assert.deepEqual(cat.defaultLooks, ['hat']);
+  assert.equal(cat.pack.tint, 'svg');
+  assert.equal(cat.pack.hue, 40);
+  assert.deepEqual(Object.keys(cat.pack.palettes), ['warm']);
+  assert.deepEqual(dog.pack, { tint: 'none', hue: 0 }, 'no pack.json: the loader defaults');
+});
+
+test('a_bad_or_oversized_pack_json_keeps_the_defaults_and_still_lists_the_theme', async () => {
+  for (const text of ['{nope', JSON.stringify({ tint: 'svg', pad: 'x'.repeat(5000) })]) {
+    const f = fakeGitHub({ tree: ['cat/', 'cat/theme.json', 'cat/icons/lead.svg', 'cat/icons/pack.json'], raw: { 'cat/theme.json': themeJson('cat'), 'cat/icons/pack.json': text } });
+    const r = await listSource('o/r', f);
+    assert.deepEqual(r.themes.map((t) => t.name), ['cat']);
+    assert.deepEqual(r.themes[0].pack, { tint: 'none', hue: 0 });
+  }
+});

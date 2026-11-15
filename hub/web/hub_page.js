@@ -227,8 +227,10 @@ let savedLooks = {};
 // What the tiles draw: the preview shows a theme (and variant) as authored with the looks ticked on its card, the saved choice also carries the user's color edits.
 const applySaved = () => (preview ? applyTheme(preview.name, preview.variant ?? '', {}, savedLooks[preview.name]) : applyTheme(savedTheme, savedVariant, savedOverrides, savedLooks[savedTheme]));
 let realCatalog = { themes: [], packs: [], errors: [] };
+// A theme without icons previews with the robot pack, as its install sets; one with icons brings its own pack with the tint of its pack.json.
 const pageCatalog = () => (preview && !preview.installed
-  ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: [...realCatalog.packs.filter((p) => p.name !== preview.theme.iconPack), { name: preview.theme.iconPack, roles: preview.roles }] }
+  ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: preview.theme.iconPack !== preview.name ? realCatalog.packs
+    : [...realCatalog.packs.filter((p) => p.name !== preview.name), { ...preview.pack, name: preview.name, roles: preview.roles }] }
   : realCatalog);
 function setPreview(spec, note) {
   preview = spec;

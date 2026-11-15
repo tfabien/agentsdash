@@ -32,20 +32,27 @@ function scanThemes(dir, errors) {
 const TINTS = ['svg', 'hue', 'none'];
 export const MAX_PACK_JSON = 4096;
 
-/** The tint mode of a pack from its optional pack.json: { tint: 'svg'|'hue'|'none', hue: 0..359 }. A bad file keeps the defaults and is listed in `errors`. */
-function readPackJson(file, errors) {
+/**
+ * The tint mode of a pack from the parsed content of its pack.json: { tint: 'svg'|'hue'|'none', hue: 0..359, palettes? }. Unknown or bad fields
+ * keep the defaults; palette errors go to `errors` prefixed with `where`. The marketplace listing reads a remote pack.json with it too.
+ */
+export function packFromJson(j, where, errors) {
   const out = { tint: 'none', hue: 0 };
-  try {
-    if (!fs.existsSync(file)) return out;
-    if (fs.statSync(file).size > MAX_PACK_JSON) { errors.push(`${file}: over 4 KB`); return out; }
-    const j = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (TINTS.includes(j?.tint)) out.tint = j.tint;
-    if (Number.isFinite(j?.hue)) out.hue = ((Math.round(j.hue) % 360) + 360) % 360;
-    const p = validatePalettes(j?.palettes);
-    for (const e of p.errors) errors.push(`${file}: ${e}`);
-    if (Object.keys(p.palettes).length) out.palettes = p.palettes;
-  } catch (err) { errors.push(`${file}: ${err.message}`); }
+  if (TINTS.includes(j?.tint)) out.tint = j.tint;
+  if (Number.isFinite(j?.hue)) out.hue = ((Math.round(j.hue) % 360) + 360) % 360;
+  const p = validatePalettes(j?.palettes);
+  for (const e of p.errors) errors.push(`${where}: ${e}`);
+  if (Object.keys(p.palettes).length) out.palettes = p.palettes;
   return out;
+}
+
+/** The tint mode of a pack from its optional pack.json file (see packFromJson). A bad file keeps the defaults and is listed in `errors`. */
+function readPackJson(file, errors) {
+  try {
+    if (!fs.existsSync(file)) return { tint: 'none', hue: 0 };
+    if (fs.statSync(file).size > MAX_PACK_JSON) { errors.push(`${file}: over 4 KB`); return { tint: 'none', hue: 0 }; }
+    return packFromJson(JSON.parse(fs.readFileSync(file, 'utf8')), file, errors);
+  } catch (err) { errors.push(`${file}: ${err.message}`); return { tint: 'none', hue: 0 }; }
 }
 
 function scanPacks(dir, errors) {

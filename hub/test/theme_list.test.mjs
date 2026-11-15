@@ -88,3 +88,15 @@ test('card_variant_prefers_the_pick_then_the_saved_variant_of_the_active_card', 
   assert.equal(cardVariant(new Map(), b, 'light'), '', 'a card that is not active shows its base');
   assert.equal(cardVariant(picked, { ...b, variants: [] }, ''), '', 'no variants: the base');
 });
+
+test('available_cards_carry_what_the_preview_needs_to_look_installed', () => {
+  const pack = { tint: 'svg', hue: 0 };
+  const m = { name: 'c', source: 'o/r', installed: false, accent: '#ff0000', variants: { dark: {} }, looks: { hat: { label: 'Hat' } }, defaultLooks: ['hat'], pack };
+  const card = mergeCards({ catalog: [], market: { themes: [m] }, active: 'default' })[0];
+  assert.equal(card.accent, '#ff0000');
+  assert.deepEqual(card.themeVariants, { dark: {} });
+  assert.deepEqual(card.themeLooks, { hat: { label: 'Hat' } });
+  assert.deepEqual(card.defaultLooks, ['hat']);
+  assert.deepEqual(card.pack, pack);
+  assert.deepEqual([card.variants, card.looks], [[], []], 'the card itself offers no pickers before install');
+});

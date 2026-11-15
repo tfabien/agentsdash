@@ -2,7 +2,7 @@
 import { compareVersions } from './web/theme_schema.js';
 
 const CACHE_MS = 24 * 3600 * 1000;
-const CACHE_FORMAT = 2;                                            // raise it when a listing gains fields: older cached listings are fetched again
+const CACHE_FORMAT = 3;                                           // raise it when a listing gains fields: older cached listings are fetched again
 const SIX_HOURS = 6 * 3600 * 1000;
 
 /** Adds `installed`, `installedVersion` and `updatable` to each listed theme. `installed` is the content of market.json. */
