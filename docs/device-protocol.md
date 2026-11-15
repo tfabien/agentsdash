@@ -2,6 +2,7 @@
 
 How the hub feeds an external screen (a device). A device repository implements this document; the hub side is generic and lives in the core (`relay_http.mjs`, `relay_serial.mjs`, `ascii.mjs`).
 The device receives the same bodies as the hub (see `protocol.md`), after the reduction described here.
+After each serial port open (the device resets) and after a relay change, the relay sends the current settings and the last event of each agent the hub still lists, ahead of its queue. Usage is not replayed: the next `/usage` repairs it.
 
 ## What a device receives
 
@@ -21,10 +22,10 @@ The relay mode is set with `POST /relay` or the `relay` entry of the config file
 `POST http://<device>/event`, `/usage`, `/dismiss` and `/settings`, JSON body, `Content-Type: application/json`. Timeout 2 s per request. Any non-2xx answer or network error is a failure.
 
 - Items wait in a queue, sent one at a time.
-- After a failure the relay pauses 3 s and keeps only the latest queued item of each key.
-- While the lock file `agent-gadget-tft.lock` exists in the temp folder (a screen firmware upload is running) nothing is sent.
+- After a failure (network error or 5xx) the item stays queued; the relay pauses 3 s, keeps only the latest queued item of each key, and retries. A 4xx answer drops the item.
+- While the lock file `agent-gadget-tft.lock` exists in the temp folder (a screen firmware upload is running) nothing is sent, and `GET /relay` reports `locked: true`.
 - The queue holds at most 50 items. Above that, the latest item of each key is kept, then the 50 newest.
-- A key is `usage`, `settings`, `dismiss:<session>`, or `<session>:<agent>` for an event: a newer item replaces an older one with the same key.
+- A key is `usage:<session>` (each body carries that session's context), `settings`, `dismiss:<session>`, or `<session>:<agent>` for an event: a newer item replaces an older one with the same key.
 
 ### serial (USB)
 
@@ -38,7 +39,7 @@ One JSON line per item at 115200 baud: `{"type":"event|usage|dismiss|settings","
 ## Text reduction (`forDevice`)
 
 Device fonts hold ASCII glyphs only. Before sending, every string of the body (keys included) goes through `toAscii`: accents are stripped, typographic quotes, dashes, ellipsis and a few symbols are mapped to ASCII, any other character becomes `?`, zero-width characters are dropped.
-For `/event` the field `cwd` is removed (the path stays on the hub), and every text field is cut to the firmware buffer of the device (buffer length minus the NUL):
+For `/event` the fields the firmware never reads stay on the hub: `cwd`, `plan_items`, `reply_first`, `reply_last` and `prompt` are removed (the replies alone could push a line past the firmware's 1400-byte serial buffer). Then every text field is cut to the firmware buffer of the device (buffer length minus the NUL):
 
 | Field | Limit |
 |---|---|
@@ -50,7 +51,7 @@ For `/event` the field `cwd` is removed (the path stays on the hub), and every t
 | `cmd` | 63 |
 | `detail` | 60 |
 | `title` | 30 |
-| `model` | 40 |
+| `model` | 32 |
 | `plan_cur` | 47 |
 | `plan_next` | 47 |
 | `plan_state` | 16 |

@@ -40,3 +40,24 @@ test('forDevice cuts event fields to the firmware buffers and reduces to ASCII',
   assert.equal(out.tok, 5);
   assert.equal(forDevice('/usage', { note: 'x'.repeat(100) }).note.length, 100);
 });
+
+test('forDevice cuts the model id to the firmware buffer (MODEL_LEN 33)', async () => {
+  const { forDevice } = await import('../ascii.mjs');
+  assert.equal(forDevice('/event', { model: 'm'.repeat(50) }).model.length, 32);
+});
+
+test('a Stop at every limit fits the firmware serial line (JSON_LINE_MAX 1400) without the hub-only fields', async () => {
+  const { forDevice, DEVICE_LIMITS } = await import('../ascii.mjs');
+  const body = { v: 2, state: 'your_turn', tok: 123456, stok: 654321, ctx_pct: 42, ctx_k: 420, plan_done: 3, plan_total: 9 };
+  for (const [key, n] of Object.entries(DEVICE_LIMITS)) body[key] = '"'.repeat(n + 5);    // each quote is 2 bytes once JSON-escaped
+  delete body.question; delete body.options;                                                 // a Stop never carries a question
+  Object.assign(body, {
+    cwd: 'C:/work/'.repeat(40), plan_items: Array.from({ length: 30 }, (_, i) => `step ${i} `.repeat(10)),
+    reply_first: '"x" '.repeat(75), reply_last: '…'.repeat(300), prompt: 'p'.repeat(300),
+  });
+  const out = forDevice('/event', body);
+  for (const key of ['cwd', 'plan_items', 'reply_first', 'reply_last', 'prompt']) assert.equal(key in out, false, `${key} stays on the hub`);
+  const line = `${JSON.stringify({ type: 'event', body: out })}\n`;
+  assert.ok(Buffer.byteLength(line) <= 1400, `${Buffer.byteLength(line)} bytes`);
+  assert.equal(out.state, 'your_turn');
+});
