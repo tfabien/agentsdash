@@ -20,6 +20,7 @@ const params = new URLSearchParams(location.search);
 const maxParam = Number(params.get('max'));         // ?max=N overrides the setting for this tab
 const DETAIL_MS = 10000;                              // a tapped plan step stays open 10 s
 const FLASH_MS = 900;                                 // a tile's frame pulses once when something happens in its session
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const FRAME_MS = 100;                                // redraw rate of the single page: the plan pulse runs on 100 ms phases
 
 const cache = createSessionCache(globalThis.localStorage);   // sessions survive a hub restart (stale until the hub confirms them)
@@ -207,6 +208,7 @@ function drawTile(s, t) {
   }
   renderScreen(t.screen, { sessions: [s], view: { session: s.id }, agents: [], settings: state.settings }, {
     bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, elapsedS: elapsed(), menu: false, detail: owner.detail, planStep: owner.planStep, quest: owner.quest, sound, tick: Math.floor(now / 300), pulse: Math.floor(now / 100),
+    motionTime: now, reduceMotion: reducedMotion.matches,
   });
 }
 
