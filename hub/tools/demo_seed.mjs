@@ -33,6 +33,12 @@ const BILLING = [
 ];
 export const DOCS = lead('e5f6', 'docs-site', { title: 'Which API version should the docs target?', cwd: 'C:/work/docs-site', state: 'needs_you', evt: 'PermissionRequest', cmd: 'Question', model: 'Opus 5.5', tok: 30000, ctx_pct: 18,
   question: 'Which API version should the docs target?', options: 'v2 (current)|v3 (beta)|Both, behind a flag' });
+/** What the Claude adapter's PermissionRequest hook posts for that question: the hub holds it until the page answers, and the tile gets buttons. */
+export const DOCS_QUESTION = { session: 'e5f6', agent: 'lead', wait_s: 600,
+  questions: [{ question: 'Which API version should the docs target?', header: 'API version', options: ['v2 (current)', 'v3 (beta)', 'Both, behind a flag'], multi: false }] };
+/** A permission request held for Allow or Deny on the page (the hook of a Bash call). */
+export const DOCS_BUILD = lead('e5f6', 'docs-site', { title: 'Which API version should the docs target?', cwd: 'C:/work/docs-site', state: 'needs_you', evt: 'PermissionRequest', cmd: 'Bash', detail: 'npm run build', model: 'Opus 5.5', tok: 34000, ctx_pct: 21 });
+export const DOCS_PERMISSION = { session: 'e5f6', agent: 'lead', tool: 'Bash', cmd: 'npm run build', detail: 'npm run build', wait_s: 120 };
 export const MOBILE = lead('0718', 'mobile-app', { title: 'Migrate the login screen', cwd: 'C:/work/mobile-app', state: 'your_turn', evt: 'Stop', cmd: '', model: 'Sonnet 5.5', tok: 91000, ctx_pct: 52,
   reply_first: 'The login screen now uses the new auth hooks. Tests pass.', reply_last: 'Review the diff, then I can open the PR.' });
 export const PIPELINE = lead('9a0b', 'data-pipeline', { title: 'Backfill the events table', cwd: 'C:/work/data-pipeline', state: 'error', evt: 'PostToolUseFailure', cmd: 'psql -f backfill.sql', model: 'Haiku 5.5', tok: 12000, ctx_pct: 9 });
@@ -52,13 +58,31 @@ export const SCENES = {
   tour: { settings: { max_tiles: 4 }, events: [{ ...DOCS, state: 'working', evt: 'PreToolUse', cmd: 'Read docs/api.md', question: '', options: '' }, { ...CHECKOUT[0], plan_done: 2, plan_cur: 'Reproduce the timeout', plan_next: 'Design the retry' }] },   // the starting point of the guided tour (page_gif.mjs): two sessions, the rest arrives live
   grid: { settings: { max_tiles: 4 }, events: [...CHECKOUT, DOCS, MOBILE, PIPELINE, ...BILLING] },    // 4 tiles, two more sessions on a second page
   plan: { settings: { max_tiles: 1 }, events: CHECKOUT },
-  question: { settings: { max_tiles: 1 }, events: [DOCS] },
+  question: { settings: { max_tiles: 1 }, events: [DOCS], held: [['/question', DOCS_QUESTION]] },          // the question with its answer buttons
+  permission: { settings: { max_tiles: 1 }, events: [DOCS_BUILD], held: [['/permission', DOCS_PERMISSION]] },  // Allow and Deny on the tile
   subs3: { settings: { max_tiles: 1 }, events: [CHECKOUT[0], CHECKOUT[1], CHECKOUT[2], CHECKOUT[4]] },
   subs7: { settings: { max_tiles: 1 }, events: [...CHECKOUT, ...MORE_SUBS] },
   empty: { settings: { max_tiles: 4 }, events: [] },
 };
 
-/** Clears the hub and plays one scene (sessions, usage, settings). */
+/**
+ * Posts a request the hub keeps open until the page answers (POST /question or /permission), as the adapter's hook does, and waits until the
+ * session shows it. Returns `{ answer }`, the pending body the hook would get (`{ picks }`, `{ decision }` or `{ none: true }` once cleared);
+ * wrapped, since an async function returning the promise itself would make the caller wait for the answer.
+ */
+export async function hold(hub, p, body) {
+  const answer = post(hub, p, body).then((r) => r.json());
+  answer.catch(() => {});                                  // a scene reset or the hub closing ends it: nobody waits for it then
+  const key = p === '/question' ? 'quest' : 'perm';
+  for (let i = 0; i < 40; i++) {
+    const st = await (await fetch(`http://127.0.0.1:${hub.port}/state`)).json();
+    if (st.sessions.some((s) => s.id === body.session.slice(0, 4) && s[key])) return { answer };
+    await new Promise((done) => setTimeout(done, 50));
+  }
+  throw new Error(`POST ${p}: the session never showed the request`);
+}
+
+/** Clears the hub and plays one scene (sessions, held requests, usage, settings). */
 export async function applyScene(hub, name) {
   const scene = SCENES[name];
   if (!scene) throw new Error(`unknown scene ${name}: ${Object.keys(SCENES).join(', ')}`);
@@ -68,6 +92,7 @@ export async function applyScene(hub, name) {
   };
   await send('/reset', {});
   for (const ev of scene.events) await send('/event', ev);
+  for (const [p, body] of scene.held ?? []) await hold(hub, p, body);
   await send('/usage', { v: 1, h5_pct: 48, h5_reset_s: 4800, d7_pct: 61, d7_reset_s: 183000 });
   await send('/settings', scene.settings);
 }

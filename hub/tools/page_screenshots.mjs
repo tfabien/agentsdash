@@ -21,7 +21,8 @@ export const SHOTS = {
   quotas: { scene: 'hub', clip: '#bar' },                                     // the bar at the bottom
   grid: { scene: 'grid' },                                                    // 4 tiles of mixed sizes, a second page
   plan: { scene: 'plan', clip: ONE },                                         // plan bar, context ring
-  question: { scene: 'question', clip: 'tiles' },
+  question: { scene: 'question', clip: 'tiles' },                           // the question with its answer buttons
+  permission: { scene: 'permission', clip: 'tiles' },                       // Allow and Deny
   subs3: { scene: 'subs3', clip: ONE },
   compact: { scene: 'subs7', clip: ONE },                                     // 5 or more sub-agents: compact rows
   detail: { scene: 'plan', clip: ONE, steps: [{ click: [850, 308] }, { wait: 600 }] },   // a tap on a sub-agent row
@@ -31,7 +32,7 @@ export const SHOTS = {
   settings: { scene: 'grid', steps: [{ js: BUTTON('Settings') }, { wait: 600 }] },
 };
 // What the README uses (the default run), in the order of its sections.
-const DEFAULT_SHOTS = ['hub', 'plan', 'question', 'subs3', 'compact', 'detail', 'quotas'];
+const DEFAULT_SHOTS = ['hub', 'plan', 'question', 'permission', 'subs3', 'compact', 'detail', 'quotas'];
 
 /** The rectangle around every element matching `selector`, 12 px of margin (so a frame is not cut), kept inside the window. */
 async function selectorRect(cdp, selector) {

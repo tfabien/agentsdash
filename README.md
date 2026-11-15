@@ -3,8 +3,10 @@
 One page that shows what your coding agents are doing.
 
 Every session, every sub-agent, how far each plan has come, and which agent is waiting for you.
+Answer its question or allow its command with one click on the page.
 
 It works with **Claude Code** and **Codex**, in your browser, with nothing to buy and nothing to flash.
+Put the page on a second monitor, or on a phone or a tablet next to the keyboard.
 
 ## Install
 
@@ -44,23 +46,48 @@ Run several agents at once and stay productive, without watching every terminal.
 
    A question or a permission prompt turns its tile orange and beeps, so no agent sits blocked for an hour without you noticing.
 
-2. **Know where every task stands**: one glance gives, for each session, the step that runs now, the steps done and the ones left.
+2. **Answer without switching windows**: the options of a question and the Allow and Deny buttons of a permission prompt are on the tile.
+
+   One click sends the answer to the agent, which goes on while you stay where you were.
+
+3. **Know where every task stands**: one glance gives, for each session, the step that runs now, the steps done and the ones left.
 
    No more scrolling a terminal to find out whether a plan is at step 2 or step 7.
 
-3. **Follow your agents at work**: every session, its sub-agents, what each one is doing, how much context it has used and how much of your quota is left.
+4. **Follow your agents at work**: every session, its sub-agents, what each one is doing, how much context it has used and how much of your quota is left.
 
    Like a stand-up meeting of your agents, on one screen.
 
-4. **Get your answers faster**: the last reply of each agent is on its tile, and a finished session says so.
+5. **Get your answers faster**: the last reply of each agent is on its tile, and a finished session says so.
 
    You come back to the right session at the right moment.
 
-![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question, an error, a session is done](docs/images/tour.gif)
+![Tour of the page: sessions arrive, sub-agents join, the plan moves, a question answered on the page, a command allowed on the page, an error, a session is done, then the same view on a monitor and a phone](docs/images/tour.gif)
 
 The hub in this repository is a small Node.js server that draws the screen **in your browser**, fed by adapters that watch your agents.
 
-An external screen (an ESP32 gadget, a USB display) is a bonus, see [Devices](#devices-optional).
+## On any screen
+
+The page needs nothing but a browser, so any screen near you can show it.
+An old phone or a tablet on a stand next to the keyboard becomes a dedicated screen: your agents stay in sight while the monitor keeps your code.
+
+<p>
+<img src="docs/images/screen-phone-desk.jpg" width="32%" alt="A phone on a stand beside the keyboard shows a session and its 4 sub-agents">
+<img src="docs/images/screen-tablet.jpg" width="32%" alt="A tablet on the desk shows the same session">
+<img src="docs/images/screen-phone-bench.jpg" width="32%" alt="A phone on an electronics workbench shows the same session">
+</p>
+
+Illustrations of the idea: the screen drawn in them is simpler than the real page (see the tour above).
+
+| Screen | How | What it does |
+|---|---|---|
+| Second monitor | Open <http://127.0.0.1:8765/> in a window on that monitor, full screen with F11. | Everything: the grid, answers, settings, themes. |
+| Phone or tablet | Click the phone button of the bottom bar, turn on phone access, scan the QR code on the same Wi-Fi. | One session per page, full screen, live. Read-only: answers stay on the PC. |
+| ESP32 gadget | A relay in `~/.agentsdash/config.json` sends every event to it. | The same screen on real hardware, with a buzzer. See [Devices](#devices-optional). |
+
+The phone page keeps the screen awake and says "Hub unreachable, retrying" when the PC sleeps.
+Phone access is off by default; the QR code carries a token, and the link is plain http, so use it on a network you trust.
+Details: [hub/README.md](hub/README.md#phone-pwa).
 
 ## What you see
 
@@ -88,12 +115,19 @@ Open <http://127.0.0.1:8765/> for a grid with one tile per session (Claude Code 
 - Plan progress built from the task list of the session (`TaskCreate`/`TaskUpdate`, `TodoWrite`, the desktop `update_plan`): segmented bar, current step and next step. Steps running in parallel each pulse.
 - Context fill ring next to the project badge (green under 60 %, orange 60 to 79 %, red from 80 %).
 
-### Questions: display and notification
+### Questions and permissions: answer from the page
 
-![A pending question](docs/images/page-question.png)
+![A question with its answer buttons](docs/images/page-question.png)
 
-- A pending `AskUserQuestion` shows the question and its numbered options. The session turns orange and the page beeps.
-- Permission prompts turn the session orange too.
+- A pending `AskUserQuestion` shows the question and one button per option. The session turns orange and the page beeps.
+- A click on an option sends it to the agent. A multi choice question has a SEND button, and several questions come one after the other.
+- TERMINAL hands the question back to the terminal or the app. Answering there works too: the tile drops its buttons.
+- Free text answers are not on the page yet: type them in the terminal.
+
+![A permission prompt with Allow and Deny](docs/images/page-permission.png)
+
+- A permission prompt shows the command with ALLOW and DENY. A click answers the agent, and the countdown says how long the page holds it before the terminal prompt asks as usual.
+- Setting "Full screen on a question" (settings menu) opens the session that asks full screen, then returns to the grid once you answered.
 - Click the speaker icon (bottom bar) to switch the beeps between `all`, `ask` (needs you only, the default) and `off`. The choice is kept by the hub, so every open page follows it.
 
 ### Sub-agents: see and follow them, click for the detail
@@ -166,7 +200,7 @@ The hub forwards every event to it (`relay` in `~/.agentsdash/config.json`), so 
 | Device | State | Link |
 |---|---|---|
 | ESP32 + the touchscreen of an Artillery X3 3D printer (TJC 4.3", 480x272) | works, Wi-Fi relay tested, USB relay written | [agentsdash-device-artillery-x3](https://github.com/tfabien/agentsdash-device-artillery-x3) |
-| A phone (iPhone or Android) as a PWA | first version: pair with a QR code on the home Wi-Fi, read-only | [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) |
+| A phone or a tablet (iPhone, Android) as a PWA | built into the hub (`/phone`): pair with a QR code on the same Wi-Fi, read-only | [On any screen](#on-any-screen), notes in [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) |
 
 More devices are welcome: [devices/README.md](devices/README.md) says what a device receives and how to add one.
 
@@ -192,8 +226,7 @@ Every item is an issue in the repository it belongs to; the maintainer follows t
 Core ([issues](https://github.com/tfabien/agentsdash/issues)):
 
 - **One screen component for the page and the device** ([#3](https://github.com/tfabien/agentsdash/issues/3)).
-- **Allow or deny a permission request from the screen** ([#4](https://github.com/tfabien/agentsdash/issues/4)).
-- **Answer an `AskUserQuestion` from the screen** ([#75](https://github.com/tfabien/agentsdash/issues/75)): option buttons on the hub page; free text, the phone page and the device are still missing, and a real session check is pending.
+- **Answer an `AskUserQuestion` from the screen** ([#75](https://github.com/tfabien/agentsdash/issues/75)): option buttons work on the hub page; free text, the phone page and the device are still missing, and a real session check is pending.
 - **Reliable usage and quotas** ([#6](https://github.com/tfabien/agentsdash/issues/6)): the usage endpoint returns 429 and numbers can be stale.
 - **Adapters never fetch a newer core** ([#57](https://github.com/tfabien/agentsdash/issues/57)).
 - **The page does not follow the session that has the focus in the agent** ([#59](https://github.com/tfabien/agentsdash/issues/59)).
