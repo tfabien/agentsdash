@@ -4,8 +4,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { forDevice } from './ascii.mjs';
-import { deviceKey, latestPerKey } from './relay_queue.mjs';
+import { capQueue, latestPerKey, queueItem } from './relay_queue.mjs';
 
 export const defaultLockFile = () => path.join(os.tmpdir(), 'agent-gadget-tft.lock');
 const FAILURE_PAUSE_MS = 3000;
@@ -69,12 +68,8 @@ export function createHttpRelay({ host, timeoutMs = 2000, lockFile = defaultLock
   return {
     send(route, body) {
       if (stopped) return;
-      body = forDevice(route, body);          // ASCII only (the gadget fonts) and cut to the firmware's buffers
-      queue.push({ route, body, key: deviceKey(route, body) });
-      if (queue.length > maxQueue) {
-        coalesce();
-        if (queue.length > maxQueue) queue = queue.slice(-maxQueue);
-      }
+      queue.push(queueItem(route, body));     // ASCII only (the gadget fonts) and cut to the firmware's buffers
+      queue = capQueue(queue, maxQueue);
       pump();
     },
     /** The hub swapped to another device: forget what is queued and send nothing more. */
