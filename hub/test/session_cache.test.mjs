@@ -47,3 +47,14 @@ test('forget_and_restore_follow_the_storage', () => {
   assert.deepEqual(reloaded.restore().map((s) => [s.id, s.stale]), [['a', true]]);
   assert.equal(createSessionCache(null).merge(st(1, 'a')).sessions.length, 1, 'works without storage');
 });
+
+test('restore_and_merge_carry_the_same_stale_copy', () => {
+  const storage = mem();
+  createSessionCache(storage, () => 1000).merge(st('old', 'a'));
+  const restored = createSessionCache(storage, () => 121000).restore();
+  assert.equal(restored.length, 1);
+  assert.equal(restored[0].stale, true);
+  assert.equal(restored[0].agents[0].age, 125, 'age moves on by the 120 s since the last confirmation');
+  const merged = createSessionCache(storage, () => 121000).merge({ boot: 'new', sessions: [] });
+  assert.deepEqual(merged.sessions[0], restored[0]);
+});
