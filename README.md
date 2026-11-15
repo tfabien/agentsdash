@@ -4,6 +4,8 @@ A dashboard for your coding agents (**Claude Code**, **Codex**): every session o
 
 Put it on a tablet or an old phone next to the keyboard: your agents stay in sight while the monitor keeps your code.
 
+<img src="docs/images/screen-desk.jpg" width="100%" alt="A developer desk: code on the monitor, a tablet on a stand beside it shows a session, its plan and 3 sub-agents">
+
 <p>
 <img src="docs/images/screen-tablet.jpg" width="32%" alt="A tablet on the desk shows a session and its 4 sub-agents">
 <img src="docs/images/screen-phone-desk.jpg" width="32%" alt="A phone on a stand beside the keyboard shows the same session">
