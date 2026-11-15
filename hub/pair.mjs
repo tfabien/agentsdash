@@ -56,15 +56,21 @@ async function main() {
     if (!(await restartHub(base))) { console.log(`The hub did not restart at ${base}. Start it, then run this command again.`); process.exitCode = 1; return; }
   }
   let url = null;
+  let others = [];
   for (let i = 0; i < 20 && !url; i++) {
     const r = await get(`${base}/pair-info`);
-    try { url = r?.ok ? (await r.json()).url : null; } catch { url = null; }
+    try {
+      const info = r?.ok ? await r.json() : {};
+      url = info.url ?? null;
+      others = (Array.isArray(info.urls) ? info.urls : []).filter((u) => u !== url);
+    } catch { url = null; }
     if (!url && i < 19) await sleep(200);
   }
   if (!url) { console.log(`No pairing address: the hub at ${base} is not reachable, or this computer has no private network address (is it on Wi-Fi?).`); process.exitCode = 1; return; }
   console.log('Pair a phone (it must be on the same Wi-Fi as this computer):\n');
   console.log(qrLines(url).join('\n'));
   console.log(`\n${url}\n`);
+  if (others.length) console.log(`The phone cannot open it? Other addresses of this computer:\n${others.join('\n')}\n`);
   console.log('Scan the code with the phone camera. The page opens full screen after one tap.');
   console.log('The link is plain http: use it on a network you trust. Phone access is now on (`lan.enabled` in the config file); the QR button of the page turns it off.');
 }
