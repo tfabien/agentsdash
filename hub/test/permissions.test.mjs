@@ -76,13 +76,23 @@ test('clear_session_resolves_none', async () => {
   const { perms } = fake();
   const a = perms.open(REQ);
   const b = perms.open({ ...REQ, agent: 'ab12' });
-  assert.equal(perms.clearSession('abcd'), true);
+  assert.equal(perms.clear('abcd'), true);
   assert.equal(await a.promise, 'none');
   assert.equal(await b.promise, 'none');
-  assert.equal(perms.clearSession('abcd'), false);
+  assert.equal(perms.clear('abcd'), false);
 });
 
-test('clear_all_resolves_every_session', async () => {
+test('clear_with_an_agent_ends_only_that_agent_request', async () => {
+  const { perms } = fake();
+  const a = perms.open(REQ);
+  const b = perms.open({ ...REQ, agent: 'ab12' });
+  assert.equal(perms.clear('abcd', 'ab12'), true);
+  assert.equal(await b.promise, 'none');
+  assert.equal(perms.view('abcd').id, a.id, 'the lead request stays');
+  assert.equal(perms.clear('abcd', 'ab12'), false);
+});
+
+test('clear_all_resolves_every_session',async () => {
   const { perms } = fake();
   const a = perms.open(REQ);
   const b = perms.open({ ...REQ, session: 'zzzz' });
