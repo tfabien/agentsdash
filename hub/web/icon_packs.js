@@ -1,7 +1,7 @@
 // Icon packs: one drawing per role (lead, general, explore, plan, review, test, code, generic), in the 36x42 box of the gadget robots.
 // `draw(ctx, role, blink)` paints in that box (the caller translates and scales), so size and blink stay the same for every pack.
 // The built-in `robot` pack is the fallback for a missing pack name.
-import { hueOf } from './theme_schema.js';
+import { hueOf, ROLE_FILES, DEFAULT_PACK } from './theme_schema.js';
 
 function tools(ctx) {
   return {
@@ -186,20 +186,19 @@ function drawPirate(ctx, role, blink) {
   chestIcon(ctx, role, '#f6e7c1');
 }
 
-export const DEFAULT_PACK = 'robot';
 export const ICON_PACKS = {
-  robot: { label: 'Robot', draw: drawRobot },
-  cat: { label: 'Cat', draw: drawCat },
-  lemmings: { label: 'Lemmings', draw: drawLemming },
-  office: { label: 'Office', draw: drawOffice },
-  pirates: { label: 'Pirates', draw: drawPirate },
+  robot: { draw: drawRobot },
+  cat: { draw: drawCat },
+  lemmings: { draw: drawLemming },
+  office: { draw: drawOffice },
+  pirates: { draw: drawPirate },
 };
 /** The pack of that name among the built-in canvas packs; a missing or unknown name gives the built-in robots. */
 export const iconPack = (name) => ICON_PACKS[name] ?? ICON_PACKS[DEFAULT_PACK];
 
 // ---- packs from the hub catalog (SVG files) ----
-const ROLE_KEYS = ['lead', 'general', 'explore', 'plan', 'review', 'test', 'code', 'generic'];
-const ICON_W = 36, ICON_H = 42;
+/** The box an agent icon is drawn in, in screen units. */
+export const ICON_W = 36, ICON_H = 42;
 const images = new Map();                                    // url -> Image, shared by every pack
 const loadedListeners = new Set();
 
@@ -230,6 +229,8 @@ export function lookFor(list, agentId) {
 let accent = '';                                             // `#rrggbb` icon tint of the applied theme, '' for none
 /** Sets the icon accent (see themes.js). Packs with tint mode `svg` or `hue` draw with it; `none` packs ignore it. */
 export function setAccent(hex) { accent = typeof hex === 'string' ? hex : ''; }
+/** The accent set by `setAccent`. */
+export const currentAccent = () => accent;
 
 // Tint mode `svg`: the file text is fetched once per URL, `currentColor` becomes the accent, and the result is drawn from a blob URL
 // (freed once the image is decoded).
@@ -368,10 +369,9 @@ export function variantKey(roles, key, agentId, sprite) {
 /** A pack drawn from SVG (or png, gif...) files: `roles` maps 'lead'..'generic' (and '<role>-blink') to URLs. A role without a file, or whose image is not loaded yet, draws the robot. */
 export function svgPack(name, roles, { tint = 'none', hue = 0, palettes = {} } = {}) {
   return {
-    label: name.charAt(0).toUpperCase() + name.slice(1),
     draw(ctx, role, blink, agentId) {
       const look = lookFor(looks, agentId);
-      const key = variantKey(roles, ROLE_KEYS[role], agentId, look?.sprite);
+      const key = variantKey(roles, ROLE_FILES[role], agentId, look?.sprite);
       const tone = look?.accent || accent;                          // the look's accent, else the theme's
       const plain = roles[key];
       const blinkUrl = roles[`${key}-blink`];

@@ -1,7 +1,7 @@
 // Themes of the page: a color table (same keys as COLOR of screen.js) and the icon pack to draw the agents with.
 // A theme is a plain object { name, label?, author?, version?, iconPack?, colors: { KEY: '#rrggbb' } }. Missing or invalid colors keep the
 // built-in value, a missing or unknown icon pack gives the robots. The active theme is global (setting `theme`, kept by the hub).
-import { COLOR } from './screen.js';
+import { COLOR, rgb565 } from './screen.js';
 import { iconPackFor, setCatalogPacks, setAccent, setLooks } from './icon_packs.js';
 import { validateTheme, resolvePalette, activeLooks, overrideKeyOf, HEX } from './theme_schema.js';
 
@@ -46,18 +46,14 @@ export const THEMES = {
   },
 };
 
-export { validateTheme };
-
 /** A color of `theme` as a CSS string (the built-in value when the theme leaves it out). */
 export function themeColor(theme, key) {
   const hex = theme.colors[key];
   if (hex && HEX.test(hex)) return hex;
-  const v = BASE[key];
-  return `rgb(${[((v >> 11) & 31) * 255 / 31, ((v >> 5) & 63) * 255 / 63, (v & 31) * 255 / 31].map(Math.floor).join(',')})`;
+  return `rgb(${rgb565(BASE[key]).join(',')})`;
 }
 
 let active = THEMES[DEFAULT_THEME];
-let activeAccentHex = '';
 let catalogThemes = null;                                    // name -> theme of the hub catalog; null until one arrived
 
 /** Stores the hub catalog ({ themes, packs }). THEMES stays the offline fallback and the source of `default`. */
@@ -83,14 +79,11 @@ export function applyTheme(theme, variantKey = '', overrides = {}, chosenLooks) 
   Object.assign(COLOR, BASE);
   for (const [key, hex] of Object.entries(colors)) if (key in BASE && HEX.test(hex)) COLOR[key] = to565(hex);
   active = t;
-  activeAccentHex = accent;
   setAccent(accent);
   setLooks(activeLooks(t, chosenLooks));
   return t;
 }
 
 export const activeTheme = () => active;
-/** The icon accent (`#rrggbb`, '' for none) of the applied theme, variant and override. */
-export const activeAccent = () => activeAccentHex;
 /** The icon pack of the active theme. */
 export const activeIconPack = () => iconPackFor(active.iconPack);

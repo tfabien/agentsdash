@@ -175,3 +175,12 @@ test('override_key_names_a_variant_only_when_the_theme_has_it', () => {
 test('toHex_lowercases_an_uppercase_color', () => {
   assert.equal(toHex('#FFFFFF'), '#ffffff');
 });
+
+test('editor_input_value_is_themeColor_of_the_resolved_palette', async () => {
+  const { themeColor } = await import('../web/themes.js');
+  const t = { name: 'ed', colors: { FRAME: '#123456', TEXT: '#ABCDEF' } };
+  const vt = { ...t, colors: resolvePalette(t, '', { colors: { PANEL: 'bad' } }).colors };
+  assert.equal(toHex(themeColor(vt, 'FRAME')), '#123456', 'a valid color round-trips');
+  assert.equal(toHex(themeColor(vt, 'TEXT')), '#abcdef', 'uppercase is lowercased');
+  assert.equal(toHex(themeColor(vt, 'PANEL')), toHex(themeColor({ colors: {} }, 'PANEL')), 'an invalid color shows the built-in one');
+});
