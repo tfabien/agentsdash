@@ -1,9 +1,9 @@
 // The color editor of the theme view: one color input per color of the theme and one for the icon accent, with a live preview, a contrast warning,
 // Reset (drops the user's edits of this theme and variant) and Save as theme (a user theme file). It edits a draft `{ colors, accent }`; the host
 // stores it (setting `themeOverrides`) and writes the theme file.
+import { el } from './dom.js';
 import { COLOR_KEYS, resolvePalette, contrastRatio, HEX, isName, NAME_RULE } from './theme_schema.js';
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const MIN_CONTRAST = 4.5;
 
 /** `#rrggbb` of a CSS color given as `#rrggbb` or `rgb(r,g,b)` (what themeColor returns for a built-in color). */

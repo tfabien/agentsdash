@@ -9,18 +9,11 @@ import { postSettings } from './settings.js';
 import { icon } from './icons.js';
 import { mergeCards, filterCards, tagCounts, cardVariant, STATUSES } from './theme_list.js';
 import { askConfirm } from './confirm_dialog.js';
+import { el, postJson, call } from './dom.js';
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const ICON_W = 36, ICON_H = 42, GAP = 6;
 const TAGS_SHOWN = 12;
 const STATUS_LABEL = { all: 'All', installed: 'Installed', available: 'Available', updates: 'Updates' };
-
-/** POST to the hub; a refusal throws the hub's reason. */
-async function call(path, body = {}) {
-  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(await res.text());
-  return res;
-}
 
 /** The eight agents of a theme, on its panel color, drawn at `k` pixels per unit. */
 function drawPreview(canvas, theme, accent = '', looks) {
@@ -112,7 +105,7 @@ export function createThemeMenu({ onPreview } = {}) {
       openEditor();
     },
     onSave: async ({ name, label, override }) => {
-      const send = (overwrite) => fetch('/themes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, label, theme: edited.name, variant: edited.variant, override, overwrite }) });
+      const send = (overwrite) => postJson('/themes', { name, label, theme: edited.name, variant: edited.variant, override, overwrite });
       let res = await send(false);
       if (res.status === 409 && (await askConfirm(`The theme ${name} exists. Replace it?`, { ok: 'Replace', danger: true }))) res = await send(true);
       if (!res.ok) throw new Error(await res.text());

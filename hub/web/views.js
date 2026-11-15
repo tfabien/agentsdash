@@ -1,7 +1,7 @@
 // The menus of the bottom bar (theme, settings, device) open in place of the agents: one view at a time over the stage, which keeps
 // its layout underneath. The same button, the Back tab on the left border (like the one of a full-screen session) or Escape closes the view.
 // A view with pages of its own (the theme settings, the editor) hears 'viewback' on its node first and cancels it to go up one page.
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+import { el } from './dom.js';
 
 /** @param {HTMLElement} stage the (positioned) element holding the agents */
 export function createViewHost(stage) {
