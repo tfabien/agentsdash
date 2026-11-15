@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SCENES, applyScene, startDemoHub } from '../tools/demo_seed.mjs';
+import { SHOTS } from '../tools/page_screenshots.mjs';
 
 // The README screenshots play these scenes: each one must reach the page with the sessions it was written for.
 const WANT = {
   hub: { sessions: 10 }, tour: { sessions: 2 }, grid: { sessions: 5 }, empty: { sessions: 0 },
-  plan: { sessions: 1, agents: 5 }, detail: { sessions: 1, agents: 5 }, subs3: { sessions: 1, agents: 4 },
+  plan: { sessions: 1, agents: 5 }, subs3: { sessions: 1, agents: 4 },
   subs7: { sessions: 1, agents: 8, done: 1 }, question: { sessions: 1, needsYou: 1 },
 };
 
@@ -25,4 +26,8 @@ test('every_demo_scene_reaches_the_page_whole', async () => {
     }
     await assert.rejects(applyScene(demo.hub, 'nope'), /unknown scene/);
   } finally { await demo.close(); }
+});
+
+test('every_page_screenshot_plays_a_demo_scene', () => {
+  for (const [name, shot] of Object.entries(SHOTS)) assert.ok(shot.scene in SCENES, `${name}: scene ${shot.scene}`);
 });

@@ -36,5 +36,5 @@ Tests (no hardware): `node --test hub/test/*.test.mjs` (a directory argument fai
 - Windows: `process.exit` right after spawning a detached child crashes Node (libuv assertion): use `process.exitCode`.
 - A shell here-document or `sed` turns `\n` in a replacement into a real newline: edit code with an editor tool or a Python script file.
 - `sleep` of more than a few seconds is blocked in the shell tool: wait with a loop on a condition.
-- README screenshots are the real page: `hub/tools/page_screenshots.mjs` (demo hub from `demo_seed.mjs`, marketplace theme `office` (needs network; `DEMO_THEMES=<name>` picks another), 4 tiles per page, needs Edge or Chrome). `page_gif.mjs` records the tour GIF (needs Python with Pillow). `screenshots.mjs` draws the device screen scenes only.
+- README screenshots are the real page: `hub/tools/page_screenshots.mjs` (demo hub from `demo_seed.mjs`, marketplace theme `office` (needs network; `DEMO_THEMES=<name>` picks another), 4 tiles per page, needs Edge or Chrome). `page_gif.mjs` records the tour GIF (needs Python with Pillow). Both open the browser through `browser.mjs` (`findBrowser`, `openPage`, DevTools client). `screenshots.mjs` draws the device screen scenes only.
 - Work PC (Windows 10 Enterprise, Fortinet VPN, Dell dock); prefer a personal PC to install new tools.

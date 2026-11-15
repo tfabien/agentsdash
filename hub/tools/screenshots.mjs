@@ -10,18 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { startHub } from '../hub.mjs';
 import { isMain } from '../run_as_main.mjs';
 import { SCENE_NAMES } from '../web/scenes.js';
+import { findBrowser } from './browser.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const BROWSERS = [
-  process.env.SCREENSHOT_BROWSER,
-  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-].filter(Boolean);
-
-export const findBrowser = () => BROWSERS.find((p) => fs.existsSync(p));
 
 /** Screenshot of one scene; resolves to the path written. Asynchronous: the hub that serves the page runs in this process. */
 export async function shoot({ browser, port, scene, out, scale = 2 }) {
