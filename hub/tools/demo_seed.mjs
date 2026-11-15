@@ -55,7 +55,6 @@ export const SCENES = {
   question: { settings: { max_tiles: 1 }, events: [DOCS] },
   subs3: { settings: { max_tiles: 1 }, events: [CHECKOUT[0], CHECKOUT[1], CHECKOUT[2], CHECKOUT[4]] },
   subs7: { settings: { max_tiles: 1 }, events: [...CHECKOUT, ...MORE_SUBS] },
-  detail: { settings: { max_tiles: 1 }, events: CHECKOUT },
   empty: { settings: { max_tiles: 4 }, events: [] },
 };
 
