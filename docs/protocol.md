@@ -7,7 +7,7 @@ The protocol version is **2**. `GET /health` reports it as `protocol` (see below
 
 ## Transport rules
 
-- The hub listens on `127.0.0.1` (default port 8765). Bodies are JSON (`Content-Type: application/json`), at most 64 KiB (413 above).
+- The hub listens on `127.0.0.1` (default port 8765). Bodies are JSON objects (`Content-Type: application/json`), at most 64 KiB (413 above). A route that reads a body answers 400 `invalid JSON` when it is not a JSON object; `/reset` and `/market/update` also take an empty body.
 - A request must name the hub in `Host` (`127.0.0.1:<port>`, `localhost:<port>` or `[::1]:<port>`), else 403 `forbidden host`.
 - A request that carries an `Origin` header must carry the hub's own origin, else 403 `forbidden origin`. Adapters send no `Origin`. There is no CORS.
 - Text keeps its full Unicode and length on the hub. Only identifiers are cut (4 characters). Devices get text through `forDevice` (see `device-protocol.md`).
@@ -94,7 +94,7 @@ Body `{ "session", "agent" }`. The hook calls it once `AskUserQuestion` ran (`Po
 
 ### POST /settings
 
-Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 32), `theme`, `pulse`, `dim_idle`, `idle_minutes` (1, 2, 5 or 10: minutes waiting for you before a tile is idle, greyed and sorted last), `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`, `rate_alert_k` (0, 20, 40 or 80: 0 hides the token rate readout of the tiles, else it turns orange from that many thousand tokens per minute and red from 3 times that), `focus_on_ask` (true: a question or an Allow/Deny held for the page opens its session full screen, and the view before comes back after the answer; default false). Invalid entries are ignored; 400 when none is valid.
+Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 12), `theme`, `pulse`, `dim_idle`, `idle_minutes` (1, 2, 5 or 10: minutes waiting for you before a tile is idle, greyed and sorted last), `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`, `rate_alert_k` (0, 20, 40 or 80: 0 hides the token rate readout of the tiles, else it turns orange from that many thousand tokens per minute and red from 3 times that), `focus_on_ask` (true: a question or an Allow/Deny held for the page opens its session full screen, and the view before comes back after the answer; default false). Invalid entries are ignored; 400 when none is valid.
 
 ### POST /select
 

@@ -129,3 +129,13 @@ test('a_sub_agent_tool_end_clears_the_lead_request_too', () => withHub(async (hu
   await post(hub, '/event', { ...EV, agent: 'ab12', role: 'Explore', evt: 'PostToolUse', state: 'working', cmd: 'Read x' });
   assert.deepEqual(await (await held).json(), { decision: 'none' }, 'the clear is session-wide (docs/protocol.md)');
 }));
+
+test('permission_routes_answer_413_for_a_body_too_large_and_400_for_null', () => withHub(async (hub) => {
+  const big = JSON.stringify({ session: 'x'.repeat(70 * 1024) });
+  for (const route of ['/permission', '/permission/answer']) {
+    const r = await post(hub, route, null, big);
+    assert.equal(r.status, 413, route);
+    assert.equal(await r.text(), 'body too large', route);
+  }
+  assert.equal((await post(hub, '/permission/answer', null, 'null')).status, 400);
+}));
