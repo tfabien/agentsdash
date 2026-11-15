@@ -648,3 +648,68 @@ test('market_sources_stop_at_ten', async () => {
     assert.equal(await r.text(), 'at most 10 sources');
   }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
 });
+
+// ---- request bodies and static files ----
+test('every_json_post_route_answers_400_for_a_body_that_is_not_an_object', () => withHub(async (hub) => {
+  const routes = ['/settings', '/event', '/usage', '/dismiss', '/select', '/relay', '/permission', '/permission/answer', '/reset'];
+  for (const route of routes) {
+    for (const raw of ['"x"', '5', 'null', '[]']) {
+      const r = await post(hub, route, null, raw);
+      assert.equal(r.status, 400, `${route} with ${raw}`);
+      assert.equal(await r.text(), 'invalid JSON', `${route} with ${raw}`);
+    }
+  }
+}));
+
+test('reset_and_market_update_accept_an_empty_body', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    await post(hub, '/event', EV);
+    assert.equal((await fetch(`http://127.0.0.1:${hub.port}/reset`, { method: 'POST' })).status, 200);
+    assert.equal((await (await get(hub, '/state')).json()).sessions.length, 0);
+    const r = await fetch(`http://127.0.0.1:${hub.port}/market/update`, { method: 'POST' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { updated: [], errors: [] });
+    assert.equal((await post(hub, '/market/update', null, '{bad')).status, 400);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_update_with_a_name_checks_only_that_theme', async () => {
+  const d = catalogDirs();
+  let version = '1.0.0';
+  const proxy = (url, init) => market(version)(url, init);
+  await withHub(async (hub) => {
+    await postJson(hub, '/market/sources', { add: 'o/r' });
+    await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' });
+    version = '1.1.0';
+    assert.deepEqual(await (await postJson(hub, '/market/update', { name: 'dog' })).json(), { updated: [], errors: [] });
+    assert.deepEqual(await (await postJson(hub, '/market/update', { name: 'cat' })).json(), { updated: ['cat'], errors: [] });
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
+});
+
+test('shutdown_answers_bye_and_calls_on_shutdown', async () => {
+  let called = false;
+  await withHub(async (hub) => {
+    const r = await fetch(`http://127.0.0.1:${hub.port}/shutdown`, { method: 'POST' });
+    assert.equal(await r.text(), 'bye');
+    for (let i = 0; i < 50 && !called; i++) await new Promise((res) => setTimeout(res, 20));
+    assert.equal(called, true);
+  }, { onShutdown: () => { called = true; } });
+});
+
+test('static_files_answer_404_for_a_bad_escape_and_serve_the_pages', () => withHub(async (hub) => {
+  for (const p of ['/%E0%A4%A', '/a%2']) {
+    const r = await get(hub, p);
+    assert.equal(r.status, 404, p);
+    assert.match(r.headers.get('content-type'), /text\/plain/, p);
+  }
+  for (const p of ['/', '/hub', '/phone', '/hub.html']) assert.equal((await get(hub, p)).status, 200, p);
+  for (const p of ['/nope.js', '/..%2fhub.mjs']) assert.equal((await get(hub, p)).status, 404, p);
+}));
+
+test('max_tiles_stops_at_the_page_limit_of_12', () => withHub(async (hub) => {
+  assert.equal((await post(hub, '/settings', { max_tiles: 12 })).status, 200);
+  const r = await post(hub, '/settings', { max_tiles: 13 });
+  assert.equal(r.status, 400);
+  assert.match(await r.text(), /1 to 12\)/);
+}));

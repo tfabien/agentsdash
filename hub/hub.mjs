@@ -14,6 +14,7 @@ import { validRules } from './rules.mjs';
 import { SOURCE_RE, parseSource, listSource } from './market_source.mjs';
 import { installTheme, removeTheme, readInstalled, saveUserTheme } from './market_install.mjs';
 import { validatePalettePart } from './web/theme_schema.js';
+import { MAX_TILES } from './web/layout.js';
 import { annotate, createUpdater } from './market_update.mjs';
 import { installFirstTheme } from './market_bootstrap.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
@@ -37,7 +38,7 @@ const validLooks = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && O
 // Settings shared by every page, with what each accepts. Anything else in a POST is ignored.
 const SETTING_RULES = {
   sound: (v) => SOUNDS.includes(v),
-  max_tiles: (v) => Number.isInteger(v) && v >= 0 && v <= 32,        // tiles per page, 0 = Auto (what fits the window)
+  max_tiles: (v) => Number.isInteger(v) && v >= 0 && v <= MAX_TILES, // tiles per page, 0 = Auto (what fits the window); the page holds at most MAX_TILES
   theme: (v) => typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v),
   pulse: (v) => typeof v === 'boolean',
   dim_idle: (v) => typeof v === 'boolean',
@@ -54,11 +55,12 @@ const SETTING_RULES = {
 };
 const MAX_SOURCES = 10;
 const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, idle_minutes: 5, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, themeLooks: {}, rules: [], marketSources: ['tfabien/agentsdash-themes'], themeAutoUpdate: true, rate_alert_k: 20, focus_on_ask: false };
-const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
+const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && typeof o === 'object' && !Array.isArray(o) && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
 const pluginVersion = (() => { try { return JSON.parse(fs.readFileSync(path.join(HUB_DIR, 'package.json'), 'utf8')).version ?? ''; } catch { return ''; } })();
 const realScript = (() => { try { return fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return fileURLToPath(import.meta.url); } })();
+const str = (v) => (typeof v === 'string' ? v : '');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 
 function readBody(req) {
@@ -181,11 +183,14 @@ export function startHub(opts = {}) {
   const json = (res, obj) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
 
   function serveStatic(res, urlPath) {
-    const rel = urlPath === '/' || urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : urlPath === '/phone' ? 'phone.html' : decodeURIComponent(urlPath.slice(1));
+    let rel;
+    try { rel = urlPath === '/' || urlPath === '/hub' || urlPath === '/hub/' ? 'hub.html' : urlPath === '/phone' ? 'phone.html' : decodeURIComponent(urlPath.slice(1)); } catch { return text(res, 404, 'not found'); }   // a bad % escape
     const file = path.join(WEB_DIR, rel);
-    if (!file.startsWith(WEB_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return text(res, 404, 'not found');
+    if (!file.startsWith(WEB_DIR + path.sep)) return text(res, 404, 'not found');
+    let data;   // read whole: a read error (directory, missing, locked file) answers 404 and never reaches the response stream
+    try { data = fs.readFileSync(file); } catch { return text(res, 404, 'not found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-cache' });   // the page files change with the hub version
-    fs.createReadStream(file).pipe(res);
+    res.end(data);
   }
 
   /** Applies validated settings: memory, the gadget taps and the settings file. */
@@ -195,10 +200,11 @@ export function startHub(opts = {}) {
     if (settingsFile) { try { fs.writeFileSync(settingsFile, JSON.stringify(settings), 'utf8'); } catch { /* the setting still holds until the hub stops */ } }
   }
 
-  /** The JSON body of a request as an object, or null after answering 400 or 413. */
-  async function jsonBody(req, res) {
+  /** The JSON body of a request as an object, or null after answering 400 or 413. With allowEmpty, a blank body is {}. */
+  async function jsonBody(req, res, { allowEmpty = false } = {}) {
     try {
-      const body = JSON.parse(await readBody(req));
+      const raw = await readBody(req);
+      const body = allowEmpty && !raw.trim() ? {} : JSON.parse(raw);
       if (body && typeof body === 'object' && !Array.isArray(body)) return body;
     } catch (e) { if (e.status === 413) { text(res, 413, 'body too large'); return null; } }
     text(res, 400, 'invalid JSON');
@@ -312,7 +318,7 @@ export function startHub(opts = {}) {
         return text(res, 200, 'ok');
       }
       case 'POST /market/update': {
-        const body = await jsonBody(req, res);
+        const body = await jsonBody(req, res, { allowEmpty: true });
         if (!body) return undefined;
         const result = await updater.check(typeof body.name === 'string' ? body.name : undefined);
         reloadCatalog();
@@ -323,8 +329,8 @@ export function startHub(opts = {}) {
       case 'GET /relay/ports': return json(res, await (opts.listPorts ?? listSerialPorts)());
       case 'POST /relay/test': return json(res, await testRelay());
       case 'POST /relay': {
-        let body;
-        try { body = JSON.parse(await readBody(req)); } catch (e) { return e.status === 413 ? text(res, 413, 'body too large') : text(res, 400, 'invalid JSON'); }
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
         const parsed = await parseRelay(body, opts.lookup);
         if (parsed.error) return text(res, 400, parsed.error);
         const saved = swapRelay(parsed.relay);
@@ -344,24 +350,22 @@ export function startHub(opts = {}) {
         return undefined;
       }
       case 'POST /permission': {                    // a PermissionRequest hook waits here for Allow or Deny (loopback only)
-        let body;
-        try { body = JSON.parse(await readBody(req)); } catch (e) { return e.status === 413 ? text(res, 413, 'body too large') : text(res, 400, 'invalid JSON'); }
-        const str = (v) => (typeof v === 'string' ? v : '');
-        if (!body || !str(body.session) || !str(body.agent) || !str(body.tool)) return text(res, 400, 'session, agent and tool are required');
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        if (!str(body.session) || !str(body.agent) || !str(body.tool)) return text(res, 400, 'session, agent and tool are required');
         const { id, promise } = perms.open({ session: str(body.session), agent: str(body.agent), tool: str(body.tool), cmd: str(body.cmd), detail: str(body.detail), wait_s: body.wait_s });
         res.on('close', () => perms.cancel(id));     // the hook went away: nothing to answer any more
         return json(res, { decision: await promise });
       }
       case 'POST /permission/answer': {             // the page taps Allow or Deny (loopback only)
-        let body;
-        try { body = JSON.parse(await readBody(req)); } catch (e) { return e.status === 413 ? text(res, 413, 'body too large') : text(res, 400, 'invalid JSON'); }
-        if (body?.decision !== 'allow' && body?.decision !== 'deny') return text(res, 400, 'decision must be allow or deny');
+        const body = await jsonBody(req, res);
+        if (!body) return undefined;
+        if (body.decision !== 'allow' && body.decision !== 'deny') return text(res, 400, 'decision must be allow or deny');
         return perms.answer(String(body.id ?? ''), body.decision) ? text(res, 200, 'ok') : text(res, 404, 'unknown request');
       }
       case 'POST /question': {                      // an AskUserQuestion hook waits here for the page's picks (loopback only)
         const body = await jsonBody(req, res);
         if (!body) return undefined;
-        const str = (v) => (typeof v === 'string' ? v : '');
         const questions = cleanQuestions(body.questions);
         if (!str(body.session) || !str(body.agent) || !questions) return text(res, 400, 'session, agent and 1 to 4 questions of 2 to 4 options are required');
         const { id, promise } = quests.open({ session: str(body.session), agent: str(body.agent), questions, wait_s: body.wait_s });
@@ -390,34 +394,29 @@ export function startHub(opts = {}) {
       case 'POST /dismiss':
       case 'POST /settings':
       case 'POST /reset': {
-        let body;
-        try {
-          const raw = await readBody(req);
-          body = route === 'POST /reset' && !raw.trim() ? {} : JSON.parse(raw);
-        } catch (e) {
-          return e.status === 413 ? text(res, 413, 'body too large') : text(res, 400, 'invalid JSON');
-        }
+        const body = await jsonBody(req, res, { allowEmpty: route === 'POST /reset' });
+        if (!body) return undefined;
         if (route === 'POST /event') {
           if (!model.applyEvent(body, now())) return text(res, 400, 'session, agent and a valid state are required');
           if (CLEARING_EVTS.has(body.evt)) perms.clearSession(String(body.session));
           if (QUEST_CLEARING_EVTS.has(body.evt)) quests.clear(String(body.session), String(body.agent));
           for (const fn of eventTaps) { try { fn(body); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /usage') {
-          if (!body || typeof body.v !== 'number') return text(res, 400, 'v is required');
+          if (typeof body.v !== 'number') return text(res, 400, 'v is required');
           model.applyUsage(body, now());
           for (const fn of usageTaps) { try { fn(body); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /dismiss') {
-          const id = String(body?.session ?? '');
+          const id = String(body.session ?? '');
           if (!model.dismiss(id)) return text(res, 404, 'unknown session');
           perms.clearSession(id);
           quests.clear(id);
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
-          if (!Object.keys(next).length) return text(res, 400, 'no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to 32), theme (a theme name), pulse, dim_idle, idle_minutes (1, 2, 5, 10), done_excerpt (first, last, off), rules (a list of {match, iconPack?, badgeColor?}), marketSources (a list of owner/repo), themeAutoUpdate (true or false), rate_alert_k (0, 20, 40, 80), focus_on_ask (true or false)');
+          if (!Object.keys(next).length) return text(res, 400, `no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to ${MAX_TILES}), theme (a theme name), pulse, dim_idle, idle_minutes (1, 2, 5, 10), done_excerpt (first, last, off), rules (a list of {match, iconPack?, badgeColor?}), marketSources (a list of owner/repo), themeAutoUpdate (true or false), rate_alert_k (0, 20, 40, 80), focus_on_ask (true or false)`);
           saveSettings(next);
         } else if (route === 'POST /select') {
-          if (!body || !model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');
+          if (!model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');
         } else {
           model.clear();
           perms.clearAll();
