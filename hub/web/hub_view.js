@@ -1,9 +1,8 @@
-// Logic of the sessions hub page: which sessions get a tile and what each tile says (grid shape and sizes: layout.js). No DOM here, so the
-// tests run it directly; hub_page.js turns these models into elements.
-import { formatAge, fmtDuration } from './format.js';
-import { paceLevel, STATE_LABEL } from './screen.js';
+// Logic of the sessions hub page: which sessions get a tile, in which order, focus and alerts, quota bars (grid shape and sizes: layout.js).
+// No DOM here, so the tests run it directly; hub_page.js turns the results into elements.
+import { fmtDuration } from './format.js';
+import { paceLevel } from './screen.js';
 
-const MAX_DOTS = 5;                          // agent dots in a tile header
 const STALE_S = 15 * 60;                     // same rule as the screen: quotas older than 15 minutes show faint
 
 /** A session waiting for the user (your turn, done): its tile has a trash button. */
@@ -68,44 +67,6 @@ export function sideAlerts(pages, page) {
   return { prev: worst(pages.slice(0, Math.max(0, page))), next: worst(pages.slice(page + 1)) };
 }
 
-const ctxLevel = (pct) => (pct === null || pct === undefined ? 'unknown' : pct >= 80 ? 'bad' : pct >= 60 ? 'warn' : 'ok');
-
-function planModel(plan) {
-  if (!plan) return null;
-  const parallel = Boolean(plan.state) && plan.total <= 16 && plan.state.length === plan.total;
-  let segs = null;
-  if (plan.total <= 16) {
-    segs = Array.from({ length: plan.total }, (_, i) => (parallel ? plan.state[i] : i < plan.done ? 'd' : i === plan.done && plan.cur ? 'r' : 't'));
-  }
-  return {
-    label: `PLAN ${plan.done}/${plan.total}`, segs, frac: plan.total ? plan.done / plan.total : 0,
-    cur: plan.cur || (plan.done === plan.total ? 'Plan done' : ''), next: plan.next || '',
-  };
-}
-
-/** What one tile shows for a session. `elapsedS`: seconds since the state arrived (ages run on). */
-export function tileModel(s, elapsedS) {
-  const lead = s.agents[0];
-  const stateKey = s.dot;
-  const who = s.agents.find((a) => a.state === stateKey) ?? lead;
-  const options = s.ask ? String(s.ask.options ?? '').split('|').map((o) => o.trim()).filter(Boolean) : [];
-  return {
-    id: s.id,
-    title: s.title || s.project,
-    project: s.project,
-    stateKey,
-    stateText: `${STATE_LABEL[stateKey] ?? stateKey} ${formatAge(who.age + elapsedS)}`,
-    needsYou: stateKey === 'needs_you',
-    dots: s.agents.slice(0, MAX_DOTS).map((a) => a.state),
-    moreDots: Math.max(0, s.agents.length - MAX_DOTS),
-    ctxPct: s.ctx_pct ?? null,
-    ctxLevel: ctxLevel(s.ctx_pct),
-    cmd: lead.cmd || '',
-    ask: s.ask ? { question: s.ask.question, options } : null,
-    plan: planModel(s.plan),
-  };
-}
-
 /** Quota bars of the bottom bar (drawn once for the whole page). */
 export function quotaBars(usage, elapsedS) {
   if (!usage) return [];
@@ -119,13 +80,6 @@ export function quotaBars(usage, elapsedS) {
     return { label, pct, level, text: `${pct}% ${when}`, stale };
   };
   return [bar('5h', 'h5'), bar('Week', 'd7')].filter(Boolean);
-}
-
-export function summaryText(sessions) {
-  if (!sessions.length) return 'no session';
-  const needs = sessions.filter((s) => s.dot === 'needs_you').length;
-  const n = `${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
-  return needs ? `${n}, ${needs} ${needs === 1 ? 'needs' : 'need'} you` : n;
 }
 
 /** The grid page after a jump to `n` (arrows, swipe, pager) out of `count` pages. A session shown full screen keeps the grid page: Back returns to it. */

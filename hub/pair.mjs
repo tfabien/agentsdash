@@ -13,9 +13,6 @@ import { setLan } from './lan.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Turns `lan.enabled` on in the config file. @returns {boolean} true when the file changed. */
-export const enableLan = (file) => setLan(file, true);
-
 /**
  * The QR code of `text` as lines of text, two modules per character row (half blocks), with a 2 module quiet zone.
  * Light modules are the filled glyphs: on a dark terminal the code has the right polarity (dark modules are the background).
@@ -53,7 +50,7 @@ async function main() {
   // A running hub that knows POST /lan turns phone access on in place (and writes the config). Any other case: edit the config and restart.
   const reply = await get(`${base}/lan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) });
   if (!reply?.ok) {
-    enableLan(file);
+    setLan(file, true);
     if (!(await restartHub(base))) { console.log(`The hub did not restart at ${base}. Start it, then run this command again.`); process.exitCode = 1; return; }
   }
   let url = null;

@@ -48,16 +48,6 @@ Example: a `prod-*` folder shows a red badge and a distinct pack, so production 
 
 The hub serves icons from `GET /icons/<pack>/<file>` only for files in the catalog, so path traversal and unlisted names return 404. Each reply carries `Content-Security-Policy: sandbox` and `X-Content-Type-Options: nosniff`. The page loads icons as `Image`, which never runs scripts inside an SVG. Raster files cannot run code. Themes hold colors only. The hub binds `127.0.0.1`.
 
-## Regenerate the built-ins
-
-The built-in themes and packs are generated from the canvas drawings in `hub/web/icon_packs.js` and `themes.js`:
-
-```sh
-node hub/tools/export_builtin.mjs
-```
-
-It rewrites `hub/themes/*.json` and `hub/icons/<pack>/*.svg`. To start a pack of your own, copy one of those folders to `~/.agentsdash/icons/<new-name>/` and edit the SVGs.
-
 ## Marketplace
 
 The theme dialog has two tabs: **Installed** (the catalog, with a Remove button on themes that came from a marketplace) and **Marketplace** (themes of GitHub repositories, with search, Install, Update and Remove). The default source is `tfabien/agentsdash-themes`; add others with the "Add a source" field (`owner/repo` or a GitHub URL, at most 10). Sources are the hub setting `marketSources`, shared by all pages.

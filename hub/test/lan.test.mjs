@@ -81,6 +81,21 @@ test('setLan_toggles_and_keeps_other_keys', () => {
   assert.deepEqual(JSON.parse(fs.readFileSync(f, 'utf8')), { host: 'h:1', lan: { enabled: false } });
 });
 
+test('setLan_creates_the_folder_keeps_nested_keys_and_recovers_from_a_broken_file', () => {
+  const f = path.join(tmp(), 'sub', 'config.json');
+  assert.equal(setLan(f, true), true, 'the missing folder is created');
+  assert.deepEqual(JSON.parse(fs.readFileSync(f, 'utf8')), { lan: { enabled: true } });
+  fs.writeFileSync(f, JSON.stringify({ host: '127.0.0.1:9000', relay: { mode: 'http', host: '10.0.0.2' }, lan: { bind: '10.0.0.5' } }));
+  assert.equal(setLan(f, true), true);
+  const c = JSON.parse(fs.readFileSync(f, 'utf8'));
+  assert.equal(c.host, '127.0.0.1:9000');
+  assert.deepEqual(c.relay, { mode: 'http', host: '10.0.0.2' });
+  assert.deepEqual(c.lan, { bind: '10.0.0.5', enabled: true });
+  fs.writeFileSync(f, '{not json');
+  assert.equal(setLan(f, true), true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(f, 'utf8')), { lan: { enabled: true } });
+});
+
 test('lanHosts_is_lower_case', () => {
   const h = lanHosts(8765, ['LAN.Test']);
   assert.ok(h.has(`${os.hostname().toLowerCase()}:8765`));

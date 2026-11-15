@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { matchRule, validRules } from '../rules.mjs';
+import { matchRule, validRules } from '../web/rules.js';
 
 test('matches_path_prefix', () => {
   const r = { match: '/work/prod-api', iconPack: 'cats' };

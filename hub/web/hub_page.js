@@ -1,5 +1,5 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
-// go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
+// go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order, focus and alerts in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
 import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as idleFor, waitsForYou, hasTeam, cellsOf, gotoPage } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
@@ -102,14 +102,22 @@ function tileFor(s, part = 'lead') {
     canvas.addEventListener('click', (e) => tap(t, e));
     tiles.set(key, t);
   }
-  t.box.classList.toggle('stale', !!s.stale);
-  t.box.classList.toggle('waiting', waitsForYou(s));
-  t.box.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false);
   const rate = part === 'lead' ? rateLevel(s, state.settings) : null;      // the readout shows the token rate of the session
-  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
   const tag = t.box.querySelector('.rate-tag');
   if (tag) { tag.textContent = rate ? rate.label : ''; tag.hidden = !rate; tag.className = `rate-tag${rate ? ` rate-${rate.level}` : ''}`; }      // only the readout is colored: the pulse keeps meaning an event or an alert
   return t;
+}
+
+/** An idle session is greyed out unless the dim_idle setting is off. */
+const dimIdle = (s) => isIdle(s) && state.settings?.dim_idle !== false;
+
+/** The state classes of a tile, set on every frame (draw): idle can start between two states from the hub. The trash button reads idle and stale. */
+function applyClasses(t, s) {
+  const idle = dimIdle(s);
+  t.box.classList.toggle('stale', !!s.stale);
+  t.box.classList.toggle('waiting', waitsForYou(s));
+  t.box.classList.toggle('idle', idle);
+  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${idle ? ' idle' : ''}`;
 }
 
 /** Which side a tile is welded on: the lead of a session with sub-agents touches its team on the right, the team touches its lead on the left. */
@@ -141,27 +149,26 @@ function tap(t, e) {
   if (!s) return;
   const box = t.canvas.getBoundingClientRect();
   const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * (t.frameH ?? FRAME.h)) / box.height;
-  const lead0 = tiles.get(s.id) ?? t;
-  const detailOpen = Boolean(lead0.detail && s.agents.some((a) => a.id === lead0.detail.agent));
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead0.quest, measure: (txt, font) => t.screen.measure(txt, font) });
+  const lead = tiles.get(s.id) ?? t;                      // the lead tile owns the detail, the plan step and the question picks
+  const detailOpen = Boolean(lead.detail && s.agents.some((a) => a.id === lead.detail.agent));
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead.quest, measure: (txt, font) => t.screen.measure(txt, font) });
   const answer = PHONE ? null : permAnswer(hit, s);      // the phone page only reads: the hub refuses its answers (403)
   if (answer) {                                           // Allow or Deny of a permission request: the state that follows redraws the tile
     postJson('/permission/answer', answer).catch(() => {});
     return;
   }
-  const quest = PHONE ? null : questTap(hit, s, lead0.quest);
+  const quest = PHONE ? null : questTap(hit, s, lead.quest);
   if (quest) {                                            // a question for the page: the picks so far live on the lead tile, the last one posts them
-    lead0.quest = quest.local;
+    lead.quest = quest.local;
     if (quest.post) {
       postJson('/question/answer', quest.post)
-        .then((r) => { if (!r.ok && lead0.quest?.id === quest.post.id) { lead0.quest = null; drawTile(s, lead0); } })    // refused (expired, answered elsewhere): start over
+        .then((r) => { if (!r.ok && lead.quest?.id === quest.post.id) { lead.quest = null; drawTile(s, lead); } })    // refused (expired, answered elsewhere): start over
         .catch(() => {});
     }
     drawTile(s, t);
     return;
   }
   const until = Date.now() + DETAIL_MS;
-  const lead = tiles.get(s.id) ?? t;                      // the agent opened from the team tile shows in the lead tile, which owns the detail
   if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1), t.part === 'team' ? teamCapacity(t.frameH) : undefined).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
   else if (hit.kind === 'back') lead.detail = null;
   else if (hit.kind === 'planStep') lead.planStep = lead.planStep && lead.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
@@ -205,10 +212,9 @@ function drawTile(s, t) {
 
 function draw() {
   for (const s of current) {
-    const idle = isIdle(s) && state.settings?.dim_idle !== false;
     for (const part of partsOf(s)) {
       const t = tiles.get(keyOf(s.id, part));
-      if (t) { t.box.classList.toggle('idle', idle); t.canvas.classList.toggle('idle', idle); t.canvas.classList.toggle('stale', !!s.stale); drawTile(s, t); }
+      if (t) { applyClasses(t, s); drawTile(s, t); }
     }
   }
 }

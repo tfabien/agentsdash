@@ -12,7 +12,7 @@ export const TILES_MIN = 0, TILES_MAX = MAX_TILES;          // tiles per page; 0
 /** POST /settings; resolves whatever the status (see `call` in dom.js for a refusal that throws). */
 export const postSettings = (patch) => postJson('/settings', patch);
 
-/** What the panel offers. `kind`: 'choice' (segmented buttons), 'stepper' (- n +), 'toggle'. `after`: runs once the hub has the new value. */
+/** What the panel offers. `kind`: 'choice' (segmented buttons), 'stepper' (- n +), 'toggle'. */
 export const OPTIONS = [
   { key: 'max_tiles', label: 'Tiles per page', kind: 'stepper', min: TILES_MIN, max: TILES_MAX, format: (v) => (v === 0 ? 'Auto' : String(v)),
     hint: 'Auto fits the window; 1 shows one session at a time. More sessions make pages' },
@@ -183,7 +183,7 @@ export function createSettingsMenu() {
   const set = (opt, value) => {
     current = { ...current, [opt.key]: value };
     show();
-    postSettings({ [opt.key]: value }).then(() => opt.after?.(value));
+    postSettings({ [opt.key]: value });
   };
 
   for (const opt of OPTIONS) {
