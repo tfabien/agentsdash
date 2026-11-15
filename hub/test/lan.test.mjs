@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { loadConfig } from '../config.mjs';
-import { setLan, isLoopback, loadOrCreateToken, tokenMatches, lanHosts, parseCookie, isRemoteStatic, REMOTE_ROUTES } from '../lan.mjs';
+import { setLan, isLoopback, loadOrCreateToken, tokenMatches, lanHosts, parseCookie, isRemoteStatic, REMOTE_ROUTES, rankPairAddresses } from '../lan.mjs';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'lan-'));
 
@@ -79,4 +79,42 @@ test('setLan_toggles_and_keeps_other_keys', () => {
   fs.writeFileSync(f, JSON.stringify({ host: 'h:1', ...JSON.parse(fs.readFileSync(f, 'utf8')) }));
   assert.equal(setLan(f, false), true);
   assert.deepEqual(JSON.parse(fs.readFileSync(f, 'utf8')), { host: 'h:1', lan: { enabled: false } });
+});
+
+test('setLan_creates_the_folder_keeps_nested_keys_and_recovers_from_a_broken_file', () => {
+  const f = path.join(tmp(), 'sub', 'config.json');
+  assert.equal(setLan(f, true), true, 'the missing folder is created');
+  assert.deepEqual(JSON.parse(fs.readFileSync(f, 'utf8')), { lan: { enabled: true } });
+  fs.writeFileSync(f, JSON.stringify({ host: '127.0.0.1:9000', relay: { mode: 'http', host: '10.0.0.2' }, lan: { bind: '10.0.0.5' } }));
+  assert.equal(setLan(f, true), true);
+  const c = JSON.parse(fs.readFileSync(f, 'utf8'));
+  assert.equal(c.host, '127.0.0.1:9000');
+  assert.deepEqual(c.relay, { mode: 'http', host: '10.0.0.2' });
+  assert.deepEqual(c.lan, { bind: '10.0.0.5', enabled: true });
+  fs.writeFileSync(f, '{not json');
+  assert.equal(setLan(f, true), true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(f, 'utf8')), { lan: { enabled: true } });
+});
+
+test('lanHosts_is_lower_case', () => {
+  const h = lanHosts(8765, ['LAN.Test']);
+  assert.ok(h.has(`${os.hostname().toLowerCase()}:8765`));
+  assert.ok(h.has('lan.test:8765'));
+});
+
+const nic = (address, internal = false) => [{ family: 'IPv4', internal, address }];
+
+test('rankPairAddresses_puts_wifi_before_virtual_adapters', () => {
+  assert.deepEqual(rankPairAddresses({ 'vEthernet (WSL)': nic('172.20.0.1'), 'Wi-Fi': nic('192.168.1.93') }), ['192.168.1.93', '172.20.0.1']);
+  assert.deepEqual(rankPairAddresses({ 'VMware Network Adapter VMnet8': nic('192.168.150.1'), 'Wi-Fi': nic('10.0.0.5') }), ['10.0.0.5', '192.168.150.1']);
+  assert.deepEqual(rankPairAddresses({ docker0: nic('172.17.0.1') }), ['172.17.0.1']);
+});
+
+test('rankPairAddresses_orders_192_then_10_then_172_and_skips_the_rest', () => {
+  const ifaces = {
+    a: nic('172.16.0.2'), b: nic('10.1.1.1'), c: nic('192.168.0.9'), d: nic('8.8.8.8'), lo: nic('127.0.0.1', true),
+    e: [{ family: 'IPv6', internal: false, address: 'fe80::1' }], f: nic('10.2.2.2'),
+  };
+  assert.deepEqual(rankPairAddresses(ifaces), ['192.168.0.9', '10.1.1.1', '10.2.2.2', '172.16.0.2']);
+  assert.deepEqual(rankPairAddresses({}), []);
 });

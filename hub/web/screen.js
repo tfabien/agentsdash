@@ -247,7 +247,9 @@ export function hitTest(x, y, ctx) {
   const s = ctx.sessions[ctx.selected];
   if (ctx.part === 'team') {
     if (ctx.detailOpen) return inside(backRect(leadRect(0, ctx.frameW, ctx.frameH)), x, y) ? { kind: 'back' } : { kind: 'none' };
-    const n = s ? s.agents.length - 1 : 0, cap = teamCapacity(ctx.frameH), rows = layoutRows(n, teamFull(ctx.frameW), ctx.frameH);
+    const n = s ? s.agents.length - 1 : 0;
+    if (n === 1) return { kind: 'none' };               // the only sub-agent is already open, with no BACK
+    const cap = teamCapacity(ctx.frameH), rows = layoutRows(n, teamFull(ctx.frameW), ctx.frameH);
     for (let i = 0; i < rows.length; i++) if (inside(rows[i], x, y)) return n > cap && i === cap - 1 ? { kind: 'more' } : { kind: 'row', index: i };
     return { kind: 'none' };
   }
@@ -309,7 +311,12 @@ export function renderScreen(screen, state, ui) {
     const panelSubs = asking || ui.menu || ui.part ? 0 : subs.length;
     const detailSlot = asking || ui.menu || ui.part === 'lead' || !ui.detail || ui.detail.session !== s.id ? 0 : subs.findIndex((a) => a.id === ui.detail.agent) + 1;
     if (!ui.bare) drawTopBar(sessions, sel);
-    if (ui.part === 'team') { if (detailSlot) drawAgentTile(subs[detailSlot - 1]); else drawTeam(s, subs, 0, true); return; }
+    if (ui.part === 'team') {                              // the only sub-agent opens at once: a list of one says less than its detail
+      if (detailSlot) drawAgentTile(subs[detailSlot - 1]);
+      else if (subs.length === 1) drawAgentTile(subs[0], 'none');
+      else drawTeam(s, subs, 0, true);
+      return;
+    }
     drawLeadPanel(s, subs, panelSubs, detailSlot, sessions, sel);
     if (panelSubs > 0) drawTeam(s, subs, detailSlot);
   }
@@ -518,36 +525,49 @@ export function renderScreen(screen, state, ui) {
     opts.slice(0, maxOpt).forEach((o, i) => line(x, oy + i * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, `${i + 1}. ${o}`));
   }
 
-  // A sub-agent opened from the team tile: the whole tile shows it like a lead, with a BACK button that returns to the list.
-  function drawAgentTile(a) {
+  // A sub-agent shown on the whole team tile like a lead: `mode` 'back' (opened from the list, a BACK button returns to it)
+  // or 'none' (the only sub-agent of the session: no list to go back to).
+  function drawAgentTile(a, mode = 'back') {
     const p = leadRect(0, ui.frameW, ui.frameH);
     screen.erase(p.x, p.y, p.w, p.h);
     screen.fill(156, 36, 20, p.h, COLOR.PANEL);
-    drawDetail(a, p, true);
+    drawDetail(a, p, mode);
   }
 
-  // Detail of a tapped sub-agent: role, state, tokens, command (cmd + detail), previous command, hint (or the BACK button of a tile).
-  function drawDetail(a, p, back = false) {
+  // Detail of a sub-agent: role, state, model, context ring and size, tokens, task (its prompt), command (cmd + detail), previous command,
+  // then by `mode`: 'hint' (tap here to go back), 'back' (the BACK button of a tile) or 'none'. A section that does not fit is left out.
+  function drawDetail(a, p, mode = 'hint') {
+    const back = mode === 'back';
     const x = p.x + 6, w = p.w - 12;
     sprite(x, p.y + 6, PIC.SPRITE_BIG + roleIndex(a.role), a.state, 0, a.id);
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
-    line(tx, p.y + 4, back ? tw - 80 : tw, S20, COLOR.TEXT, COLOR.PANEL, a.role);
-    line(tx, p.y + 26, tw, S16, stateColor(a.state), COLOR.PANEL, `${STATE_LABEL[a.state]} ${ageOf(a)}`);
-    const info = [a.model ? modelLabel(a.model) : '', a.tok ? `${formatTokens(a.tok)} tokens` : ''].filter(Boolean).join(' - ');
-    if (info) line(tx, p.y + 44, tw, S16, COLOR.LIGHT, COLOR.PANEL, info);
-    screen.text(x, p.y + 66, w, S16, COLOR.ACCENT, COLOR.PANEL, 'COMMAND');
-    const full = a.detail && !a.cmd.includes(a.detail) ? `${a.cmd} ${a.detail}` : a.cmd;
-    const more = extraLines(p);
-    wrapText(full, w, 3 + more, m(S16)).forEach((l, i) => screen.text(x, p.y + 84 + i * 18, w, S16, a.state === 'needs_you' ? COLOR.NEEDS : COLOR.TEXT, COLOR.PANEL, l));
-    if (a.prev) {
-      screen.text(x, p.y + 142 + more * 18, w, S16, COLOR.ACCENT, COLOR.PANEL, 'BEFORE');
-      line(x, p.y + 160 + more * 18, w, S16, COLOR.LIGHT, COLOR.PANEL, `${a.prev} (${formatAge(a.prev_age + ui.elapsedS)} ago)`);
-    }
+    const ring = a.ctx_pct !== null && a.ctx_pct !== undefined;          // an older hub sends no context for a sub-agent
+    const big = ring && mode !== 'hint';                                  // a whole tile: the lead's big ring at the top right (left of BACK)
+    const headW = tw - (back ? 80 : 0) - (big ? 48 : 0);
+    line(tx, p.y + 4, headW, S20, COLOR.TEXT, COLOR.PANEL, a.role);
+    line(tx, p.y + 26, headW, S16, stateColor(a.state), COLOR.PANEL, `${STATE_LABEL[a.state]} ${ageOf(a)}`);
+    const info = [a.model ? modelLabel(a.model) : '', a.ctx_k > 0 ? `${a.ctx_k}k ctx` : '', a.tok ? `${formatTokens(a.tok)} tokens` : ''].filter(Boolean).join(' - ');
+    if (info) line(tx, p.y + 44, tw - (ring && !big ? 28 : 0), S16, COLOR.LIGHT, COLOR.PANEL, info);
+    if (big) drawCtxRing(back ? { ...p, w: p.w - 78 } : p, true, tx, tw, a.ctx_pct, 0, '');
+    else if (ring) drawCtxRing(p, false, tx, tw, a.ctx_pct, a.ctx_k, '');
+    const bottom = p.y + p.h - (mode === 'hint' ? 24 : 4), more = extraLines(p);
+    let y = p.y + 66;
+    const section = (label, text, max, col) => {
+      const n = Math.min(max, Math.floor((bottom - y - 18) / 18));
+      if (n < 1 || !text) return;
+      screen.text(x, y, w, S16, COLOR.ACCENT, COLOR.PANEL, label);
+      const lines = wrapText(text, w, n, m(S16));
+      lines.forEach((l, i) => screen.text(x, y + 18 + i * 18, w, S16, col, COLOR.PANEL, l));
+      y += 22 + Math.max(lines.length, label === 'COMMAND' ? 3 : 1) * 18;      // the command keeps its 3 lines: BEFORE stays put
+    };
+    if (a.prompt) section('TASK', a.prompt, 2 + Math.floor(more / 2), COLOR.LIGHT);
+    section('COMMAND', a.detail && !a.cmd.includes(a.detail) ? `${a.cmd} ${a.detail}` : a.cmd || ' ', 3 + more, a.state === 'needs_you' ? COLOR.NEEDS : COLOR.TEXT);
+    if (a.prev) section('BEFORE', `${a.prev} (${formatAge(a.prev_age + ui.elapsedS)} ago)`, 1, COLOR.LIGHT);
     if (back) {
       const r = backRect(p);
       screen.fill(r.x, r.y, r.w, r.h, COLOR.CHIP);
       screen.text(r.x, r.y + 2, r.w, S16, COLOR.TEXT, COLOR.CHIP, 'BACK', 1);
-    } else screen.text(x, p.y + p.h - 22, w, S16, COLOR.FAINT, COLOR.PANEL, 'tap here to go back');
+    } else if (mode === 'hint') screen.text(x, p.y + p.h - 22, w, S16, COLOR.FAINT, COLOR.PANEL, 'tap here to go back');
   }
 
   // Session menu: one 36 px row per session; the selected one is framed.
@@ -612,10 +632,11 @@ export function renderScreen(screen, state, ui) {
     const actCol = done ? COLOR.FAINT : a.state === 'needs_you' ? COLOR.NEEDS : COLOR.LIGHT;
     const ageW = 48;
     const tokW = a.tok ? 46 : 0, tokText = a.tok ? formatTokens(a.tok) : '';
+    const act = a.prompt && a.state !== 'needs_you' ? a.prompt : a.cmd;      // the task says more than the last tool; a request shows what it asks
     if (compact) {
       sprite(r.x + 9, r.y + 2, PIC.SPRITE_TINY + roleIndex(a.role), a.state, seed, a.id);
       line(r.x + 30, r.y + 2, 104, S16, nameCol, COLOR.ROW, a.role);
-      line(r.x + 138, r.y + 2, r.w - 142 - ageW - tokW, S16, actCol, COLOR.ROW, a.cmd);
+      line(r.x + 138, r.y + 2, r.w - 142 - ageW - tokW, S16, actCol, COLOR.ROW, act);
       if (tokW) line(r.x + r.w - ageW - tokW, r.y + 2, tokW - 4, S16, COLOR.FAINT, COLOR.ROW, tokText, 2);
     } else {
       sprite(r.x + 9, r.y + 7, PIC.SPRITE_SMALL + roleIndex(a.role), a.state, seed, a.id);
@@ -623,7 +644,7 @@ export function renderScreen(screen, state, ui) {
       line(tx, r.y + 1, tw - ageW, S20, nameCol, COLOR.ROW, a.role);
       const used = screen.measure(a.role, S20) + 8;           // the model follows the role name when there is room
       if (a.model && used + 50 < tw - ageW) line(tx + used, r.y + 6, tw - ageW - used, S12, COLOR.FAINT, COLOR.ROW, modelLabel(a.model));
-      line(tx, r.y + 22, tw - tokW, S16, actCol, COLOR.ROW, a.cmd);
+      line(tx, r.y + 22, tw - tokW, S16, actCol, COLOR.ROW, act);
       if (tokW) line(tx + tw - tokW, r.y + 22, tokW, S16, COLOR.FAINT, COLOR.ROW, tokText, 2);
     }
     line(r.x + r.w - 4 - 44, r.y + (compact ? 2 : 3), 44, S16, COLOR.FAINT, COLOR.ROW, ageOf(a), 2);

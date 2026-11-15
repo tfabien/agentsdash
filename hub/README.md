@@ -27,7 +27,7 @@ Under the screen a line shows whether the relay reaches the gadget.
 
 <http://127.0.0.1:8765/> (also `/hub`) shows every session as a tile in a grid. It is the only page.
 
-- Files: `web/hub.html`, `hub.css`, `hub_page.js` (DOM), `layout.js` (pure: grid shape, tile sizes, pages), `hub_view.js` (pure: what a tile says, quota bars), `alerts.js` (beep rule).
+- Files: `web/hub.html`, `hub.css`, `hub_page.js` (DOM), `layout.js` (pure: grid shape, tile sizes, pages), `hub_view.js` (pure: order, focus, alerts, quota bars), `alerts.js` (beep rule).
 - One `EventSource('/events')` feeds all tiles.
 - Tiles per page (setting `max_tiles`, 0 = Auto, 1 to 12; `?max=N` overrides it for one tab): Auto counts the tiles that fit the window at 0.8 times the gadget screen. 1 shows one session at a time; a session with sub-agents then shows its lead and team side by side, half a width each.
 - Sessions keep their first-seen order, idle ones (waiting for you 5 minutes) last. They are cut into pages in that order; a session (lead and team tiles) is never split across pages.
@@ -58,14 +58,14 @@ and sub-agents, then the quotas. It follows `GET /events` and reconnects when th
 | `relay` | `{"mode":"none"}` | `{"mode":"http","host":"<gadget ip>"}` forwards events to a gadget over Wi-Fi; `{"mode":"serial","port":"COM3"}` over USB. |
 | `lan` | `{"enabled":false,"bind":"0.0.0.0"}` | `{"enabled":true}` (or env `AGENTSDASH_LAN=1`) lets a phone on the same Wi-Fi read the page, see below. |
 | `quotas` | `true` | Read by the Claude adapter, not by the hub: poll the 5-hour and weekly plan quotas (env `AGENTSDASH_QUOTAS=0` turns it off). |
-| `context_window` | `1000000` | Context window used for the context estimate (tokens). |
+| `context_window` | `1000000` | Read by the adapters, not by the hub: context window used for the context estimate (tokens). |
 | `max_sessions` | `24` | Sessions the hub keeps (1 to 32, env `AGENTSDASH_MAX_SESSIONS`). More than 5 only helps the `/hub` page. |
 
 ## Relay to a gadget (Wi-Fi)
 
 With `"relay": {"mode": "http", "host": "192.168.1.100"}` every event and usage report the hub accepts is forwarded
-unchanged to the gadget (`POST /event`, `POST /usage`). `GET /relay` shows the state (`ok`, `lastError`, `queued`).
-If the gadget is down, the hub keeps working and retries after 3 seconds (only the latest event per agent is kept).
+unchanged to the gadget (`POST /event`, `POST /usage`). `GET /relay` shows the state (`ok`, `lastError`, `queued`, `locked`).
+If the gadget is down, the hub keeps working and retries after 3 seconds: a failed item stays queued, and only the latest item of each agent or session is kept.
 The gadget aborts a screen upload (`/tft`) on any other request: create the file `agent-gadget-tft.lock` (old name, kept for the firmware tools) in the temp
 folder before uploading and delete it afterwards, and the relay sends nothing meanwhile.
 
@@ -112,6 +112,7 @@ change and every second), `GET /health` and `GET /` (the page).
 - `relay_http.mjs`, `relay_serial.mjs` forward events to a gadget (Wi-Fi, USB); `relay_config.mjs` validates a relay chosen from the page.
 - `tui.mjs` terminal view.
 - `paths.mjs` names and folders: `AGENTSDASH_*` variables with the old names as fallback, config file, state folder, user folder.
+- `json_file.mjs` JSON files: `readJsonObject` ({} for a missing, broken or non-object file), `writeJsonFile` (in place, for the user's config.json) and `writeJsonAtomic` (`.tmp` then rename, for market.json, market-cache.json and user themes).
 - The hub does not poll quotas: the Claude adapter's `quota_poller.mjs` (OAuth token from `~/.claude/.credentials.json`, or the macOS Keychain, never printed) posts them to `/usage`.
 - Release: a `v*` tag packs this folder (without `test/` and `tools/`) as `agentsdash-core-<version>-p<protocol>.tar.gz` (the protocol is in `package.json`) with a `.sha256` file; run it with `node hub.mjs` or point the hooks at it with `AGENTSDASH_CORE_DIR`.
 - `web/` the page: `screen.js` decides what is drawn (port of `display_hmi.cpp`, `layout.cpp`, `ui_state.cpp`, same 480x272 units; tested with a recorder), `vector_screen.js` draws it on a canvas as vectors (panels, rows, robots, text), `hub_page.js` wires SSE, taps, pages and beeps.

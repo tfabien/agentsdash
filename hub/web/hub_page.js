@@ -1,11 +1,10 @@
 // The sessions page: the agent screen of each session in a grid, the quotas once in the bar at the bottom. Sessions beyond the tiles per page
-// go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order and tile text in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
+// go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order, focus and alerts in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
-import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as idleFor, waitsForYou, hasTeam, cellsOf } from './hub_view.js';
+import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as idleFor, waitsForYou, hasTeam, cellsOf, gotoPage } from './hub_view.js';
 import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, COLOR, rgb565 } from './screen.js';
-import { postSettings } from './settings.js';
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
@@ -13,8 +12,9 @@ import { askConfirm } from './confirm_dialog.js';
 import { applyTheme, setCatalog } from './themes.js';
 import { previewSessions } from './preview_state.js';
 import { onIconsLoaded } from './icon_packs.js';
+import { nextDelay } from './reconnect.js';
+import { el, postJson, call } from './dom.js';
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const maxParam = Number(params.get('max'));         // ?max=N overrides the setting for this tab
@@ -95,7 +95,7 @@ function tileFor(s, part = 'lead') {
         cache.forget(id);                                  // a session the hub no longer knows (404) would come back from the cache otherwise
         state = { ...state, sessions: state.sessions.filter((x) => x.id !== id) };
         render();
-        fetch('/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: id }) }).catch(() => {});
+        postJson('/dismiss', { session: id }).catch(() => {});
       };
       box.append(trash);
     }
@@ -103,14 +103,22 @@ function tileFor(s, part = 'lead') {
     canvas.addEventListener('click', (e) => tap(t, e));
     tiles.set(key, t);
   }
-  t.box.classList.toggle('stale', !!s.stale);
-  t.box.classList.toggle('waiting', waitsForYou(s));
-  t.box.classList.toggle('idle', isIdle(s) && state.settings?.dim_idle !== false);
   const rate = part === 'lead' ? rateLevel(s, state.settings) : null;      // the readout shows the token rate of the session
-  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${isIdle(s) && state.settings?.dim_idle !== false ? ' idle' : ''}`;
   const tag = t.box.querySelector('.rate-tag');
   if (tag) { tag.textContent = rate ? rate.label : ''; tag.hidden = !rate; tag.className = `rate-tag${rate ? ` rate-${rate.level}` : ''}`; }      // only the readout is colored: the pulse keeps meaning an event or an alert
   return t;
+}
+
+/** An idle session is greyed out unless the dim_idle setting is off. */
+const dimIdle = (s) => isIdle(s) && state.settings?.dim_idle !== false;
+
+/** The state classes of a tile, set on every frame (draw): idle can start between two states from the hub. The trash button reads idle and stale. */
+function applyClasses(t, s) {
+  const idle = dimIdle(s);
+  t.box.classList.toggle('stale', !!s.stale);
+  t.box.classList.toggle('waiting', waitsForYou(s));
+  t.box.classList.toggle('idle', idle);
+  t.canvas.className = `${s.dot}${s.stale ? ' stale' : ''}${idle ? ' idle' : ''}`;
 }
 
 /** Which side a tile is welded on: the lead of a session with sub-agents touches its team on the right, the team touches its lead on the left. */
@@ -142,27 +150,26 @@ function tap(t, e) {
   if (!s) return;
   const box = t.canvas.getBoundingClientRect();
   const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * (t.frameH ?? FRAME.h)) / box.height;
-  const lead0 = tiles.get(s.id) ?? t;
-  const detailOpen = Boolean(lead0.detail && s.agents.some((a) => a.id === lead0.detail.agent));
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead0.quest, measure: (txt, font) => t.screen.measure(txt, font) });
-  const answer = permAnswer(hit, s);
+  const lead = tiles.get(s.id) ?? t;                      // the lead tile owns the detail, the plan step and the question picks
+  const detailOpen = Boolean(lead.detail && s.agents.some((a) => a.id === lead.detail.agent));
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead.quest, measure: (txt, font) => t.screen.measure(txt, font) });
+  const answer = PHONE ? null : permAnswer(hit, s);      // the phone page only reads: the hub refuses its answers (403)
   if (answer) {                                           // Allow or Deny of a permission request: the state that follows redraws the tile
-    fetch('/permission/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(answer) }).catch(() => {});
+    postJson('/permission/answer', answer).catch(() => {});
     return;
   }
-  const quest = questTap(hit, s, lead0.quest);
+  const quest = PHONE ? null : questTap(hit, s, lead.quest);
   if (quest) {                                            // a question for the page: the picks so far live on the lead tile, the last one posts them
-    lead0.quest = quest.local;
+    lead.quest = quest.local;
     if (quest.post) {
-      fetch('/question/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(quest.post) })
-        .then((r) => { if (!r.ok && lead0.quest?.id === quest.post.id) { lead0.quest = null; drawTile(s, lead0); } })    // refused (expired, answered elsewhere): start over
+      postJson('/question/answer', quest.post)
+        .then((r) => { if (!r.ok && lead.quest?.id === quest.post.id) { lead.quest = null; drawTile(s, lead); } })    // refused (expired, answered elsewhere): start over
         .catch(() => {});
     }
     drawTile(s, t);
     return;
   }
   const until = Date.now() + DETAIL_MS;
-  const lead = tiles.get(s.id) ?? t;                      // the agent opened from the team tile shows in the lead tile, which owns the detail
   if (hit.kind === 'row') lead.detail = { session: s.id, agent: s.agents[1 + teamOrder(s.agents.slice(1), t.part === 'team' ? teamCapacity(t.frameH) : undefined).order[hit.index] - 1].id, until: Infinity };    // a sub-agent opens as a tile in place of the team list until BACK
   else if (hit.kind === 'back') lead.detail = null;
   else if (hit.kind === 'planStep') lead.planStep = lead.planStep && lead.planStep.index === hit.index ? null : { session: s.id, index: hit.index, until };
@@ -207,10 +214,9 @@ function drawTile(s, t) {
 
 function draw() {
   for (const s of current) {
-    const idle = isIdle(s) && state.settings?.dim_idle !== false;
     for (const part of partsOf(s)) {
       const t = tiles.get(keyOf(s.id, part));
-      if (t) { t.box.classList.toggle('idle', idle); t.canvas.classList.toggle('idle', idle); t.canvas.classList.toggle('stale', !!s.stale); drawTile(s, t); }
+      if (t) { applyClasses(t, s); drawTile(s, t); }
     }
   }
 }
@@ -225,11 +231,13 @@ let savedTheme = 'default';
 let savedVariant = '';
 let savedOverrides = {};
 let savedLooks = {};
-// What the tiles draw: the preview shows a theme (and variant) as authored, the saved choice also carries the user's color edits.
-const applySaved = () => (preview ? applyTheme(preview.name, preview.variant ?? '') : applyTheme(savedTheme, savedVariant, savedOverrides, savedLooks[savedTheme]));
+// What the tiles draw: the preview shows a theme (and variant) as authored with the looks ticked on its card, the saved choice also carries the user's color edits.
+const applySaved = () => (preview ? applyTheme(preview.name, preview.variant ?? '', {}, savedLooks[preview.name]) : applyTheme(savedTheme, savedVariant, savedOverrides, savedLooks[savedTheme]));
 let realCatalog = { themes: [], packs: [], errors: [] };
+// A theme without icons previews with the robot pack, as its install sets; one with icons brings its own pack with the tint of its pack.json.
 const pageCatalog = () => (preview && !preview.installed
-  ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: [...realCatalog.packs.filter((p) => p.name !== preview.theme.iconPack), { ...preview.pack, name: preview.theme.iconPack, roles: preview.roles }] }
+  ? { ...realCatalog, themes: [...realCatalog.themes, preview.theme], packs: preview.theme.iconPack !== preview.name ? realCatalog.packs
+    : [...realCatalog.packs.filter((p) => p.name !== preview.name), { ...preview.pack, name: preview.name, roles: preview.roles }] }
   : realCatalog);
 function setPreview(spec, note) {
   preview = spec;
@@ -238,11 +246,8 @@ function setPreview(spec, note) {
   applySaved();
   if (!spec) { footer.preview.hide(note); render(); return; }
   const apply = async () => {
-    if (spec.installed) await postSettings({ theme: spec.name, themeVariant: spec.variant ?? '' });
-    else {
-      const res = await fetch('/market/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: spec.source, name: spec.name }) });
-      if (!res.ok) throw new Error(await res.text());
-    }
+    if (spec.installed) await call('/settings', { theme: spec.name, themeVariant: spec.variant ?? '' });   // a refusal throws: the bar shows it, not "Applied"
+    else await call('/market/install', { source: spec.source, name: spec.name });
     setPreview(null, spec.installed ? `Applied ${spec.label}` : `Installed ${spec.label} and applied it`);
   };
   footer.preview.show(spec.label, spec.installed ? 'Apply' : 'Install and apply', spec.installed ? `Applying ${spec.label}…` : `Installing ${spec.label}…`, apply, backToThemes);
@@ -254,7 +259,7 @@ const footer = mountFooter($('bar'), $('stage'), { onPreview: setPreview });
 // Pages: the sessions run in order (first seen first, idle ones last) and are cut into pages of `capacity()` cells. Arrows, dots, swipes and the
 // left and right keys turn the page; a dot is orange or red when a session on that page needs you or failed.
 const prevBtn = $('prev'), nextBtn = $('next'), pager = $('pager'), backBtn = $('back'), jumpBtn = $('jump');      // Back: a session shown full screen returns to the grid
-function goto(n) { const p = Math.max(0, Math.min(n, pages.length - 1)); if (p !== page) { page = p; render(); } }
+function goto(n) { const p = gotoPage(n, page, pages.length, !!focus); if (p !== page) { page = p; render(); } }
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && preview && !e.defaultPrevented) backToThemes();
   else if (e.key === 'Escape' && focus && !e.defaultPrevented) { focus = null; render(); }
@@ -391,18 +396,29 @@ function showState(next) {
   receivedAt = performance.now();
 }
 
-const es = new EventSource('/events');                // the only stream: every tile reads the same state
+// The only stream: every tile reads the same state. A browser EventSource stays closed for good after a non-200 answer, so on any
+// error the page closes it and opens a new one after 1 s, doubling up to 10 s. The first message of a new stream is the full state.
 let webSeen = null;                                   // fingerprint of the page's files on the hub that served this page
-es.onmessage = (m) => {
-  const raw = JSON.parse(m.data);
-  if (raw.web) {                                      // a hub restarted on newer page files: load them instead of drawing with old code
-    if (webSeen === null) webSeen = raw.web;
-    else if (raw.web !== webSeen) { location.reload(); return; }
-  }
-  const next = cache.merge(raw); showState(next); render(); flashChanged(next);
-};
-es.onerror = () => document.body.classList.add('offline');
-es.onopen = () => document.body.classList.remove('offline');
+let retryDelay = 0;
+function connect() {
+  const es = new EventSource('/events');
+  es.onmessage = (m) => {
+    const raw = JSON.parse(m.data);
+    if (raw.web) {                                    // a hub restarted on newer page files: load them instead of drawing with old code
+      if (webSeen === null) webSeen = raw.web;
+      else if (raw.web !== webSeen) { location.reload(); return; }
+    }
+    const next = cache.merge(raw); showState(next); render(); flashChanged(next);
+  };
+  es.onopen = () => { retryDelay = 0; document.body.classList.remove('offline'); };
+  es.onerror = () => {
+    document.body.classList.add('offline');            // greys the tiles; the phone page also shows its "hub unreachable" banner
+    es.close();
+    retryDelay = nextDelay(retryDelay);
+    setTimeout(connect, retryDelay);
+  };
+}
+connect();
 setInterval(render, 1000);                            // ages and the clock run on between events
 setInterval(draw, FRAME_MS);
 onIconsLoaded(draw);                                  // an SVG icon that just loaded replaces the robot at once

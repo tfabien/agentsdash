@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readJsonObject, writeJsonFile } from './json_file.mjs';
 
 export const COOKIE = 'agentsdash_token';
 
@@ -25,16 +26,10 @@ export function loadOrCreateToken(file) {
 
 /** Sets `lan.enabled` in the config file, keeping every other key. @returns {boolean} true when the file changed. */
 export function setLan(file, enabled) {
-  let data = {};
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;
-  } catch { /* a missing or broken file starts from nothing */ }
+  const data = readJsonObject(file);         // a missing or broken file starts from nothing
   if ((data.lan?.enabled === true) === enabled) return false;
   data.lan = { ...(data.lan && typeof data.lan === 'object' ? data.lan : {}), enabled };
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}
-`);
+  writeJsonFile(file, data);
   return true;
 }
 
@@ -58,10 +53,29 @@ export function privateAddresses() {
   return out;
 }
 
-/** Host header values accepted for a LAN hub: loopback names, private addresses, the machine name, `extra`; each with the port. */
+// Adapters a phone rarely reaches: WSL, Hyper-V, Docker, VMware, VirtualBox. Their addresses go last in the pairing list.
+const VIRTUAL_ADAPTER = /vEthernet|WSL|docker|br-|veth|vmnet|VMware|VirtualBox|Hyper-V/i;
+
+/**
+ * Private IPv4 addresses ranked for the pairing QR code: real adapters first, then virtual ones (VIRTUAL_ADAPTER);
+ * inside each, 192.168/16, then 10/8, then 172.16/12, in interface order. Pure: `ifaces` has the shape of os.networkInterfaces().
+ */
+export function rankPairAddresses(ifaces = os.networkInterfaces()) {
+  const group = (a) => (a.startsWith('192.168.') ? 0 : a.startsWith('10.') ? 1 : 2);
+  const found = [];
+  for (const [name, list] of Object.entries(ifaces)) {
+    for (const i of list ?? []) {
+      if (i.family !== 'IPv4' || i.internal) continue;
+      if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(i.address)) found.push({ address: i.address, rank: (VIRTUAL_ADAPTER.test(name) ? 3 : 0) + group(i.address) });
+    }
+  }
+  return found.sort((a, b) => a.rank - b.rank).map((f) => f.address);   // a stable sort keeps interface order inside a rank
+}
+
+/** Host header values accepted for a LAN hub, lower case: loopback names, private addresses, the machine name, `extra`; each with the port. */
 export function lanHosts(port, extra = []) {
   const names = ['127.0.0.1', 'localhost', '[::1]', ...privateAddresses(), os.hostname(), ...extra];
-  return new Set(names.map((n) => `${n}:${port}`));
+  return new Set(names.map((n) => `${String(n).toLowerCase()}:${port}`));
 }
 
 /** Value of cookie `name` in a Cookie header. */

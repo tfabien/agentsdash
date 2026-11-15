@@ -1,8 +1,8 @@
 // The QR button's panel: turns phone access on or off and shows the QR code that pairs a phone with the hub (docs/protocol.md, "LAN access").
 import { qrSvg } from './qr.js';
+import { el, postJson } from './dom.js';
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-const setLan = (enabled) => fetch('/lan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+const setLan = (enabled) => postJson('/lan', { enabled });
 
 /** @returns {{node: HTMLElement, refresh: () => Promise<void>}} `refresh` asks the hub for the state and the pairing address again. Empty node on the phone page itself. */
 export function createPhoneSection() {
@@ -30,7 +30,10 @@ export function createPhoneSection() {
     } else if (info.url) {
       const qr = el('div', 'sqr');
       qr.innerHTML = qrSvg(info.url);                   // markup built by qr.js from the module grid only, never from the address
-      body.push(el('div', 'shint', 'Scan with the phone camera, on the same Wi-Fi.'), qr, el('code', 'surl', info.url), button('Turn off phone access', () => setLan(false)));
+      body.push(el('div', 'shint', 'Scan with the phone camera, on the same Wi-Fi.'), qr, el('code', 'surl', info.url));
+      const others = (Array.isArray(info.urls) ? info.urls : []).filter((u) => u !== info.url);
+      if (others.length) body.push(el('div', 'shint', 'The phone cannot open it? Try another address of this computer:'), ...others.map((u) => el('code', 'surl', u)));
+      body.push(button('Turn off phone access', () => setLan(false)));
     } else {
       body.push(el('div', 'shint', 'Phone access is on, but this computer has no private network address. Connect to Wi-Fi, then open this panel again.'), button('Turn off phone access', () => setLan(false)));
     }

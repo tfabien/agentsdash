@@ -3,13 +3,12 @@
 // sub-agents, the plan moving, a question, an error, a session that finishes) with a caption bar that says what happens.
 //   node hub/tools/page_gif.mjs [--out docs/images/tour.gif] [--scale 0.6]
 // Frames are PNG files in a temp folder, assembled by frames_to_gif.py (Python and Pillow). The page is driven through the DevTools protocol.
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findBrowser } from './screenshots.mjs';
-import { connect, sleep } from './page_screenshots.mjs';
+import { openPage, sleep } from './browser.mjs';
 import { startDemoHub, applyScene, CHECKOUT, DOCS, MOBILE } from './demo_seed.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -32,18 +31,12 @@ async function main() {
   const out = path.resolve(opt('--out', path.join(HERE, '..', '..', 'docs', 'images', 'tour.gif')));
   const scale = Number(opt('--scale', 0.6));
   const width = 1280, height = 680 + CAPTION_H;                    // the page keeps the 680 px it fills the grid with, the caption bar comes on top
-  const browser = findBrowser();
-  if (!browser) throw new Error('no Edge or Chrome found: set SCREENSHOT_BROWSER to its path');
+  const { cdp, close } = await openPage({ width, height });
   const frames = fs.mkdtempSync(path.join(os.tmpdir(), 'tour-'));
   const list = [];
-  const demo = await startDemoHub({ themes: (process.env.DEMO_THEMES ?? 'office').split(',').filter(Boolean) });   // a marketplace theme (needs network); DEMO_THEMES= for the built-in one
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'pshot-'));
-  const port = 9300 + Math.floor(Math.random() * 500);
-  const child = spawn(browser, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
-    `--window-size=${width},${height}`, 'about:blank'], { stdio: 'ignore' });
+  let demo;
   try {
-    const cdp = await connect(port);
-    await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    demo = await startDemoHub({ themes: (process.env.DEMO_THEMES ?? 'office').split(',').filter(Boolean) });   // a marketplace theme (needs network); DEMO_THEMES= for the built-in one
     let last = Date.now();
     const grab = async (ms) => {                                   // one frame shown for `ms` (or the time since the previous frame when ms is 0)
       const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width, height, scale } });
@@ -88,16 +81,21 @@ async function main() {
     await anim(1200); await still(2800);
 
     fs.writeFileSync(path.join(frames, 'frames.json'), JSON.stringify(list));
-    cdp.close();
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    const py = ['python', 'python3'].map((c) => spawnSync(c, [path.join(HERE, 'frames_to_gif.py'), frames, out], { encoding: 'utf8' })).find((r) => r.status === 0);
-    if (!py) throw new Error('frames_to_gif.py failed (Python and Pillow needed)');
+    // One run: the first interpreter that succeeds writes the GIF, the next one is tried only after a failure.
+    const script = path.join(HERE, 'frames_to_gif.py');
+    let py, failed;
+    for (const c of ['python', 'python3']) {
+      const r = spawnSync(c, [script, frames, out], { encoding: 'utf8' });
+      if (r.status === 0) { py = r; break; }
+      failed = r;
+    }
+    if (!py) throw new Error(`frames_to_gif.py failed (Python and Pillow needed)${failed?.stderr ? `: ${failed.stderr.trim()}` : failed?.error ? `: ${failed.error.message}` : ''}`);
     console.log(py.stdout.trim());
   } finally {
-    child.kill();
-    await demo.close();
-    await sleep(500);
-    for (const d of [profile, frames]) { try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* the temp folder cleans it up */ } }
+    await close();
+    await demo?.close();
+    try { fs.rmSync(frames, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* the temp folder cleans it up */ }
   }
 }
 

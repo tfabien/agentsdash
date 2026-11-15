@@ -329,6 +329,31 @@ test('hitTest_on_a_tall_team_tile_finds_every_row_and_the_more_row_at_the_capaci
   assert.deepEqual(hitTest(30, 58 + 6 * 24 + 5, ctx(14)), { kind: 'row', index: 6 }, 'the 7th row is a row on a tall tile');
 });
 
+test('on_a_team_tile_the_only_subagent_opens_at_once_without_back', () => {
+  const one = [sub('ab12', 'workflow-subagent', { model: 'claude-opus-5-5', tok: 52000, ctx_pct: 12, ctx_k: 24, prompt: 'Review one area of the hub' })];
+  const r = draw(state([withSubs(one)]), ui({ bare: true, part: 'team', frameW: 700 }));
+  assert.ok(texts(r).includes('workflow-subagent') && texts(r).includes('COMMAND') && texts(r).includes('TASK'));
+  assert.ok(texts(r).includes('Review one area of the hub'));
+  assert.ok(!texts(r).includes('BACK') && !texts(r).includes('tap here to go back') && !texts(r).some((t) => t.startsWith('TEAM')));
+  assert.ok(texts(r).some((t) => t.includes('24k ctx') && t.includes('tokens')), 'model, context size and tokens');
+  assert.ok(r.ops.some((o) => o.op === 'ring' && Math.abs(o.frac - 0.12) < 1e-9), 'context ring of the sub-agent');
+  const ctx = { sessions: [{ id: 'a', dot: 'working', ask: null, plan: null, agents: [{ state: 'working', age: 1 }, { state: 'working', age: 1 }] }], selected: 0, menu: false, part: 'team', frameW: 700 };
+  assert.deepEqual(hitTest(30, 60, ctx), { kind: 'none' }, 'nothing to open or go back to');
+});
+
+test('subagent_without_context_draws_no_ring_in_its_detail', () => {
+  const r = draw(state([withSubs([sub('ab12', 'Explore'), sub('cd34', 'Plan')])]), ui({ bare: true, part: 'team', frameW: 700, detail: { session: 'aaaa', agent: 'ab12' } }));
+  assert.ok(!r.ops.some((o) => o.op === 'ring') && !texts(r).includes('TASK'));
+});
+
+test('team_rows_show_the_task_and_a_request_keeps_its_command', () => {
+  const subs = [sub('ab12', 'Explore', { prompt: 'Find the hub routes' }), sub('cd34', 'Plan', { state: 'needs_you', prompt: 'Plan it', cmd: 'Approve? Bash make' }), sub('ef56', 'code')];
+  const r = draw(state([withSubs(subs)]), ui({ bare: true, part: 'team', frameW: 700 }));
+  assert.ok(texts(r).includes('Find the hub routes') && !texts(r).includes('Explore work'));
+  assert.ok(texts(r).includes('Approve? Bash make') && !texts(r).includes('Plan it'));
+  assert.ok(texts(r).includes('code work'), 'no prompt: the command');
+});
+
 test('hitTest_on_an_open_subagent_tile_finds_only_the_back_button', () => {
   const lead = { id: 'a', dot: 'working', ask: null, plan: null, agents: [{ state: 'working', age: 1 }, { state: 'working', age: 1 }] };
   const ctx = { sessions: [lead], selected: 0, menu: false, part: 'team', frameW: 700, detailOpen: true };

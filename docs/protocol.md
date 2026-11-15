@@ -7,7 +7,7 @@ The protocol version is **2**. `GET /health` reports it as `protocol` (see below
 
 ## Transport rules
 
-- The hub listens on `127.0.0.1` (default port 8765). Bodies are JSON (`Content-Type: application/json`), at most 64 KiB (413 above).
+- The hub listens on `127.0.0.1` (default port 8765). Bodies are JSON objects (`Content-Type: application/json`), at most 64 KiB (413 above). A route that reads a body answers 400 `invalid JSON` when it is not a JSON object; `/reset` and `/market/update` also take an empty body.
 - A request must name the hub in `Host` (`127.0.0.1:<port>`, `localhost:<port>` or `[::1]:<port>`), else 403 `forbidden host`.
 - A request that carries an `Origin` header must carry the hub's own origin, else 403 `forbidden origin`. Adapters send no `Origin`. There is no CORS.
 - Text keeps its full Unicode and length on the hub. Only identifiers are cut (4 characters). Devices get text through `forDevice` (see `device-protocol.md`).
@@ -36,8 +36,9 @@ Answers 200 `ok`, or 400 `session, agent and a valid state are required`.
 | `model` | string | Model name. |
 | `tok` | number | Tokens of this agent. Absent or not a number means unknown. |
 | `stok` | number | Tokens of the whole session (lead only). |
-| `ctx_pct` | number | Context used, percent (lead only). |
-| `ctx_k` | number | Context used, thousands of tokens (lead only). |
+| `ctx_pct` | number | Context used, percent: of the session for the lead, of its own context for a sub-agent. |
+| `ctx_k` | number | Context used, thousands of tokens (same rule). |
+| `prompt` | string | The task a sub-agent was given (its first prompt). Sub-agents only; 300 characters. |
 | `plan_done` | number | Finished steps of the task list (lead only). |
 | `plan_total` | number | Steps of the task list. 0 means no list. |
 | `plan_items` | string[] | Up to 30 steps, each `<mark> <title>` where the first character is the step state. |
@@ -73,7 +74,7 @@ Body `{ "session": "<id>" }`. Hides a session; it returns with its next working,
 
 ### POST /permission
 
-A `PermissionRequest` hook asks the page for Allow or Deny. Body `{ "session", "agent", "tool", "cmd", "detail", "wait_s" }` (strings, `wait_s` a number of seconds, default 30, clamped to 1..120). 400 when `session`, `agent` or `tool` is missing. The response stays open until the user taps, then answers `{ "decision": "allow" | "deny" | "none" }`. `none` means nobody decided: the delay passed, a newer request of the same session and agent replaced it, or the session moved on (`PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `Stop`, `SessionEnd`, `/dismiss`, `/reset`). A hook that gets `none`, an error or a 404 (older core) prints nothing, so the terminal prompt decides. Loopback only: a LAN client gets 403.
+A `PermissionRequest` hook asks the page for Allow or Deny. Body `{ "session", "agent", "tool", "cmd", "detail", "wait_s" }` (strings, `wait_s` a number of seconds, default 30, clamped to 1..120). 400 when `session`, `agent` or `tool` is missing. The response stays open until the user taps, then answers `{ "decision": "allow" | "deny" | "none" }`. `none` means nobody decided: the delay passed, a newer request of the same session and agent replaced it, or the agent moved on (`PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `Stop` or `SubagentStop` of the same session and agent; `SessionEnd`, `/dismiss`, `/reset` of the session). An event of another agent, the lead's `Stop` included, leaves the request alone. `session` and `agent` are cut to 4 characters like `/event`, so the request shows on the tile of that session. A hook that gets `none`, an error or a 404 (older core) prints nothing, so the terminal prompt decides. Loopback only: a LAN client gets 403.
 
 ### POST /permission/answer
 
@@ -81,7 +82,7 @@ Body `{ "id": "<id>", "decision": "allow" | "deny" }`, sent by the page with the
 
 ### POST /question
 
-A `PermissionRequest` hook on `AskUserQuestion` asks the page for the answers while the terminal or the app shows the same question. Body `{ "session", "agent", "questions", "wait_s" }`: `questions` is a list of 1 to 4 `{ "question", "header", "options", "multi" }`, `options` a list of 2 or more option labels (the hub keeps the first 4), `multi` true for a multi choice. `wait_s` is a number of seconds, default 600, clamped to 1..600 (the terminal or the app shows the question meanwhile, so the wait only bounds a stuck hook). 400 when `session` or `agent` is missing or a question does not fit. The response stays open until the page answers, then returns `{ "picks": [[<index>, ...], ...] }` (one list of option indexes per question, in question order, exactly one index for a single choice) or `{ "none": true }`. The hub returns indexes only: the hook maps them back to the labels and question texts it received, so the hub never alters the keys of `answers`. `none` means nobody answered from the page: the delay passed, the user tapped TERMINAL, a newer question of the same session and agent replaced it, the hook went away, or the turn ended (`UserPromptSubmit`, `Stop`, `StopFailure` or `SessionEnd` of the same session and agent, `/dismiss`, `/reset`). A `PostToolUse` does not clear it: a tool running in parallel would. A hook that gets `none`, an error or a 404 (older core) prints nothing, so the terminal asks the question. Loopback only: a LAN client gets 403.
+A `PermissionRequest` hook on `AskUserQuestion` asks the page for the answers while the terminal or the app shows the same question. Body `{ "session", "agent", "questions", "wait_s" }`: `questions` is a list of 1 to 4 `{ "question", "header", "options", "multi" }`, `options` a list of 2 or more option labels (the hub keeps the first 4), `multi` true for a multi choice. `wait_s` is a number of seconds, default 600, clamped to 1..600 (the terminal or the app shows the question meanwhile, so the wait only bounds a stuck hook). 400 when `session` or `agent` is missing or a question does not fit. `session` and `agent` are cut to 4 characters like `/event` (also for `/question/release`). The response stays open until the page answers, then returns `{ "picks": [[<index>, ...], ...] }` (one list of option indexes per question, in question order, exactly one index for a single choice) or `{ "none": true }`. The hub returns indexes only: the hook maps them back to the labels and question texts it received, so the hub never alters the keys of `answers`. `none` means nobody answered from the page: the delay passed, the user tapped TERMINAL, a newer question of the same session and agent replaced it, the hook went away, or the turn ended (`UserPromptSubmit`, `Stop`, `StopFailure` or `SessionEnd` of the same session and agent, `/dismiss`, `/reset`). A `PostToolUse` does not clear it: a tool running in parallel would. A hook that gets `none`, an error or a 404 (older core) prints nothing, so the terminal asks the question. Loopback only: a LAN client gets 403.
 
 ### POST /question/answer
 
@@ -93,7 +94,7 @@ Body `{ "session", "agent" }`. The hook calls it once `AskUserQuestion` ran (`Po
 
 ### POST /settings
 
-Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 32), `theme`, `pulse`, `dim_idle`, `idle_minutes` (1, 2, 5 or 10: minutes waiting for you before a tile is idle, greyed and sorted last), `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides`, `rate_alert_k` (0, 20, 40 or 80: 0 hides the token rate readout of the tiles, else it turns orange from that many thousand tokens per minute and red from 3 times that), `focus_on_ask` (true: a question or an Allow/Deny held for the page opens its session full screen, and the view before comes back after the answer; default false). Invalid entries are ignored; 400 when none is valid.
+Settings shared by every page. Body: any of `sound` (`all`, `ask`, `off`), `max_tiles` (0 to 12), `theme`, `pulse`, `dim_idle`, `idle_minutes` (1, 2, 5 or 10: minutes waiting for you before a tile is idle, greyed and sorted last), `done_excerpt` (`first`, `last`, `off`), `rules`, `marketSources`, `themeAutoUpdate`, `themeVariant`, `themeLooks`, `themeOverrides` (the user's color edits `{ colors, accent }` keyed `<theme>` or `<theme>/<variant>`; accent `none` removes the theme's and the variant's accent), `rate_alert_k` (0, 20, 40 or 80: 0 hides the token rate readout of the tiles, else it turns orange from that many thousand tokens per minute and red from 3 times that), `focus_on_ask` (true: a question or an Allow/Deny held for the page opens its session full screen, and the view before comes back after the answer; default false). Invalid entries are ignored; 400 when none is valid.
 
 ### POST /select
 
@@ -109,7 +110,7 @@ Forgets every session. The body may be empty.
 
 The whole state as JSON: `sessions` (each with `id`, `project`, `cwd`, `dot`, `count`, `more`, `title`, `ctx_pct`, `ctx_k`, `ctx_src`, `tok`, `rate`, `plan`, `ask`, `perm` (`null`, or `{ id, tool, cmd, detail, until }` with `until` in epoch milliseconds, while a hook waits for Allow or Deny), `quest` (`null`, or `{ id, until, questions }` with `questions` as posted to `/question`, while a hook waits for the page's answers), `agents`), `more_sessions`, `view`, `usage` (when quotas are known), `agents` (flat v0.1 list), `boot`, `web` (a hash of the page's files taken at start: an open page reloads when it changes), `settings`, `catalog`, and `relay` (when a device relay is set).
 `rate` is `{ "tok_min": number }`, the tokens per minute of the session over the last 5 minutes, or `null` with fewer than 2 samples.
-Each entry of `agents` holds `id`, `parent`, `role`, `state`, `cmd`, `detail`, `tok`, `model`, `prev`, `prev_age`, `age` and, after a `Stop`, `reply_first` and `reply_last`.
+Each entry of `agents` holds `id`, `parent`, `role`, `state`, `cmd`, `detail`, `tok`, `model`, `prev`, `prev_age`, `age`, `prompt` (sub-agents, `''` when unknown), `ctx_pct` and `ctx_k` (sub-agents, `null` and 0 when unknown) and, after a `Stop`, `reply_first` and `reply_last`.
 
 ### GET /events
 
@@ -144,7 +145,7 @@ Rescans the theme and icon folders.
 ## LAN access (phone)
 
 Off by default. `lan.enabled` in the config file (or `AGENTSDASH_LAN=1`) binds the hub to `lan.bind` (default `0.0.0.0`). A client that does not connect from loopback must carry the cookie `agentsdash_token`, else 401.
-It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/health` and the static files and icons the page loads (anything else: 403), and its `Host` must be a private address or the name of the machine. The token lives in `~/.agentsdash/lan-token`.
+It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/health` and the static files and icons the page loads (anything else: 403), and its `Host` must be a private address or the name of the machine (any case). The token lives in `~/.agentsdash/lan-token`.
 
 ### GET /pair
 
@@ -152,11 +153,12 @@ It may call only `GET /phone`, `/manifest.webmanifest`, `/state`, `/events`, `/h
 
 ### GET /pair-info
 
-Loopback only. Answers `{ "enabled": <bool>, "url": "http://<private ip>:<port>/pair?t=<token>" }`; `url` is `null` when phone access is off or the machine has no private address.
+Loopback only. Answers `{ "enabled": <bool>, "url": "http://<private ip>:<port>/pair?t=<token>", "urls": [...] }`; `url` is `null` and `urls` empty when phone access is off or the machine has no private address.
+`urls` holds a pairing URL for every private address, ranked: real adapters before virtual ones (WSL, Hyper-V, Docker, VMware, VirtualBox), then 192.168/16, 10/8, 172.16/12. `url` is the first.
 
 ### POST /lan
 
-Loopback only. Body `{ "enabled": true|false }` (else 400). Turns phone access on or off while the hub runs: the hub writes `lan.enabled` to the config file, creates the token when needed and moves its listener to `lan.bind` (on) or `127.0.0.1` (off); open connections stay. Answers `{ "ok": true, "enabled": <bool> }`.
+Loopback only. Body `{ "enabled": true|false }` (else 400). Turns phone access on or off while the hub runs: the hub writes `lan.enabled` to the config file, creates the token when needed and moves its listener to `lan.bind` (on) or `127.0.0.1` (off); open connections stay, and a request from a non-loopback client gets 403 while phone access is off. Answers `{ "ok": true, "enabled": <bool> }` once the listener has moved: when `lan.bind` cannot be bound, the hub stays on `127.0.0.1`, writes `lan.enabled: false` and answers `enabled: false`.
 
 ## Hub management routes
 

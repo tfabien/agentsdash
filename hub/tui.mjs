@@ -2,10 +2,9 @@
 // Terminal view of the hub: the same information as the browser page, drawn with ANSI colors.
 //   node hub/tui.mjs [--host 127.0.0.1:8765]      (Ctrl+C to quit)
 import http from 'node:http';
-import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './run_as_main.mjs';
 import { loadConfig } from './config.mjs';
-import { formatAge, formatTokens } from './web/format.js';
+import { formatAge, formatTokens, fmtDuration } from './web/format.js';
 
 const COLOR = { needs_you: 208, error: 196, your_turn: 41, working: 75, waiting_subs: 141, done: 245 };
 const LABEL = { needs_you: 'NEEDS YOU', error: 'error', your_turn: 'your turn', working: 'working', waiting_subs: 'waiting', done: 'done' };
@@ -27,7 +26,7 @@ function compose(width, segs) {
   return out;
 }
 
-const pad = (text, n) => String(text).padEnd(n).slice(0, Math.max(n, String(text).length));
+const pad = (text, n) => String(text).padEnd(n);
 
 function sessionLines(s, width) {
   const lead = s.agents[0];
@@ -70,7 +69,7 @@ export function renderAnsi(state, width = 80, clock = '') {
   if (state.more_sessions > 0) lines.push(compose(width, [{ text: `+${state.more_sessions} more sessions`, color: DIM }]));
   lines.push('');
   const u = state.usage;
-  const quota = (k, label) => (u && u[`${k}_pct`] !== undefined ? `${label} ${u[`${k}_pct`]}% ${formatAge(u[`${k}_reset_s`] ?? 0)}` : '');
+  const quota = (k, label) => (u && u[`${k}_pct`] !== undefined ? `${label} ${u[`${k}_pct`]}% ${fmtDuration(u[`${k}_reset_s`] ?? 0)}` : '');
   const q = [quota('h5', '5h'), quota('d7', '7d')].filter(Boolean).join('  ');
   lines.push(compose(width, [{ text: q || 'quotas unknown', color: DIM }]));
   return lines.join('\n');
@@ -81,6 +80,8 @@ export function renderAnsi(state, width = 80, clock = '') {
  * @returns {{stop: () => void}}
  */
 export function runTui({ host, write = (s) => process.stdout.write(s), columns, alternateScreen = true, pairUrl }) {
+  const [hostname, portText] = host.split(':');
+  const port = Number(portText) || 80;
   let stopped = false;
   let req = null;
   let retry = null;
@@ -89,8 +90,7 @@ export function runTui({ host, write = (s) => process.stdout.write(s), columns, 
   let pair = pairUrl ?? null;
   const draw = (text) => write(`\x1b[H\x1b[2J${text}${pair ? `\n${paint(`Phone: ${pair}`, DIM)}` : ''}\n`);
   if (pairUrl === undefined) {
-    const [hn, pt] = host.split(':');
-    http.get({ hostname: hn, port: Number(pt) || 80, path: '/pair-info', agent: false }, (res) => {
+    http.get({ hostname, port, path: '/pair-info', agent: false }, (res) => {
       let body = '';
       res.setEncoding('utf8');
       res.on('data', (c) => { body += c; });
@@ -101,9 +101,8 @@ export function runTui({ host, write = (s) => process.stdout.write(s), columns, 
 
   function connect() {
     if (stopped) return;
-    const [hostname, port] = host.split(':');
     let buf = '';
-    req = http.get({ hostname, port: Number(port) || 80, path: '/events', agent: false }, (res) => {
+    req = http.get({ hostname, port, path: '/events', agent: false }, (res) => {
       res.setEncoding('utf8');
       res.on('data', (chunk) => {
         buf += chunk;
@@ -135,11 +134,7 @@ export function runTui({ host, write = (s) => process.stdout.write(s), columns, 
   };
 }
 
-// realpath: Node reports import.meta.url as the real path, argv[1] may go through a symlink (e.g. a linked ~/.claude)
-const isMain = (() => {
-  try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
-})();
-if (isMain) {
+if (isMain(import.meta.url)) {
   const i = process.argv.indexOf('--host');
   const host = i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : loadConfig().host;
   const tui = runTui({ host });

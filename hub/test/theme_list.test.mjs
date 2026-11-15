@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeCards, filterCards, tagCounts } from '../web/theme_list.js';
+import { mergeCards, filterCards, tagCounts, cardVariant } from '../web/theme_list.js';
 
 const inst = (name, extra = {}) => ({ name, label: name.toUpperCase(), description: `${name} look`, keywords: [name, 'pixel'], author: 'me', version: '1.0.0', iconPack: name, colors: {}, ...extra });
 const mk = (name, extra = {}) => ({ source: 'o/r', name, label: name.toUpperCase(), description: `${name} market`, keywords: ['pixel'], author: 'm', version: '1.0.0', preview: `https://x/${name}.png`, installed: false, installedVersion: '', updatable: false, ...extra });
@@ -78,4 +78,25 @@ test('installed_cards_carry_looks_and_their_active_keys', () => {
 test('available_cards_have_no_looks', () => {
   const cards = mergeCards({ catalog: [], market: { themes: [{ name: 'c', source: 'o/r', installed: false }] }, active: 'default' });
   assert.deepEqual([cards[0].looks, cards[0].activeLooks], [[], []]);
+});
+
+test('card_variant_prefers_the_pick_then_the_saved_variant_of_the_active_card', () => {
+  const picked = new Map([['b', 'dark']]);
+  const a = { name: 'a', active: true, variants: [{ key: 'dark' }] }, b = { name: 'b', active: false, variants: [{ key: 'dark' }] };
+  assert.equal(cardVariant(picked, a, 'light'), 'light');
+  assert.equal(cardVariant(picked, b, 'light'), 'dark');
+  assert.equal(cardVariant(new Map(), b, 'light'), '', 'a card that is not active shows its base');
+  assert.equal(cardVariant(picked, { ...b, variants: [] }, ''), '', 'no variants: the base');
+});
+
+test('available_cards_carry_what_the_preview_needs_to_look_installed', () => {
+  const pack = { tint: 'svg', hue: 0 };
+  const m = { name: 'c', source: 'o/r', installed: false, accent: '#ff0000', variants: { dark: {} }, looks: { hat: { label: 'Hat' } }, defaultLooks: ['hat'], pack };
+  const card = mergeCards({ catalog: [], market: { themes: [m] }, active: 'default' })[0];
+  assert.equal(card.accent, '#ff0000');
+  assert.deepEqual(card.themeVariants, { dark: {} });
+  assert.deepEqual(card.themeLooks, { hat: { label: 'Hat' } });
+  assert.deepEqual(card.defaultLooks, ['hat']);
+  assert.deepEqual(card.pack, pack);
+  assert.deepEqual([card.variants, card.looks], [[], []], 'the card itself offers no pickers before install');
 });

@@ -44,7 +44,7 @@ const RATE_WINDOW_MS = 300000, RATE_MIN_SPAN_MS = 60000;      // the rate looks 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function newAgent(id, role, now, rev) {
-  return { id, role, state: ST.WORKING, cmd: '', detail: '', replyFirst: '', replyLast: '', prevCmd: '', prevAt: 0, since: now, lastSeen: now, rev, tok: 0, model: '' };
+  return { id, role, state: ST.WORKING, cmd: '', detail: '', replyFirst: '', replyLast: '', prevCmd: '', prevAt: 0, since: now, lastSeen: now, rev, tok: 0, model: '', prompt: '', ctxPct: CTX_UNKNOWN, ctxK: 0 };
 }
 
 function newSession(id, now) {
@@ -255,7 +255,7 @@ export function createModel(opts = {}) {
         hasPlanCur: typeof ev.plan_cur === 'string', planCur: clean(ev.plan_cur),
         hasPlanNext: typeof ev.plan_next === 'string', planNext: clean(ev.plan_next),
         planState: clean(ev.plan_state), ask: clean(ev.question), askOpts: clean(ev.options),
-        replyFirst: clean(ev.reply_first, 300), replyLast: clean(ev.reply_last, 300),
+        replyFirst: clean(ev.reply_first, 300), replyLast: clean(ev.reply_last, 300), prompt: clean(ev.prompt, 300),
       };
     }
     const name = clean(ev.agent);
@@ -268,7 +268,7 @@ export function createModel(opts = {}) {
       session: (h & 0xffff).toString(16).padStart(4, '0'), agent: 'lead', state, project: name, role: 'lead',
       evt: 'V1', cmd: clean(ev.task), detail: '', title: '', tok: -1, stok: -1, model: '', ctxPct: -1, ctxK: -1, planDone: -1, planItems: null,
       planTotal: -1, hasPlanCur: false, planCur: '', hasPlanNext: false, planNext: '', planState: '', ask: '', askOpts: '',
-      replyFirst: '', replyLast: '',
+      replyFirst: '', replyLast: '', prompt: '',
     };
   }
 
@@ -329,6 +329,10 @@ export function createModel(opts = {}) {
     a.replyFirst = e.replyFirst; a.replyLast = e.replyLast;      // only a Stop carries them: any later event clears them
     if (e.tok >= 0) a.tok = e.tok;
     if (e.model) a.model = e.model;
+    if (!isLead) {                                            // a sub-agent's own task and context
+      if (e.prompt) a.prompt = e.prompt;
+      if (e.ctxPct >= 0) { a.ctxPct = Math.min(e.ctxPct, 254); if (e.ctxK >= 0) a.ctxK = Math.min(e.ctxK, 65535); }
+    }
     if (isLead) { applyLeadUsage(s, e, now); applyLeadAsk(s, e); }
     const before = a.state;
     if (fresh || before !== e.state) a.since = now;
@@ -442,6 +446,7 @@ export function createModel(opts = {}) {
     return {
       tok: a.tok, model: a.model, id: a.id, parent: isLead ? '' : 'lead', role: a.role, state: NAMES[effective(s, a)], cmd: a.cmd, detail: a.detail,
       ...(a.replyFirst ? { reply_first: a.replyFirst, reply_last: a.replyLast } : {}),
+      ...(isLead ? {} : { prompt: a.prompt, ctx_pct: a.ctxPct === CTX_UNKNOWN ? null : a.ctxPct, ctx_k: a.ctxK }),
       prev: a.prevCmd, prev_age: a.prevCmd ? Math.floor((now - a.prevAt) / 1000) : 0, age: Math.floor((now - a.since) / 1000),
     };
   }

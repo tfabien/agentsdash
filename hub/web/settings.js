@@ -2,18 +2,17 @@
 // hub (POST /settings, state.settings), so all pages and all browsers follow. Adding an option = one entry in OPTIONS.
 import { relayLabel } from './format.js';
 import { icon } from './icons.js';
-import { validRules } from './rules.js';
+import { validRule } from './rules.js';
+import { isHex } from './theme_schema.js';
 import { MAX_TILES } from './layout.js';
+import { el, postJson } from './dom.js';
 
 export const TILES_MIN = 0, TILES_MAX = MAX_TILES;          // tiles per page; 0 is Auto (what fits the window)
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+/** POST /settings; resolves whatever the status (see `call` in dom.js for a refusal that throws). */
+export const postSettings = (patch) => postJson('/settings', patch);
 
-export function postSettings(patch) {
-  return fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
-}
-
-/** What the panel offers. `kind`: 'choice' (segmented buttons), 'stepper' (- n +), 'toggle'. `after`: runs once the hub has the new value. */
+/** What the panel offers. `kind`: 'choice' (segmented buttons), 'stepper' (- n +), 'toggle'. */
 export const OPTIONS = [
   { key: 'max_tiles', label: 'Tiles per page', kind: 'stepper', min: TILES_MIN, max: TILES_MAX, format: (v) => (v === 0 ? 'Auto' : String(v)),
     hint: 'Auto fits the window; 1 shows one session at a time. More sessions make pages' },
@@ -30,7 +29,13 @@ export const OPTIONS = [
     hint: 'Minutes a session waits for you before it counts as idle' },
 ];
 
-const post = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+/** The USB port choices: [path, text] per listed port ("COM3 (CH340)" when it has a label), plus `draftPort` when the list lacks it. */
+export function portOptions(ports, draftPort) {
+  const listed = ports?.ports ?? [];
+  const paths = new Set([...listed.map((p) => p.path), ...(draftPort ? [draftPort] : [])]);
+  return [...paths].map((path) => { const label = listed.find((p) => p.path === path)?.label; return [path, label ? `${path} (${label})` : path]; });
+}
+
 const MODES = [['none', 'None'], ['http', 'Wi-Fi'], ['serial', 'USB']];
 
 /**
@@ -56,6 +61,7 @@ function createDeviceSection() {
   let dirty = false;
   let known = {};
   let ports = null;                                      // {ports, error} once listed
+  let portSig = '';                                      // the option list on screen: rebuilt only when it changes (an open dropdown stays open)
 
   const modeRow = el('div', 'sctl'), actionRow = el('div', 'sctl');
   modeRow.append(...modes.values());
@@ -72,9 +78,9 @@ function createDeviceSection() {
     host.hidden = draft.mode !== 'http';
     port.hidden = portNote.hidden = draft.mode !== 'serial';
     if (document.activeElement !== host) host.value = draft.host;
-    const paths = new Set([...(ports?.ports ?? []).map((p) => p.path), ...(draft.port ? [draft.port] : [])]);
-    port.replaceChildren(...[...paths].map((path) => { const o = el('option', '', (ports?.ports ?? []).find((p) => p.path === path)?.label ? `${path} (${ports.ports.find((p) => p.path === path).label})` : path); o.value = path; return o; }));
-    if (draft.port) port.value = draft.port; else if (paths.size) draft.port = port.value;
+    const opts = portOptions(ports, draft.port), sig = JSON.stringify(opts);
+    if (sig !== portSig) { portSig = sig; port.replaceChildren(...opts.map(([path, text]) => { const o = el('option', '', text); o.value = path; return o; })); }
+    if (draft.port) { if (port.value !== draft.port) port.value = draft.port; } else if (opts.length) draft.port = port.value;
     portNote.textContent = ports?.error ?? (ports && !ports.ports.length ? 'No serial port found' : '');
     apply.disabled = !dirty;
     test.disabled = known.mode === undefined || known.mode === 'none';
@@ -85,16 +91,18 @@ function createDeviceSection() {
 
   const say = (text, ok) => { result.textContent = text; result.className = `dresult ${ok ? 'ok' : 'down'}`; };
   apply.onclick = async () => {
-    const r = await post('/relay', { mode: draft.mode, host: draft.host, port: draft.port });
-    if (!r.ok) { say(await r.text(), false); return; }
-    dirty = false;
-    say((await r.json()).saved ? 'Applied and saved in agent-gadget.json' : 'Applied (could not save the file, lost at the next hub restart)', true);
+    try {
+      const r = await postJson('/relay', { mode: draft.mode, host: draft.host, port: draft.port });
+      if (!r.ok) { say(await r.text(), false); return; }
+      dirty = false;
+      say((await r.json()).saved ? 'Applied and saved in the hub config' : 'Applied (could not save the file, lost at the next hub restart)', true);
+    } catch { say('Failed: the hub did not answer', false); }
     render();
   };
   test.onclick = async () => {
     test.disabled = true;
     say('Testing...', true);
-    try { const r = await (await post('/relay/test')).json(); say(r.ok ? `OK, ${r.detail}` : `Failed: ${r.error}`, r.ok); } catch { say('Failed: the hub did not answer', false); }
+    try { const r = await (await postJson('/relay/test')).json(); say(r.ok ? `OK, ${r.detail}` : `Failed: ${r.error}`, r.ok); } catch { say('Failed: the hub did not answer', false); }
     render();
   };
 
@@ -121,8 +129,9 @@ function createRulesSection() {
   let draft = [], seen = '[]', packs = [];
 
   const clean = (r) => ({ match: r.match.trim(), ...(r.iconPack ? { iconPack: r.iconPack } : {}), ...(r.badgeColor ? { badgeColor: r.badgeColor } : {}) });
-  const valid = () => draft.filter((r) => r.match.trim() && (!r.badgeColor || /^#[0-9a-f]{6}$/i.test(r.badgeColor))).map(clean);
-  const save = () => { const rules = valid(); if (validRules(rules)) postSettings({ rules }); };
+  // The valid rows only: a row with an empty match, a bad color or a bad pack is left out of the save.
+  const valid = () => draft.map(clean).filter(validRule);
+  const save = () => postSettings({ rules: valid() });
 
   function render() {
     list.replaceChildren(...draft.map((r, i) => {
@@ -137,7 +146,7 @@ function createRulesSection() {
       pack.value = r.iconPack ?? '';
       pack.onchange = () => { r.iconPack = pack.value || undefined; save(); };
       const color = el('input', 'dinput rcolor'); color.value = r.badgeColor ?? ''; color.placeholder = '#rrggbb'; color.spellcheck = false;
-      color.oninput = () => { r.badgeColor = color.value.trim() || undefined; color.classList.toggle('bad', !!r.badgeColor && !/^#[0-9a-f]{6}$/i.test(r.badgeColor)); };
+      color.oninput = () => { r.badgeColor = color.value.trim() || undefined; color.classList.toggle('bad', !!r.badgeColor && !isHex(r.badgeColor)); };
       color.onchange = save;
       const del = el('button', 'seg', '×'); del.title = 'Delete rule'; del.setAttribute('aria-label', 'Delete rule');
       del.onclick = () => { draft.splice(i, 1); render(); save(); };
@@ -174,7 +183,7 @@ export function createSettingsMenu() {
   const set = (opt, value) => {
     current = { ...current, [opt.key]: value };
     show();
-    postSettings({ [opt.key]: value }).then(() => opt.after?.(value));
+    postSettings({ [opt.key]: value });
   };
 
   for (const opt of OPTIONS) {

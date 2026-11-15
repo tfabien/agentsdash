@@ -32,13 +32,17 @@ export function asciiDeep(value) {
 }
 
 // Field lengths of the gadget firmware (buffer length minus the NUL). The hub keeps full text; the relays cut it here, per wire key.
-export const DEVICE_LIMITS = { session: 4, agent: 4, project: 14, role: 23, evt: 23, cmd: 63, detail: 60, title: 30, model: 40, plan_cur: 47, plan_next: 47, plan_state: 16, question: 120, options: 100 };
+export const DEVICE_LIMITS = { session: 4, agent: 4, project: 14, role: 23, evt: 23, cmd: 63, detail: 60, title: 30, model: 32, plan_cur: 47, plan_next: 47, plan_state: 16, question: 120, options: 100 };
 
-/** What a gadget receives for `route`: ASCII only, and for /event every text field cut to the firmware's buffer. */
+// Event fields the firmware never reads: they stay on the hub. The replies alone (300 characters each) can push a Stop past the
+// firmware's 1400-byte serial line, which the device then skips whole.
+export const HUB_ONLY = ['cwd', 'plan_items', 'reply_first', 'reply_last', 'prompt'];
+
+/** What a gadget receives for `route`: ASCII only, and for /event the hub-only fields removed and every text field cut to the firmware's buffer. */
 export function forDevice(route, body) {
   const out = asciiDeep(body);
   if (route === '/event' && out && typeof out === 'object') {
-    delete out.cwd;                                  // the path stays on the hub (rules); a gadget has no use for it
+    for (const key of HUB_ONLY) delete out[key];
     for (const [key, n] of Object.entries(DEVICE_LIMITS)) if (typeof out[key] === 'string') out[key] = out[key].slice(0, n);
   }
   return out;

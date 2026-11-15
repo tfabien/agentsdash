@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startHub } from '../hub.mjs';
+import { isMain } from '../run_as_main.mjs';
 
 const post = (hub, p, body) => fetch(`http://127.0.0.1:${hub.port}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
@@ -22,6 +23,7 @@ export const CHECKOUT = [
 const MORE_SUBS = [
   sub('a1b2', 'e5', 'code', 'checkout-api', { cmd: 'Edit retry.py', tok: 27000 }),
   sub('a1b2', 'e6', 'general', 'checkout-api', { cmd: 'WebFetch docs.stripe.com/error-handling', tok: 15000 }),
+  sub('a1b2', 'e7', 'generic', 'checkout-api', { cmd: 'Draft the changelog', tok: 5000 }),          // the hub drops a SubagentStop of an agent it never saw
   sub('a1b2', 'e7', 'generic', 'checkout-api', { state: 'done', evt: 'SubagentStop', cmd: 'Changelog drafted', tok: 6000 }),
 ];
 const BILLING = [
@@ -53,7 +55,6 @@ export const SCENES = {
   question: { settings: { max_tiles: 1 }, events: [DOCS] },
   subs3: { settings: { max_tiles: 1 }, events: [CHECKOUT[0], CHECKOUT[1], CHECKOUT[2], CHECKOUT[4]] },
   subs7: { settings: { max_tiles: 1 }, events: [...CHECKOUT, ...MORE_SUBS] },
-  detail: { settings: { max_tiles: 1 }, events: CHECKOUT },
   empty: { settings: { max_tiles: 4 }, events: [] },
 };
 
@@ -61,10 +62,14 @@ export const SCENES = {
 export async function applyScene(hub, name) {
   const scene = SCENES[name];
   if (!scene) throw new Error(`unknown scene ${name}: ${Object.keys(SCENES).join(', ')}`);
-  await post(hub, '/reset', {});
-  for (const ev of scene.events) await post(hub, '/event', ev);
-  await post(hub, '/usage', { v: 1, h5_pct: 48, h5_reset_s: 4800, d7_pct: 61, d7_reset_s: 183000 });
-  await post(hub, '/settings', scene.settings);
+  const send = async (p, body) => {                       // a refused post would silently empty a README shot
+    const r = await post(hub, p, body);
+    if (!r.ok) throw new Error(`scene ${name}: POST ${p} answered ${r.status} ${await r.text()}`);
+  };
+  await send('/reset', {});
+  for (const ev of scene.events) await send('/event', ev);
+  await send('/usage', { v: 1, h5_pct: 48, h5_reset_s: 4800, d7_pct: 61, d7_reset_s: 183000 });
+  await send('/settings', scene.settings);
 }
 
 /**
@@ -83,7 +88,7 @@ export async function startDemoHub({ themes = [], theme = 'line' } = {}) {
   return { hub, userDir, close: async () => { await hub.close(); fs.rmSync(userDir, { recursive: true, force: true }); } };
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+if (isMain(import.meta.url)) {
   const [scene = 'grid', ...themes] = process.argv.slice(2);
   const demo = await startDemoHub({ themes });
   await applyScene(demo.hub, scene);

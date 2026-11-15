@@ -9,8 +9,8 @@ Language: chat with the user in French. **Code comments, documentation and on-sc
 ## Layout
 
 - `hub/` the hub, released as a tarball: `hub.mjs` (HTTP + SSE), `model.mjs` (port of `firmware/model.cpp` of the device repository `agentsdash-device-artillery-x3`), `config.mjs`, `paths.mjs` (names, folders, old-name fallback),
-  `web/` (the page: `screen.js` decides, `vector_screen.js` draws, `hub_page.js` wires the one page, `scenes.js`), `relay_http.mjs`, `relay_serial.mjs`, `tui.mjs`, `rules.mjs`,
-  themes and packs as files (`themes/*.json`, `icons/<pack>/*.svg`, `themes_loader.mjs`, `tools/export_builtin.mjs`), the theme marketplace client (`market_*.mjs`, routes `/market*`, tab `web/market.js`),
+  `web/` (the page: `screen.js` decides, `vector_screen.js` draws, `hub_page.js` wires the one page, `scenes.js`), `relay_http.mjs`, `relay_serial.mjs` (shared queue rules in `relay_queue.mjs`), `tui.mjs`,
+  themes and packs as files (`themes/*.json`, `icons/<pack>/*.svg`, `themes_loader.mjs`), the theme marketplace client (`market_*.mjs`, routes `/market*`, tab `web/market.js`),
   `tools/` (screenshots, GIF), `test/`. Node >= 18, standard library only; `serialport` is optional.
 - `devices/README.md` how to add a device. Each device is its own repository (`agentsdash-device-artillery-x3`: firmware, screen project, tests, hardware notes).
 - `docs/` `protocol.md` and `device-protocol.md` (the contract, checked by tests), `hub-themes.md`, `superpowers/` specs and plans, `images/` (README screenshots).
@@ -36,5 +36,5 @@ Tests (no hardware): `node --test hub/test/*.test.mjs` (a directory argument fai
 - Windows: `process.exit` right after spawning a detached child crashes Node (libuv assertion): use `process.exitCode`.
 - A shell here-document or `sed` turns `\n` in a replacement into a real newline: edit code with an editor tool or a Python script file.
 - `sleep` of more than a few seconds is blocked in the shell tool: wait with a loop on a condition.
-- README screenshots are the real page: `hub/tools/page_screenshots.mjs` (demo hub from `demo_seed.mjs`, marketplace theme `office` (needs network; `DEMO_THEMES=<name>` picks another), 4 tiles per page, needs Edge or Chrome). `page_gif.mjs` records the tour GIF (needs Python with Pillow). `screenshots.mjs` draws the device screen scenes only.
+- README screenshots are the real page: `hub/tools/page_screenshots.mjs` (demo hub from `demo_seed.mjs`, marketplace theme `office` (needs network; `DEMO_THEMES=<name>` picks another), 4 tiles per page, needs Edge or Chrome). `page_gif.mjs` records the tour GIF (needs Python with Pillow). Both open the browser through `browser.mjs` (`findBrowser`, `openPage`, DevTools client). `screenshots.mjs` draws the device screen scenes only.
 - Work PC (Windows 10 Enterprise, Fortinet VPN, Dell dock); prefer a personal PC to install new tools.

@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { isPrivateIp, checkRelayHost, parseRelay, sameRelay } from '../relay_config.mjs';
 import { startHub } from '../hub.mjs';
+import { tmpUserDir } from './tmp_dirs.mjs';
 
 const lookupTo = (...addresses) => async () => addresses.map((address) => ({ address, family: address.includes(':') ? 6 : 4 }));
 const post = (hub, p, body) => fetch(`http://127.0.0.1:${hub.port}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -55,7 +56,7 @@ test('hub_swaps_the_relay_while_running_and_saves_it_without_touching_the_other_
   fs.writeFileSync(configFile, JSON.stringify({ host: '127.0.0.1:9999', quotas: false }));
   const sent = [];
   const fetchImpl = async (url) => { sent.push(String(url)); return new Response('ok'); };
-  const hub = await startHub({ port: 0, config: quiet, configFile, lookup: lookupTo('192.168.1.7'), http: { fetchImpl, lockFile: path.join(dir, 'no-lock') } });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: quiet, configFile, lookup: lookupTo('192.168.1.7'), http: { fetchImpl, lockFile: path.join(dir, 'no-lock') } });
   try {
     assert.equal((await post(hub, '/relay', { mode: 'http', host: '8.8.8.8' })).status, 400, 'public host refused');
     assert.equal((await post(hub, '/relay', { mode: 'http', host: '127.0.0.1:1' })).status, 400, 'loopback refused');
@@ -85,7 +86,7 @@ test('hub_swaps_the_relay_while_running_and_saves_it_without_touching_the_other_
 });
 
 test('without_a_config_file_the_choice_holds_but_is_not_saved', async () => {
-  const hub = await startHub({ port: 0, config: quiet, lookup: lookupTo('192.168.1.7') });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: quiet, lookup: lookupTo('192.168.1.7') });
   try {
     assert.deepEqual(await (await post(hub, '/relay', { mode: 'http', host: '192.168.1.9' })).json(), { ok: true, saved: false });
     assert.equal((await (await get(hub, '/state')).json()).relay.host, '192.168.1.9');
@@ -101,14 +102,14 @@ test('test_button_asks_the_device_for_its_state_and_reports_the_error', async ()
     if (String(url).endsWith('/state') && fail) throw Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
     return new Response('{}', { status: 200 });
   };
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'http', host: '192.168.1.50' }, quotas: false }, http: { fetchImpl, lockFile: path.join(dir, 'no-lock') } });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: { relay: { mode: 'http', host: '192.168.1.50' }, quotas: false }, http: { fetchImpl, lockFile: path.join(dir, 'no-lock') } });
   try {
     assert.equal((await (await post(hub, '/relay/test')).json()).ok, true);
     assert.ok(calls.includes('http://192.168.1.50/state'));
     fail = true;
     assert.deepEqual(await (await post(hub, '/relay/test')).json(), { ok: false, error: 'ECONNREFUSED' });
   } finally { await hub.close(); }
-  const idle = await startHub({ port: 0, config: quiet });
+  const idle = await startHub({ port: 0, userDir: tmpUserDir(), config: quiet });
   try { assert.deepEqual(await (await post(idle, '/relay/test')).json(), { ok: false, error: 'no device configured' }); } finally { await idle.close(); }
 });
 
@@ -118,7 +119,7 @@ test('test_button_waits_while_a_screen_upload_holds_the_lock', async () => {
   fs.writeFileSync(lockFile, '');
   const stateCalls = [];
   const fetchImpl = async (url) => { if (String(url).endsWith('/state')) stateCalls.push(url); return new Response('ok'); };
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'http', host: '192.168.1.50' }, quotas: false }, http: { lockFile, fetchImpl } });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: { relay: { mode: 'http', host: '192.168.1.50' }, quotas: false }, http: { lockFile, fetchImpl } });
   try {
     const r = await (await post(hub, '/relay/test')).json();
     assert.equal(r.ok, false);
@@ -128,9 +129,9 @@ test('test_button_waits_while_a_screen_upload_holds_the_lock', async () => {
 });
 
 test('ports_list_comes_from_the_injected_function_and_never_fails', async () => {
-  const hub = await startHub({ port: 0, config: quiet, listPorts: async () => ({ ports: [{ path: 'COM3', label: 'USB-SERIAL' }] }) });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: quiet, listPorts: async () => ({ ports: [{ path: 'COM3', label: 'USB-SERIAL' }] }) });
   try { assert.deepEqual(await (await get(hub, '/relay/ports')).json(), { ports: [{ path: 'COM3', label: 'USB-SERIAL' }] }); } finally { await hub.close(); }
-  const bare = await startHub({ port: 0, config: quiet });
+  const bare = await startHub({ port: 0, userDir: tmpUserDir(), config: quiet });
   try {
     const r = await get(bare, '/relay/ports');
     assert.equal(r.status, 200);
@@ -139,9 +140,16 @@ test('ports_list_comes_from_the_injected_function_and_never_fails', async () => 
 });
 
 test('relay_routes_refuse_a_foreign_origin', async () => {
-  const hub = await startHub({ port: 0, config: quiet });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: quiet });
   try {
     const r = await fetch(`http://127.0.0.1:${hub.port}/relay`, { method: 'POST', headers: { Origin: 'http://evil.example' }, body: JSON.stringify({ mode: 'none' }) });
     assert.equal(r.status, 403);
   } finally { await hub.close(); }
+});
+
+test('test_button_reports_a_non_2xx_answer_of_the_device', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay503-'));
+  const fetchImpl = async () => new Response('', { status: 503 });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: { relay: { mode: 'http', host: '192.168.1.50' }, quotas: false }, http: { fetchImpl, lockFile: path.join(dir, 'no-lock') } });
+  try { assert.deepEqual(await (await post(hub, '/relay/test')).json(), { ok: false, error: 'HTTP 503' }); } finally { await hub.close(); }
 });

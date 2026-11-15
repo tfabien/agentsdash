@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderAnsi, runTui } from '../tui.mjs';
 import { startHub } from '../hub.mjs';
+import { tmpUserDir } from './tmp_dirs.mjs';
 
 const strip = (s) => s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
 const agent = (over = {}) => ({ tok: 0, id: 'lead', parent: '', role: 'lead', state: 'working', cmd: 'Edit a.js', detail: '', prev: '', prev_age: 0, age: 5, ...over });
@@ -32,6 +33,13 @@ test('needs_you_is_first_and_marked', () => {
   assert.match(lines[i], /NEEDS YOU/);
 });
 
+test('a_long_sub_agent_role_is_padded_not_cut', () => {
+  const role = 'code-reviewer-for-the-hub';                 // 25 characters, the column is 14
+  const out = strip(renderAnsi(state([session({ agents: [agent(), agent({ id: 's1', parent: 'lead', role }), agent({ id: 's2', parent: 'lead', role: 'tester' })] })]), 120));
+  assert.match(out, /    code-reviewer-for-the-hubworking/, 'the whole role is printed');
+  assert.match(out, /    tester {8}working/, 'a short role is padded to 14');
+});
+
 test('truncates_to_width', () => {
   const out = renderAnsi(state([session({ title: 'T'.repeat(80), agents: [agent({ cmd: 'x'.repeat(200) })], plan: { done: 1, total: 2, cur: 'c'.repeat(100), next: '' , state: '' }, ask: { question: 'q'.repeat(150), options: 'a|b' } })]), 40);
   for (const l of strip(out).split('\n')) assert.ok(l.length <= 40, `${l.length}: ${l}`);
@@ -46,7 +54,7 @@ test('shows_plan_context_subagents_and_quotas', () => {
   assert.match(out, /plan 2\/5 Task 3/);
   assert.match(out, /explore\s+working\s+Grep foo/);
   assert.match(out, /\+2 more/);
-  assert.match(out, /5h 40% 1h30m/);
+  assert.match(out, /5h 40% 1h30\b/);
   assert.match(out, /7d 12%/);
 });
 
@@ -69,7 +77,7 @@ test('clock_shows_at_the_right_of_the_title_line_when_given', () => {
 });
 
 test('tui_follows_the_hub_over_sse', async () => {
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: { relay: { mode: 'none' }, quotas: false } });
   const writes = [];
   const tui = runTui({ host: `127.0.0.1:${hub.port}`, write: (s) => writes.push(s), columns: 80, alternateScreen: false });
   try {
@@ -82,7 +90,7 @@ test('tui_follows_the_hub_over_sse', async () => {
 });
 
 test('tui_prints_the_pairing_address_only_when_there_is_one', async () => {
-  const hub = await startHub({ port: 0, config: { relay: { mode: 'none' }, quotas: false } });
+  const hub = await startHub({ port: 0, userDir: tmpUserDir(), config: { relay: { mode: 'none' }, quotas: false } });
   const withUrl = [], without = [];
   const a = runTui({ host: `127.0.0.1:${hub.port}`, write: (s) => withUrl.push(s), columns: 80, alternateScreen: false, pairUrl: 'http://192.168.1.5:8765/pair?t=abc' });
   const b = runTui({ host: `127.0.0.1:${hub.port}`, write: (s) => without.push(s), columns: 80, alternateScreen: false, pairUrl: null });
@@ -92,4 +100,9 @@ test('tui_prints_the_pairing_address_only_when_there_is_one', async () => {
     assert.ok(withUrl.some((w) => strip(w).includes('Phone: http://192.168.1.5:8765/pair?t=abc')));
     assert.ok(!without.some((w) => strip(w).includes('Phone:')));
   } finally { a.stop(); b.stop(); await hub.close(); }
+});
+
+test('quota_resets_use_days_like_the_page', () => {
+  const out = strip(renderAnsi(state([session()], { usage: { age_s: 1, d7_pct: 40, d7_reset_s: 259200 } }), 100));
+  assert.match(out, /7d 40% 3d00h/);
 });

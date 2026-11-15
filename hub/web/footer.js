@@ -5,8 +5,8 @@ import { createPhoneSection } from './phone_section.js';
 import { createThemeMenu } from './theme_dialog.js';
 import { createViewHost } from './views.js';
 import { icon } from './icons.js';
+import { el } from './dom.js';
 
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
 export const SOUND_ICON = { all: 'speaker', ask: 'bell', off: 'muted' };
 const SOUND_LABEL = { all: 'all events', ask: 'questions only', off: 'off' };

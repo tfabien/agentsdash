@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startHub } from '../hub.mjs';
 import { loadConfig } from '../config.mjs';
 import { forDevice } from '../ascii.mjs';
@@ -233,13 +234,13 @@ test('core_package_protocol_matches_model', () => withHub(async (hub) => {
 
 test('loadConfig_defaults_and_file_and_env', () => {
   const dflt = loadConfig(path.join(os.tmpdir(), 'no-such-agent-gadget.json'), {});
-  assert.deepEqual(dflt, { lan: { enabled: false, bind: '0.0.0.0' }, host: '127.0.0.1:8765', relay: { mode: 'none' }, context_window: 1000000, max_sessions: 24, first_theme: 'robot' });
+  assert.deepEqual(dflt, { lan: { enabled: false, bind: '0.0.0.0' }, host: '127.0.0.1:8765', relay: { mode: 'none' }, max_sessions: 24, first_theme: 'robot' });
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubcfg-')), 'c.json');
   fs.writeFileSync(file, JSON.stringify({ host: '127.0.0.1:9000', relay: { mode: 'http', host: '192.168.1.100' }, quotas: false, context_window: 200000 }));
   const c = loadConfig(file, {});
   assert.equal(c.host, '127.0.0.1:9000');
   assert.deepEqual(c.relay, { mode: 'http', host: '192.168.1.100' });
-  assert.equal(c.context_window, 200000);
+  assert.equal('context_window' in c, false, 'the adapters read context_window, the hub does not');
   assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '7' }).max_sessions, 7);
   assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '99' }).max_sessions, 24);     // out of range: default
   assert.equal(loadConfig(file, { CLAUDE_GADGET_HOST: 'h:1' }).host, 'h:1');
@@ -435,8 +436,10 @@ test('market_delete_covers_a_hand_made_theme_and_refuses_a_built_in_one', async 
   fs.mkdirSync(path.join(d.builtinDir, 'themes'), { recursive: true });
   fs.writeFileSync(path.join(d.builtinDir, 'themes', 'base.json'), JSON.stringify({ name: 'base', colors: {} }));
   fs.writeFileSync(path.join(d.userDir, 'themes', 'mine.json'), JSON.stringify({ name: 'mine', colors: {} }));
+  fs.writeFileSync(path.join(d.userDir, 'themes', 'base.json'), JSON.stringify({ name: 'base', colors: {} }));
   await withHub(async (hub) => {
-    assert.deepEqual((await (await get(hub, '/market')).json()).userThemes, ['mine']);
+    assert.deepEqual((await (await get(hub, '/market')).json()).userThemes, ['mine'], 'a user file with a built-in name is not a user theme');
+    fs.rmSync(path.join(d.userDir, 'themes', 'base.json'));
     assert.equal((await postJson(hub, '/market/remove', { name: 'base' })).status, 400);
     assert.equal((await postJson(hub, '/market/remove', { name: 'mine' })).status, 200);
     assert.deepEqual((await (await get(hub, '/state')).json()).catalog.themes.map((t) => t.name), ['base']);
@@ -476,6 +479,9 @@ test('settings_accept_theme_variant_and_overrides_and_refuse_invalid_ones', () =
   await postJson(hub, '/settings', { themeOverrides: { 'Bad Key': {} }, themeVariant: 'Not Ok' });
   st = (await (await get(hub, '/state')).json()).settings;
   assert.deepEqual([st.themeVariant, Object.keys(st.themeOverrides)], ['dark', ['cat/dark']]);
+  assert.equal((await postJson(hub, '/settings', { themeOverrides: { cat: { colors: {}, accent: 'none' } } })).status, 200, 'no accent is a valid edit');
+  st = (await (await get(hub, '/state')).json()).settings;
+  assert.equal(st.themeOverrides.cat.accent, 'none');
 }));
 
 test('post_themes_writes_a_user_theme_and_applies_it', async () => {
@@ -568,4 +574,183 @@ test('rate_alert_setting_validates_and_defaults', () => withHub(async (hub) => {
   assert.equal((await post(hub, '/settings', { rate_alert_k: 0 })).status, 200);
   assert.equal((await post(hub, '/settings', { rate_alert_k: 50 })).status, 400);
   assert.equal((await (await get(hub, '/state')).json()).settings.rate_alert_k, 0);
+}));
+
+test('every_test_hub_gets_a_temp_user_folder', () => {
+  // Without userDir a hub loads the themes and packs of the developer's real ~/.agentsdash, so test results would depend on that folder.
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const missing = [];
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.test.mjs'))) {
+    fs.readFileSync(path.join(dir, f), 'latin1').split('\n').forEach((line, i) => {
+      if (/startHub\(\{/.test(line) && !/userDir/.test(line) && !/^\s*(\/\/|\*)/.test(line)) missing.push(`${f}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(missing, []);
+});
+
+/** Polls /state until `fn` holds; returns that state. */
+async function stateWhen(hub, fn, ms = 3000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    const st = await (await get(hub, '/state')).json();
+    if (fn(st) || Date.now() > end) return st;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+const twoThemes = () => fakeGitHub({ [DEFAULT_SOURCE]: { files: { 'cat/theme.json': mt('cat'), 'cat/icons/lead.png': 'png', 'fox/theme.json': mt('fox'), 'fox/icons/lead.png': 'png' } } });
+
+test('first_run_installs_the_configured_theme_and_applies_it', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    const st = await stateWhen(hub, (s) => s.settings.theme === 'fox');
+    assert.equal(st.settings.theme, 'fox', 'config.first_theme picks the theme');
+    assert.deepEqual(st.catalog.themes.map((t) => t.name), ['fox'], 'the catalog is reloaded after the install');
+    assert.ok(fs.existsSync(path.join(d.userDir, 'themes', 'fox.json')), 'installed into the user folder');
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: twoThemes(), firstRunTheme: true, config: { relay: { mode: 'none' }, quotas: false, first_theme: 'fox' } });
+});
+
+test('first_run_downloads_a_theme_when_only_a_built_in_theme_exists', async () => {
+  const d = catalogDirs();
+  fs.mkdirSync(path.join(d.builtinDir, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(d.builtinDir, 'themes', 'line.json'), mt('line'));
+  await withHub(async (hub) => {
+    const st = await stateWhen(hub, (s) => s.catalog.themes.some((t) => t.name === 'fox'));
+    assert.deepEqual(st.catalog.themes.map((t) => t.name).sort(), ['fox', 'line']);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: twoThemes(), firstRunTheme: true, config: { relay: { mode: 'none' }, quotas: false, first_theme: 'fox' } });
+});
+
+test('market_install_lists_the_source_again_before_installing', async () => {
+  const d = catalogDirs();
+  let icon = 'a';
+  const proxy = (url, init) => fakeGitHub({ [DEFAULT_SOURCE]: { files: { 'cat/theme.json': mt('cat'), [`cat/icons/lead${icon === 'a' ? '' : '-blink'}.png`]: 'png' } } })(url, init);
+  await withHub(async (hub) => {
+    await get(hub, '/market');                                     // caches a listing with icons/lead.png
+    icon = 'b';                                                    // the repository now holds icons/lead-blink.png only
+    const r = await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' });
+    assert.equal(r.status, 200, await r.text());
+    assert.deepEqual(fs.readdirSync(path.join(d.userDir, 'icons', 'cat')), ['lead-blink.png']);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
+});
+
+test('market_install_works_from_the_cached_listing_when_the_github_api_fails', async () => {
+  const d = catalogDirs();
+  let apiDown = false;
+  const gh = market();
+  const proxy = (url, init) => (apiDown && url.startsWith('https://api.github.com/') ? Promise.resolve(new Response('rate limit', { status: 403 })) : gh(url, init));
+  await withHub(async (hub) => {
+    await get(hub, '/market');
+    apiDown = true;
+    const r = await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' });
+    assert.equal(r.status, 200, await r.text());
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
+});
+
+test('first_run_keeps_a_theme_the_user_chose', async () => {
+  const d = catalogDirs();
+  const settingsFile = path.join(d.root, 'settings.json');
+  fs.writeFileSync(settingsFile, JSON.stringify({ theme: 'mine' }));
+  await withHub(async (hub) => {
+    const st = await stateWhen(hub, (s) => s.catalog.themes.length > 0);
+    assert.deepEqual(st.catalog.themes.map((t) => t.name), ['cat']);
+    assert.equal(st.settings.theme, 'mine', 'only a hub still on the default theme switches');
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, settingsFile, fetch: market(), firstRunTheme: true });
+});
+
+test('settings_file_drops_bad_entries_and_a_corrupt_file_gives_the_defaults', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hubset-'));
+  const file = path.join(dir, 'settings.json');
+  fs.writeFileSync(file, JSON.stringify({ sound: 'loud', max_tiles: 4, idle_minutes: 3 }));
+  await withHub(async (hub) => {
+    const s = (await (await get(hub, '/state')).json()).settings;
+    assert.deepEqual([s.sound, s.max_tiles, s.idle_minutes], ['ask', 4, 5], 'a bad entry falls back to its default, the rest is kept');
+  }, { settingsFile: file });
+  fs.writeFileSync(file, '{broken');
+  await withHub(async (hub) => {
+    const s = (await (await get(hub, '/state')).json()).settings;
+    assert.deepEqual([s.sound, s.max_tiles, s.idle_minutes, s.done_excerpt], ['ask', 0, 5, 'first']);
+  }, { settingsFile: file });
+});
+
+test('settings_accept_idle_minutes_done_excerpt_and_an_empty_variant', () => withHub(async (hub) => {
+  assert.equal((await post(hub, '/settings', { idle_minutes: 2, done_excerpt: 'last', themeVariant: '' })).status, 200);
+  const s = (await (await get(hub, '/state')).json()).settings;
+  assert.deepEqual([s.idle_minutes, s.done_excerpt, s.themeVariant], [2, 'last', '']);
+  assert.equal((await post(hub, '/settings', { idle_minutes: 3 })).status, 400);
+  assert.equal((await post(hub, '/settings', { done_excerpt: 'mid' })).status, 400);
+}));
+
+test('market_sources_stop_at_ten', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    for (let i = 1; i <= 9; i++) assert.equal((await postJson(hub, '/market/sources', { add: `o/r${i}` })).status, 200, `source ${i + 1}`);
+    assert.equal((await (await get(hub, '/state')).json()).settings.marketSources.length, 10);
+    const r = await postJson(hub, '/market/sources', { add: 'o/r10' });
+    assert.equal(r.status, 400);
+    assert.equal(await r.text(), 'at most 10 sources');
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+// ---- request bodies and static files ----
+test('every_json_post_route_answers_400_for_a_body_that_is_not_an_object', () => withHub(async (hub) => {
+  const routes = ['/settings', '/event', '/usage', '/dismiss', '/select', '/relay', '/permission', '/permission/answer', '/reset'];
+  for (const route of routes) {
+    for (const raw of ['"x"', '5', 'null', '[]']) {
+      const r = await post(hub, route, null, raw);
+      assert.equal(r.status, 400, `${route} with ${raw}`);
+      assert.equal(await r.text(), 'invalid JSON', `${route} with ${raw}`);
+    }
+  }
+}));
+
+test('reset_and_market_update_accept_an_empty_body', async () => {
+  const d = catalogDirs();
+  await withHub(async (hub) => {
+    await post(hub, '/event', EV);
+    assert.equal((await fetch(`http://127.0.0.1:${hub.port}/reset`, { method: 'POST' })).status, 200);
+    assert.equal((await (await get(hub, '/state')).json()).sessions.length, 0);
+    const r = await fetch(`http://127.0.0.1:${hub.port}/market/update`, { method: 'POST' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { updated: [], errors: [] });
+    assert.equal((await post(hub, '/market/update', null, '{bad')).status, 400);
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: market() });
+});
+
+test('market_update_with_a_name_checks_only_that_theme', async () => {
+  const d = catalogDirs();
+  let version = '1.0.0';
+  const proxy = (url, init) => market(version)(url, init);
+  await withHub(async (hub) => {
+    await postJson(hub, '/market/sources', { add: 'o/r' });
+    await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' });
+    version = '1.1.0';
+    assert.deepEqual(await (await postJson(hub, '/market/update', { name: 'dog' })).json(), { updated: [], errors: [] });
+    assert.deepEqual(await (await postJson(hub, '/market/update', { name: 'cat' })).json(), { updated: ['cat'], errors: [] });
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
+});
+
+test('shutdown_answers_bye_and_calls_on_shutdown', async () => {
+  let called = false;
+  await withHub(async (hub) => {
+    const r = await fetch(`http://127.0.0.1:${hub.port}/shutdown`, { method: 'POST' });
+    assert.equal(await r.text(), 'bye');
+    for (let i = 0; i < 50 && !called; i++) await new Promise((res) => setTimeout(res, 20));
+    assert.equal(called, true);
+  }, { onShutdown: () => { called = true; } });
+});
+
+test('static_files_answer_404_for_a_bad_escape_and_serve_the_pages', () => withHub(async (hub) => {
+  for (const p of ['/%E0%A4%A', '/a%2']) {
+    const r = await get(hub, p);
+    assert.equal(r.status, 404, p);
+    assert.match(r.headers.get('content-type'), /text\/plain/, p);
+  }
+  for (const p of ['/', '/hub', '/phone', '/hub.html']) assert.equal((await get(hub, p)).status, 200, p);
+  for (const p of ['/nope.js', '/..%2fhub.mjs']) assert.equal((await get(hub, p)).status, 404, p);
+}));
+
+test('max_tiles_stops_at_the_page_limit_of_12', () => withHub(async (hub) => {
+  assert.equal((await post(hub, '/settings', { max_tiles: 12 })).status, 200);
+  const r = await post(hub, '/settings', { max_tiles: 13 });
+  assert.equal(r.status, 400);
+  assert.match(await r.text(), /1 to 12\)/);
 }));

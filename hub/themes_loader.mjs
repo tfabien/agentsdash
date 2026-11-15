@@ -2,14 +2,13 @@
 // The user folder overrides the built-in one by theme or pack name. A bad file is skipped and listed in `errors`.
 import fs from 'node:fs';
 import path from 'node:path';
-import { validateTheme, validatePalettes, ROLE_FILES } from './web/theme_schema.js';
+import { validateTheme, validatePalettes, ROLE_FILES, NAME } from './web/theme_schema.js';
 
 export const MAX_BYTES = 256 * 1024;
 export const MAX_RASTER_BYTES = 1024 * 1024;                          // a GIF with frames is bigger than a vector file
 // Image types of an icon, best first: when a role has several files the first extension wins. A picture you drop in beats the vector file that was there before.
 export const ICON_TYPES = { '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml' };
 const EXT_ORDER = Object.keys(ICON_TYPES);
-const PACK_NAME = /^[a-z0-9-]{1,32}$/;
 // <role>, <role>-blink, and variants <role>-2 .. <role>-99 (with their -blink): several characters for one role.
 export const ICON_NAME = new RegExp(`^(${ROLE_FILES.join('|')})(-[2-9]|-[1-9][0-9])?(-blink)?$`);
 
@@ -30,28 +29,35 @@ function scanThemes(dir, errors) {
 }
 
 const TINTS = ['svg', 'hue', 'none'];
-const MAX_PACK_JSON = 4096;
+export const MAX_PACK_JSON = 4096;
 
-/** The tint mode of a pack from its optional pack.json: { tint: 'svg'|'hue'|'none', hue: 0..359 }. A bad file keeps the defaults and is listed in `errors`. */
-function readPackJson(file, errors) {
+/**
+ * The tint mode of a pack from the parsed content of its pack.json: { tint: 'svg'|'hue'|'none', hue: 0..359, palettes? }. Unknown or bad fields
+ * keep the defaults; palette errors go to `errors` prefixed with `where`. The marketplace listing reads a remote pack.json with it too.
+ */
+export function packFromJson(j, where, errors) {
   const out = { tint: 'none', hue: 0 };
-  try {
-    if (!fs.existsSync(file)) return out;
-    if (fs.statSync(file).size > MAX_PACK_JSON) { errors.push(`${file}: over 4 KB`); return out; }
-    const j = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (TINTS.includes(j?.tint)) out.tint = j.tint;
-    if (Number.isFinite(j?.hue)) out.hue = ((Math.round(j.hue) % 360) + 360) % 360;
-    const p = validatePalettes(j?.palettes);
-    for (const e of p.errors) errors.push(`${file}: ${e}`);
-    if (Object.keys(p.palettes).length) out.palettes = p.palettes;
-  } catch (err) { errors.push(`${file}: ${err.message}`); }
+  if (TINTS.includes(j?.tint)) out.tint = j.tint;
+  if (Number.isFinite(j?.hue)) out.hue = ((Math.round(j.hue) % 360) + 360) % 360;
+  const p = validatePalettes(j?.palettes);
+  for (const e of p.errors) errors.push(`${where}: ${e}`);
+  if (Object.keys(p.palettes).length) out.palettes = p.palettes;
   return out;
+}
+
+/** The tint mode of a pack from its optional pack.json file (see packFromJson). A bad file keeps the defaults and is listed in `errors`. */
+function readPackJson(file, errors) {
+  try {
+    if (!fs.existsSync(file)) return { tint: 'none', hue: 0 };
+    if (fs.statSync(file).size > MAX_PACK_JSON) { errors.push(`${file}: over 4 KB`); return { tint: 'none', hue: 0 }; }
+    return packFromJson(JSON.parse(fs.readFileSync(file, 'utf8')), file, errors);
+  } catch (err) { errors.push(`${file}: ${err.message}`); return { tint: 'none', hue: 0 }; }
 }
 
 function scanPacks(dir, errors) {
   const out = [];
   for (const d of list(path.join(dir, 'icons'))) {
-    if (!d.isDirectory() || !PACK_NAME.test(d.name)) continue;
+    if (!d.isDirectory() || !NAME.test(d.name)) continue;
     const roles = {};
     const rank = {};                                             // role file name -> index of the extension kept
     for (const e of list(path.join(dir, 'icons', d.name))) {

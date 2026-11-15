@@ -81,3 +81,8 @@ test('saved_old_source_still_wins', async () => {
     assert.deepEqual(state.settings.marketSources, ['tfabien/standup-bot-themes']);
   } finally { await hub.close(); }
 });
+
+test('page_names_no_old_config_file', () => {
+  const hits = walk(path.join(ROOT, 'hub', 'web')).filter((f) => /agent-gadget\.json/.test(fs.readFileSync(f, 'utf8')));
+  assert.deepEqual(hits.map((f) => path.relative(ROOT, f)), []);
+});

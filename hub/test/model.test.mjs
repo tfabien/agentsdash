@@ -44,6 +44,21 @@ test('waiting_subs_is_derived_for_lead', () => {
   assert.equal(st.sessions[0].count, 2);
 });
 
+test('subagent_keeps_its_own_prompt_and_context', () => {
+  const m = createModel();
+  m.applyEvent(ev({ ctx_pct: 30, ctx_k: 300 }), 1000);
+  m.applyEvent(sub('ab12'), 1100);
+  let a = m.toState(1200).sessions[0].agents[1];
+  assert.deepEqual([a.prompt, a.ctx_pct, a.ctx_k], ['', null, 0]);
+  m.applyEvent(sub('ab12', { prompt: 'Review the hub routes', ctx_pct: 12, ctx_k: 24 }), 1300);
+  m.applyEvent(sub('ab12', { cmd: 'Read hub.mjs' }), 1400);           // a later event without them keeps them
+  const s = m.toState(1500).sessions[0];
+  a = s.agents[1];
+  assert.deepEqual([a.prompt, a.ctx_pct, a.ctx_k], ['Review the hub routes', 12, 24]);
+  assert.deepEqual([s.ctx_pct, s.ctx_k], [30, 300], 'the session context stays the lead\'s');
+  assert.equal('prompt' in s.agents[0], false);
+});
+
 test('sixth_session_is_dropped', () => {
   const m = createModel();
   for (let i = 0; i < MAX_SESSIONS; i++) m.applyEvent(ev({ session: `s00${i}` }), 1000 + i);

@@ -30,12 +30,13 @@ export function relayLabel(relay) {
     const text = relay.released ? 'USB released' : relay.connected ? 'USB connected' : 'USB not connected';
     return { text, ok: Boolean(relay.connected), why: relay.lastError || '' };
   }
+  if (relay.locked) return { text: 'screen upload lock', ok: false, why: 'agent-gadget-tft.lock in the temp folder holds the queue' };
   return { text: relay.ok ? 'gadget connected' : 'gadget unreachable', ok: Boolean(relay.ok), why: relay.lastError || '' };
 }
 
 /** "claude-opus-4-7[1m]" -> "Opus 4.7"; unknown ids lose their "claude-" prefix. */
 export function modelLabel(id) {
-  const m = /^claude-(?:(\d+)-(\d+)-)?([a-z]+)(?:-(\d+)(?:-(\d{1,2}))?)?/.exec(String(id ?? '').replace(/\[.*\]$/, ''));
+  const m = /^claude-(?:(\d+)-(\d+)-)?([a-z]+)(?:-(\d+)(?:-(\d{1,2})(?!\d))?)?/.exec(String(id ?? '').replace(/\[.*\]$/, ''));
   if (!m) return String(id ?? '').replace(/^claude-/, '');
   const name = m[3][0].toUpperCase() + m[3].slice(1);
   const ver = m[1] ? `${m[1]}.${m[2]}` : m[4] ? (m[5] ? `${m[4]}.${m[5]}` : m[4]) : '';
