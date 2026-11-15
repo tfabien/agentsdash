@@ -6,7 +6,8 @@ import { activeLooks } from './theme_schema.js';
  * @param {{catalog: object[], market: object | null, active: string, looks?: object}} p `catalog`: the installed themes; `market`: the GET /market answer (or null);
  *   `looks`: the setting `themeLooks` (ticked look keys per theme)
  * @returns {object[]} cards: { name, label, description, keywords, author, version, source, preview, installed, active, updatable, availableVersion, deletable }
- *   Available cards also carry `colors` and `roles` (icon URLs) for a preview without installing.
+ *   Available cards also carry `colors`, `accent`, `themeVariants`, `themeLooks`, `defaultLooks`, `roles` (icon URLs) and `pack` (tint, hue, palettes)
+ *   for a preview without installing.
  *   Installed cards first (the active one on top), then the ones only the marketplace has; each group by label.
  */
 export function mergeCards({ catalog, market, active, looks = {} }) {
@@ -26,7 +27,8 @@ export function mergeCards({ catalog, market, active, looks = {} }) {
   const have = new Set(catalog.map((t) => t.name));
   const available = (market?.themes ?? []).filter((t) => !t.installed && !have.has(t.name)).map((t) => ({
     name: t.name, label: t.label || t.name, description: t.description || '', keywords: t.keywords ?? [], author: t.author || '', version: t.version || '', source: t.source,
-    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, variants: [], looks: [], activeLooks: [], installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
+    preview: t.preview ?? null, colors: t.colors ?? {}, roles: t.roles ?? {}, accent: t.accent ?? '', themeVariants: t.variants ?? {}, themeLooks: t.looks ?? {},
+    defaultLooks: t.defaultLooks ?? [], pack: t.pack ?? { tint: 'none', hue: 0 }, variants: [], looks: [], activeLooks: [], installed: false, active: false, updatable: false, availableVersion: '', deletable: false,
   }));
   const byLabel = (a, b) => a.label.localeCompare(b.label);
   installed.sort((a, b) => (b.active - a.active) || byLabel(a, b));

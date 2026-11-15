@@ -1,7 +1,7 @@
 // Lists the themes of a GitHub repository: one folder per theme, `<name>/theme.json` plus `<name>/icons/` and an optional preview.
 // Two API calls (default branch, recursive tree) and one raw download per theme.json. `fetchFn` is injected for the tests.
 import { validateTheme } from './web/theme_schema.js';
-import { ICON_TYPES, ICON_NAME, MAX_BYTES } from './themes_loader.mjs';
+import { ICON_TYPES, ICON_NAME, MAX_BYTES, MAX_PACK_JSON, packFromJson } from './themes_loader.mjs';
 
 export const SOURCE_RE = /^[\w.-]+\/[\w.-]+$/;
 const NAME = /^[a-z0-9-]{1,32}$/;
@@ -46,10 +46,19 @@ export async function fetchOk(fetchFn, url) {
 
 const getJson = async (fetchFn, url) => (await fetchOk(fetchFn, url)).json();
 
+/** The tint mode of a listed pack from its icons/pack.json (4 KB at most), read as the loader reads an installed one; any failure keeps the defaults. */
+async function remotePack(fetchFn, url) {
+  try {
+    const buf = Buffer.from(await (await fetchOk(fetchFn, url)).arrayBuffer());
+    if (buf.length > MAX_PACK_JSON) return { tint: 'none', hue: 0 };
+    return packFromJson(JSON.parse(buf.toString('utf8')), url, []);
+  } catch { return { tint: 'none', hue: 0 }; }
+}
+
 /**
  * @returns {Promise<{ themes: object[], errors: string[], sourceError?: true }>} `sourceError` when the repository itself failed (HTTP, network,
  *   truncated tree), absent when only some themes failed. Each theme: { source, name, label, description, keywords, author, version, branch, colors,
- *   roles, preview: string | null, files: string[] } with `files` relative to the theme folder (theme.json left out). `roles` maps an icon file name
+ *   accent, variants, looks, defaultLooks, pack: { tint, hue, palettes? }, roles, preview: string | null, files: string[] } with `files` relative to the theme folder (theme.json left out). `roles` maps an icon file name
  *   (`lead`, `lead-blink`, `explore-2`...) to its raw GitHub URL, the best extension per name: the page previews a theme from them.
  */
 export async function listSource(source, fetchFn = fetch) {
@@ -71,8 +80,10 @@ export async function listSource(source, fetchFn = fetch) {
         if (v.theme.name !== folder) throw new Error(`folder ${folder} holds the theme ${v.theme.name}`);
         const files = blobs.filter((p) => p.startsWith(`${folder}/`) && p !== `${folder}/theme.json`).map((p) => p.slice(folder.length + 1)).filter(safePath);
         const preview = files.find((f) => PREVIEW.test(f));
-        const { name, label, description, keywords, author, version, colors } = v.theme;
-        themes.push({ source, name, label, description, keywords, author, version, branch, colors, roles: iconUrls(files, base), preview: preview ? `${base}/${preview}` : null, files });
+        const { name, label, description, keywords, author, version, colors, accent, variants, looks, defaultLooks } = v.theme;
+        const pack = files.includes('icons/pack.json') ? await remotePack(fetchFn, `${base}/icons/pack.json`) : { tint: 'none', hue: 0 };
+        themes.push({ source, name, label, description, keywords, author, version, branch, colors, accent, variants, looks, defaultLooks, pack,
+          roles: iconUrls(files, base), preview: preview ? `${base}/${preview}` : null, files });
       } catch (err) { errors.push(`${source}/${folder}: ${err.message}`); }
     }
     return { themes, errors };
