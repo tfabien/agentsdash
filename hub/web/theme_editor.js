@@ -40,10 +40,9 @@ export function createThemeEditor({ draw, themeColor, onChange, onReset, onSave 
   const inputs = new Map();
 
   const effective = () => resolvePalette(theme, variant, { colors: draft.colors, accent: draft.accent });
-  const view = () => { const e = effective(); return { ...theme, colors: e.colors }; };
   function refresh() {
-    const v = view();
-    draw(canvas, v, effective().accent);
+    const e = effective(), v = { ...theme, colors: e.colors };
+    draw(canvas, v, e.accent);
     const text = themeColor(v, 'TEXT'), low = ['PANEL', 'SCREEN'].some((k) => contrastRatio(toHex(text), toHex(themeColor(v, k))) < MIN_CONTRAST);
     warn.textContent = low ? 'Low contrast: the text is hard to read on the panel or the screen background.' : '';
   }
@@ -72,8 +71,8 @@ export function createThemeEditor({ draw, themeColor, onChange, onReset, onSave 
     theme = t; variant = v;
     draft = { colors: { ...(override?.colors ?? {}) }, accent: override?.accent ?? '' };
     title.textContent = `Colors of ${t.label || t.name}${v && t.variants?.[v] ? ` (${t.variants[v].label})` : ''}`;
-    const e = effective(), vt = view();
-    for (const [key, input] of inputs) input.value = toHex(e.colors[key] ?? themeColor(vt, key));
+    const e = effective(), vt = { ...theme, colors: e.colors };
+    for (const [key, input] of inputs) input.value = toHex(themeColor(vt, key));
     accentInput.value = e.accent || '#ffffff';
     note.textContent = '';
     refresh();

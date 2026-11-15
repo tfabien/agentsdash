@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COLOR, rgb565 } from '../web/screen.js';
-import { THEMES, applyTheme, validateTheme, activeTheme, activeIconPack, activeAccent, setCatalog } from '../web/themes.js';
-import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey, setAccent, setLooks, lookFor, currentLooks, swapPalette, clearIconCache } from '../web/icon_packs.js';
+import { THEMES, applyTheme, activeTheme, activeIconPack, setCatalog } from '../web/themes.js';
+import { validateTheme } from '../web/theme_schema.js';
+import { ICON_PACKS, iconPack, iconPackFor, svgPack, variantKey, setAccent, setLooks, lookFor, currentLooks, swapPalette, clearIconCache, currentAccent } from '../web/icon_packs.js';
 import { createVectorScreen } from '../web/vector_screen.js';
 
 function fakeCanvas() {
@@ -231,16 +232,16 @@ test('applyTheme_ignores_overrides_of_unknown_theme_or_variant', () => {
   assert.equal(frame(), rgbOf('#111111'));
 });
 
-test('activeAccent_follows_variant_then_theme', () => {
+test('currentAccent_follows_variant_then_theme', () => {
   setCatalog({ themes: [variantTheme], packs: [] });
   applyTheme('vt');
-  assert.equal(activeAccent(), '#ff0000');
+  assert.equal(currentAccent(), '#ff0000');
   applyTheme('vt', 'dark');
-  assert.equal(activeAccent(), '#ff0000');
+  assert.equal(currentAccent(), '#ff0000');
   applyTheme('vt', 'light');
-  assert.equal(activeAccent(), '#0000ff');
+  assert.equal(currentAccent(), '#0000ff');
   applyTheme('default');
-  assert.equal(activeAccent(), '');
+  assert.equal(currentAccent(), '');
 });
 
 function filterCtx() {
@@ -489,4 +490,22 @@ test('setCatalog_hands_pack_palettes_to_the_pack', () => {
   assert.deepEqual([...r.calls[0].args[0].pixels.slice(0, 3)], [0x6b, 0x4b, 0x12]);
   setCatalog({ themes: [], packs: [] });
   unstub();
+});
+
+test('svgPack_draws_role_i_from_the_ROLE_FILES_entry_i', async () => {
+  const { ROLE_FILES } = await import('../web/theme_schema.js');
+  stubImage(true);
+  const pack = svgPack('order', Object.fromEntries(ROLE_FILES.map((k, i) => [k, `/order/${i}.png`])));
+  ROLE_FILES.forEach((_, i) => {
+    const r = recordingCtx();
+    pack.draw(r.ctx, i, false);
+    assert.equal(r.calls.find((c) => c.name === 'drawImage').args[0].src, `/order/${i}.png`, `role ${i}`);
+  });
+  delete globalThis.Image;
+});
+
+test('themeColor_built_in_value_is_the_rgb565_css_of_COLOR', async () => {
+  const { themeColor } = await import('../web/themes.js');
+  applyTheme(THEMES.default);
+  for (const key of Object.keys(COLOR)) assert.equal(themeColor({ colors: {} }, key), `rgb(${rgb565(COLOR[key]).join(',')})`, key);
 });

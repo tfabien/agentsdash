@@ -1,9 +1,9 @@
 // The theme button of the bottom bar and its view (it opens in place of the agents, see views.js): one list of the installed themes and the
 // marketplace themes, with search, tags and a status filter; Apply, Install, Update, Preview and Delete on each card; the marketplace
 // settings behind a button. The choice is the `theme` setting of the hub, so every page follows (see themes.js).
-import { listThemes, themeColor, activeAccent } from './themes.js';
-import { iconPackFor, onIconsLoaded, clearIconCache, setAccent, setLooks, currentLooks } from './icon_packs.js';
-import { resolvePalette, activeLooks, overrideKeyOf } from './theme_schema.js';
+import { listThemes, themeColor } from './themes.js';
+import { iconPackFor, onIconsLoaded, clearIconCache, setAccent, currentAccent, setLooks, currentLooks, ICON_W, ICON_H } from './icon_packs.js';
+import { resolvePalette, activeLooks, overrideKeyOf, ROLE_FILES } from './theme_schema.js';
 import { createThemeEditor } from './theme_editor.js';
 import { postSettings } from './settings.js';
 import { icon } from './icons.js';
@@ -11,26 +11,26 @@ import { mergeCards, filterCards, tagCounts, cardVariant, STATUSES } from './the
 import { askConfirm } from './confirm_dialog.js';
 import { el, postJson, call } from './dom.js';
 
-const ICON_W = 36, ICON_H = 42, GAP = 6;
+const GAP = 6;
 const TAGS_SHOWN = 12;
 const STATUS_LABEL = { all: 'All', installed: 'Installed', available: 'Available', updates: 'Updates' };
 
 /** The eight agents of a theme, on its panel color, drawn at `k` pixels per unit. */
 function drawPreview(canvas, theme, accent = '', looks) {
   const k = 1.1, ratio = window.devicePixelRatio || 1;
-  const w = 8 * ICON_W + 9 * GAP, h = ICON_H + 2 * GAP;
+  const n = ROLE_FILES.length, w = n * ICON_W + (n + 1) * GAP, h = ICON_H + 2 * GAP;
   canvas.width = Math.round(w * k * ratio); canvas.height = Math.round(h * k * ratio);
   canvas.style.width = `${w * k}px`; canvas.style.height = `${h * k}px`;
   const ctx = canvas.getContext('2d');
   ctx.setTransform(k * ratio, 0, 0, k * ratio, 0, 0);
   ctx.fillStyle = themeColor(theme, 'PANEL'); ctx.beginPath(); ctx.roundRect(0, 0, w, h, 6); ctx.fill();
   const pack = iconPackFor(theme.iconPack);
-  setAccent(accent);                                         // this card's accent and looks for the time of the drawing, then the applied theme's again
-  const applied = currentLooks();
+  const appliedAccent = currentAccent(), applied = currentLooks();   // this card's accent and looks for the time of the drawing, then the applied theme's again
+  setAccent(accent);
   if (looks) setLooks(looks);
-  for (let role = 0; role < 8; role++) { ctx.save(); ctx.translate(GAP + role * (ICON_W + GAP), GAP); pack.draw(ctx, role, false, `p${role}`); ctx.restore(); }   // made-up agent ids spread the agents over the looks
+  for (let role = 0; role < n; role++) { ctx.save(); ctx.translate(GAP + role * (ICON_W + GAP), GAP); pack.draw(ctx, role, false, `p${role}`); ctx.restore(); }   // made-up agent ids spread the agents over the looks
   setLooks(applied);
-  setAccent(activeAccent());
+  setAccent(appliedAccent);
 }
 
 /**

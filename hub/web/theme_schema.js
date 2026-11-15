@@ -20,7 +20,7 @@ export const isName = (v) => typeof v === 'string' && NAME.test(v);
 export const NAME_RULE = '1 to 32 characters among a-z, 0-9 and -';
 /** A key of the setting `themeOverrides`: `<theme>` or `<theme>/<variant>`. */
 export const OVERRIDE_KEY = new RegExp(`^${NAME_PART}(/${NAME_PART})?$`);
-const DEFAULT_PACK = 'robot';
+export const DEFAULT_PACK = 'robot';
 const MAX_VARIANTS = 12;
 const MAX_LOOKS = 12;
 
