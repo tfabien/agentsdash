@@ -373,7 +373,7 @@ export function startHub(opts = {}) {
         if (!body) return undefined;
         if (!str(body.session) || !str(body.agent) || !str(body.tool)) return text(res, 400, 'session, agent and tool are required');
         const { id, promise } = perms.open({ session: idKey(str(body.session)), agent: idKey(str(body.agent)), tool: str(body.tool), cmd: str(body.cmd), detail: str(body.detail), wait_s: body.wait_s });
-        res.on('close', () => perms.cancel(id));     // the hook went away: nothing to answer any more
+        res.on('close', () => perms.release(id));     // the hook went away: nothing to answer any more
         return json(res, { decision: await promise });
       }
       case 'POST /permission/answer': {             // the page taps Allow or Deny (loopback only)

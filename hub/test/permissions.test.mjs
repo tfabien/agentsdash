@@ -101,10 +101,10 @@ test('clear_all_resolves_every_session',async () => {
   assert.equal(await b.promise, 'none');
 });
 
-test('cancel_removes_view', async () => {
+test('release_removes_view', async () => {
   const { perms } = fake();
   const { id, promise } = perms.open(REQ);
-  perms.cancel(id);
+  perms.release(id);
   assert.equal(await promise, 'none');
   assert.equal(perms.view('abcd'), null);
 });
