@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startHub } from '../hub.mjs';
+import { isMain } from '../run_as_main.mjs';
 
 const post = (hub, p, body) => fetch(`http://127.0.0.1:${hub.port}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
@@ -88,7 +89,7 @@ export async function startDemoHub({ themes = [], theme = 'line' } = {}) {
   return { hub, userDir, close: async () => { await hub.close(); fs.rmSync(userDir, { recursive: true, force: true }); } };
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+if (isMain(import.meta.url)) {
   const [scene = 'grid', ...themes] = process.argv.slice(2);
   const demo = await startDemoHub({ themes });
   await applyScene(demo.hub, scene);

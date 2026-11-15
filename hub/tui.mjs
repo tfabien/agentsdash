@@ -2,8 +2,7 @@
 // Terminal view of the hub: the same information as the browser page, drawn with ANSI colors.
 //   node hub/tui.mjs [--host 127.0.0.1:8765]      (Ctrl+C to quit)
 import http from 'node:http';
-import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './run_as_main.mjs';
 import { loadConfig } from './config.mjs';
 import { formatAge, formatTokens, fmtDuration } from './web/format.js';
 
@@ -135,11 +134,7 @@ export function runTui({ host, write = (s) => process.stdout.write(s), columns, 
   };
 }
 
-// realpath: Node reports import.meta.url as the real path, argv[1] may go through a symlink (e.g. a linked ~/.claude)
-const isMain = (() => {
-  try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
-})();
-if (isMain) {
+if (isMain(import.meta.url)) {
   const i = process.argv.indexOf('--host');
   const host = i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : loadConfig().host;
   const tui = runTui({ host });

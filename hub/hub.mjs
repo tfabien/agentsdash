@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { loadCatalog, ICON_TYPES } from './themes_loader.mjs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isMain } from './run_as_main.mjs';
 import { createModel, PROTOCOL_VERSION } from './model.mjs';
 import { createPermissions } from './permissions.mjs';
 import { createQuestions, cleanQuestions } from './questions.mjs';
@@ -599,11 +600,7 @@ export function startHub(opts = {}) {
 }
 
 // `node hub.mjs`: run as the hub process.
-// realpath: Node reports import.meta.url as the real path, argv[1] may go through a symlink (e.g. a linked ~/.claude)
-const isMain = (() => {
-  try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
-})();
-if (isMain) {
+if (isMain(import.meta.url)) {
   migrateUserDir();
   const settingsFile = path.join(stateDir(), 'hub-settings.json');
   const oldSettings = path.join(os.tmpdir(), 'agent-gadget-plugin', 'hub-settings.json');      // before the rename the settings lived here

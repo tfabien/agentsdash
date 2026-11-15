@@ -4,7 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isMain } from './run_as_main.mjs';
 import { loadConfig, defaultConfigPath } from './config.mjs';
 import { buildQr } from './web/qr.js';
 import { setLan } from './lan.mjs';
@@ -75,7 +76,4 @@ async function main() {
   console.log('The link is plain http: use it on a network you trust. Phone access is now on (`lan.enabled` in the config file); the QR button of the page turns it off.');
 }
 
-const isMain = (() => {
-  try { return !!process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; }
-})();
-if (isMain) main().catch((e) => { console.log(`pair: ${e.message}`); process.exitCode = 1; });
+if (isMain(import.meta.url)) main().catch((e) => { console.log(`pair: ${e.message}`); process.exitCode = 1; });

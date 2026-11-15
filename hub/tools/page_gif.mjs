@@ -90,8 +90,15 @@ async function main() {
     fs.writeFileSync(path.join(frames, 'frames.json'), JSON.stringify(list));
     cdp.close();
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    const py = ['python', 'python3'].map((c) => spawnSync(c, [path.join(HERE, 'frames_to_gif.py'), frames, out], { encoding: 'utf8' })).find((r) => r.status === 0);
-    if (!py) throw new Error('frames_to_gif.py failed (Python and Pillow needed)');
+    // One run: the first interpreter that succeeds writes the GIF, the next one is tried only after a failure.
+    const script = path.join(HERE, 'frames_to_gif.py');
+    let py, last;
+    for (const c of ['python', 'python3']) {
+      const r = spawnSync(c, [script, frames, out], { encoding: 'utf8' });
+      if (r.status === 0) { py = r; break; }
+      last = r;
+    }
+    if (!py) throw new Error(`frames_to_gif.py failed (Python and Pillow needed)${last?.stderr ? `: ${last.stderr.trim()}` : last?.error ? `: ${last.error.message}` : ''}`);
     console.log(py.stdout.trim());
   } finally {
     child.kill();
