@@ -1,5 +1,6 @@
 // Per-project rules: pick an icon pack and badge color from a session's cwd.
-// Plain ES module, no imports: runs in Node and in the browser.
+// Plain ES module that imports only theme_schema.js: runs in Node and in the browser.
+import { isName, isHex } from './theme_schema.js';
 
 const norm = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
@@ -29,11 +30,12 @@ export function matchRule(rules, cwd) {
   return null;
 }
 
-export function validRules(v) {
-  if (!Array.isArray(v)) return false;
-  return v.every((r) =>
-    r && typeof r === 'object' && !Array.isArray(r) &&
+/** One rule: a non-empty `match`, an optional pack name, an optional `#rrggbb` badge color. */
+export function validRule(r) {
+  return !!r && typeof r === 'object' && !Array.isArray(r) &&
     typeof r.match === 'string' && r.match.length > 0 &&
-    (r.iconPack === undefined || (typeof r.iconPack === 'string' && /^[a-z0-9-]{1,32}$/.test(r.iconPack))) &&
-    (r.badgeColor === undefined || (typeof r.badgeColor === 'string' && /^#[0-9a-f]{6}$/i.test(r.badgeColor))));
+    (r.iconPack === undefined || isName(r.iconPack)) &&
+    (r.badgeColor === undefined || isHex(r.badgeColor));
 }
+
+export const validRules = (v) => Array.isArray(v) && v.every(validRule);

@@ -14,7 +14,7 @@ import { createQuestions, cleanQuestions } from './questions.mjs';
 import { validRules } from './rules.mjs';
 import { SOURCE_RE, parseSource, listSource } from './market_source.mjs';
 import { installTheme, removeTheme, readInstalled, saveUserTheme } from './market_install.mjs';
-import { validatePalettePart } from './web/theme_schema.js';
+import { validatePalettePart, isName, OVERRIDE_KEY } from './web/theme_schema.js';
 import { MAX_TILES } from './web/layout.js';
 import { annotate, createUpdater } from './market_update.mjs';
 import { installFirstTheme } from './market_bootstrap.mjs';
@@ -30,25 +30,24 @@ import { COOKIE, setLan, isLoopback, loadOrCreateToken, tokenMatches, rankPairAd
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
 const MAX_BODY = 64 * 1024;
 const SOUNDS = ['all', 'ask', 'off'];
-const OVERRIDE_KEY = /^[a-z0-9-]{1,32}(\/[a-z0-9-]{1,32})?$/;
 /** `{ "<theme>" | "<theme>/<variant>": { colors?, accent? } }`: the user's color edits. The whole value is refused when any entry is invalid. */
 const validOverrides = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 64
   && Object.entries(v).every(([k, o]) => OVERRIDE_KEY.test(k) && o && typeof o === 'object' && !Array.isArray(o) && validatePalettePart(o, { override: true }).ignored.length === 0);
 /** `{ "<theme>": ["lookKey", ...] }`: the looks the user ticked per theme. The whole value is refused when any entry is invalid. */
 const validLooks = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 64
-  && Object.entries(v).every(([k, l]) => /^[a-z0-9-]{1,32}$/.test(k) && Array.isArray(l) && l.length <= 12 && l.every((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)));
+  && Object.entries(v).every(([k, l]) => isName(k) && Array.isArray(l) && l.length <= 12 && l.every(isName));
 // Settings shared by every page, with what each accepts. Anything else in a POST is ignored.
 const SETTING_RULES = {
   sound: (v) => SOUNDS.includes(v),
   max_tiles: (v) => Number.isInteger(v) && v >= 0 && v <= MAX_TILES, // tiles per page, 0 = Auto (what fits the window); the page holds at most MAX_TILES
-  theme: (v) => typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v),
+  theme: isName,
   pulse: (v) => typeof v === 'boolean',
   dim_idle: (v) => typeof v === 'boolean',
   idle_minutes: (v) => [1, 2, 5, 10].includes(v),                     // minutes waiting for you before a tile counts as idle (greyed, sorted last)
   rules: validRules,                                                  // per-project icon pack and badge color
   marketSources: (v) => Array.isArray(v) && v.length <= MAX_SOURCES && v.every((x) => typeof x === 'string' && SOURCE_RE.test(x)) && new Set(v).size === v.length,
   done_excerpt: (v) => ['first', 'last', 'off'].includes(v),          // what a session waiting for you shows: first or last paragraph of its reply, or the fixed text
-  themeVariant: (v) => v === '' || (typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v)),   // variant of the theme, '' for the base
+  themeVariant: (v) => v === '' || isName(v),   // variant of the theme, '' for the base
   themeLooks: validLooks,                                             // the looks ticked per theme (see activeLooks in theme_schema.js)
   themeOverrides: validOverrides,                                     // the user's color edits per theme or theme/variant
   themeAutoUpdate: (v) => typeof v === 'boolean',                     // install newer versions of marketplace themes (every 6 hours)

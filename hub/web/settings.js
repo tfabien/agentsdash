@@ -2,7 +2,8 @@
 // hub (POST /settings, state.settings), so all pages and all browsers follow. Adding an option = one entry in OPTIONS.
 import { relayLabel } from './format.js';
 import { icon } from './icons.js';
-import { validRules } from './rules.js';
+import { validRule } from './rules.js';
+import { isHex } from './theme_schema.js';
 import { MAX_TILES } from './layout.js';
 
 export const TILES_MIN = 0, TILES_MAX = MAX_TILES;          // tiles per page; 0 is Auto (what fits the window)
@@ -131,8 +132,9 @@ function createRulesSection() {
   let draft = [], seen = '[]', packs = [];
 
   const clean = (r) => ({ match: r.match.trim(), ...(r.iconPack ? { iconPack: r.iconPack } : {}), ...(r.badgeColor ? { badgeColor: r.badgeColor } : {}) });
-  const valid = () => draft.filter((r) => r.match.trim() && (!r.badgeColor || /^#[0-9a-f]{6}$/i.test(r.badgeColor))).map(clean);
-  const save = () => { const rules = valid(); if (validRules(rules)) postSettings({ rules }); };
+  // The valid rows only: a row with an empty match, a bad color or a bad pack is left out of the save.
+  const valid = () => draft.map(clean).filter(validRule);
+  const save = () => postSettings({ rules: valid() });
 
   function render() {
     list.replaceChildren(...draft.map((r, i) => {
@@ -147,7 +149,7 @@ function createRulesSection() {
       pack.value = r.iconPack ?? '';
       pack.onchange = () => { r.iconPack = pack.value || undefined; save(); };
       const color = el('input', 'dinput rcolor'); color.value = r.badgeColor ?? ''; color.placeholder = '#rrggbb'; color.spellcheck = false;
-      color.oninput = () => { r.badgeColor = color.value.trim() || undefined; color.classList.toggle('bad', !!r.badgeColor && !/^#[0-9a-f]{6}$/i.test(r.badgeColor)); };
+      color.oninput = () => { r.badgeColor = color.value.trim() || undefined; color.classList.toggle('bad', !!r.badgeColor && !isHex(r.badgeColor)); };
       color.onchange = save;
       const del = el('button', 'seg', '×'); del.title = 'Delete rule'; del.setAttribute('aria-label', 'Delete rule');
       del.onclick = () => { draft.splice(i, 1); render(); save(); };

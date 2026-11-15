@@ -2,14 +2,13 @@
 // The user folder overrides the built-in one by theme or pack name. A bad file is skipped and listed in `errors`.
 import fs from 'node:fs';
 import path from 'node:path';
-import { validateTheme, validatePalettes, ROLE_FILES } from './web/theme_schema.js';
+import { validateTheme, validatePalettes, ROLE_FILES, NAME } from './web/theme_schema.js';
 
 export const MAX_BYTES = 256 * 1024;
 export const MAX_RASTER_BYTES = 1024 * 1024;                          // a GIF with frames is bigger than a vector file
 // Image types of an icon, best first: when a role has several files the first extension wins. A picture you drop in beats the vector file that was there before.
 export const ICON_TYPES = { '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml' };
 const EXT_ORDER = Object.keys(ICON_TYPES);
-const PACK_NAME = /^[a-z0-9-]{1,32}$/;
 // <role>, <role>-blink, and variants <role>-2 .. <role>-99 (with their -blink): several characters for one role.
 export const ICON_NAME = new RegExp(`^(${ROLE_FILES.join('|')})(-[2-9]|-[1-9][0-9])?(-blink)?$`);
 
@@ -58,7 +57,7 @@ function readPackJson(file, errors) {
 function scanPacks(dir, errors) {
   const out = [];
   for (const d of list(path.join(dir, 'icons'))) {
-    if (!d.isDirectory() || !PACK_NAME.test(d.name)) continue;
+    if (!d.isDirectory() || !NAME.test(d.name)) continue;
     const roles = {};
     const rank = {};                                             // role file name -> index of the extension kept
     for (const e of list(path.join(dir, 'icons', d.name))) {
