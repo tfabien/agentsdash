@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startHub } from '../hub.mjs';
+import { isMain } from '../run_as_main.mjs';
 import { SCENE_NAMES } from '../web/scenes.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,6 @@ async function main() {
   } finally { await hub.close(); }
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+if (isMain(import.meta.url)) {
   main().catch((e) => { process.stderr.write(`${e.message}\n`); process.exit(1); });
 }

@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findBrowser } from './screenshots.mjs';
 import { startDemoHub, applyScene } from './demo_seed.mjs';
+import { isMain } from '../run_as_main.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -38,11 +39,12 @@ export async function connect(port) {
 // What to show, in order. A step is a page expression (`js`), a real mouse click (`click: [x, y]`), a click on the button with that text
 // (`text`), or a pause (`wait`, ms). The page is reloaded before each shot.
 const BUTTON = (label) => `document.querySelector('button[aria-label="${label}"], button[title="${label}"]').click()`;
-// `clip: 'tiles'` crops to the tiles (the page is dark around a single session); an object is a fixed rectangle.
+// `clip: 'tiles'` crops to the tiles (the page is dark around a single session); another string is a CSS selector,
+// cropped to that element's box (so it follows --width and --height); an object is a fixed rectangle.
 const ONE = 'tiles';
 export const SHOTS = {
   hub: { scene: 'hub' },                                                      // 2x2 tiles, one per project
-  quotas: { scene: 'hub', clip: { x: 0, y: 612, width: 1280, height: 68 } },   // the bar at the bottom
+  quotas: { scene: 'hub', clip: '#bar' },                                     // the bar at the bottom
   grid: { scene: 'grid' },                                                    // 4 tiles of mixed sizes, a second page
   plan: { scene: 'plan', clip: ONE },                                         // plan bar, context ring
   question: { scene: 'question', clip: 'tiles' },
@@ -57,11 +59,13 @@ export const SHOTS = {
 // What the README uses (the default run), in the order of its sections.
 const DEFAULT_SHOTS = ['hub', 'plan', 'question', 'subs3', 'compact', 'detail', 'quotas'];
 
-/** The rectangle around every tile canvas of the grid, 12 px of margin (so a frame is not cut). */
-async function tilesRect(cdp) {
-  const r = await cdp.evaluate(`(() => { const b = [...document.querySelectorAll('#tiles canvas')].map((t) => t.getBoundingClientRect()); const x0 = Math.min(...b.map((r) => r.left)), y0 = Math.min(...b.map((r) => r.top)), x1 = Math.max(...b.map((r) => r.right)), y1 = Math.max(...b.map((r) => r.bottom)); return { x: Math.max(0, x0 - 12), y: Math.max(0, y0 - 12), width: x1 - x0 + 24, height: y1 - y0 + 24 }; })()`);
+/** The rectangle around every element matching `selector`, 12 px of margin (so a frame is not cut), kept inside the window. */
+async function selectorRect(cdp, selector) {
+  const r = await cdp.evaluate(`(() => { const b = [...document.querySelectorAll(${JSON.stringify(selector)})].map((t) => t.getBoundingClientRect()); if (!b.length) return null; const x0 = Math.max(0, Math.min(...b.map((r) => r.left)) - 12), y0 = Math.max(0, Math.min(...b.map((r) => r.top)) - 12), x1 = Math.min(innerWidth, Math.max(...b.map((r) => r.right)) + 12), y1 = Math.min(innerHeight, Math.max(...b.map((r) => r.bottom)) + 12); return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }; })()`);
+  if (!r) throw new Error(`nothing matches ${selector} on the page`);
   return r;
 }
+const clipRect = (cdp, clip) => (clip === 'tiles' ? selectorRect(cdp, '#tiles canvas') : selectorRect(cdp, clip));
 
 async function runStep(cdp, step) {
   if (step.js) await cdp.evaluate(step.js);
@@ -97,7 +101,7 @@ async function main() {
       await cdp.send('Page.navigate', { url: `http://127.0.0.1:${demo.hub.port}/` });
       await sleep(2500);                                          // the page connects, loads the theme images and draws
       for (const step of shot.steps ?? []) await runStep(cdp, step);
-      const clip = shot.clip === 'tiles' ? await tilesRect(cdp) : shot.clip;
+      const clip = typeof shot.clip === 'string' ? await clipRect(cdp, shot.clip) : shot.clip;
       const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 } } : {}) });
       const file = path.join(out, `page-${name}.png`);
       fs.writeFileSync(file, Buffer.from(data, 'base64'));
@@ -112,6 +116,6 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
+if (isMain(import.meta.url)) {
   main().then(() => process.exit(0), (e) => { process.stderr.write(`${e.message}\n`); process.exit(1); });
 }

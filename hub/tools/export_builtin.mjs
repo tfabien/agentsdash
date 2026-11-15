@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { ICON_PACKS } from '../web/icon_packs.js';
 import { THEMES } from '../web/themes.js';
 import { ROLE_FILES } from '../web/theme_schema.js';
+import { isMain } from '../run_as_main.mjs';
 
 const HUB_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const num = (n) => String(Math.round(n * 1000) / 1000);
@@ -109,6 +110,6 @@ export function exportBuiltin(hubDir = HUB_DIR) {
   return count;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   console.log(`wrote ${exportBuiltin()} files`);
 }
