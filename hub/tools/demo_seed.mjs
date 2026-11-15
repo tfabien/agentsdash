@@ -22,6 +22,7 @@ export const CHECKOUT = [
 const MORE_SUBS = [
   sub('a1b2', 'e5', 'code', 'checkout-api', { cmd: 'Edit retry.py', tok: 27000 }),
   sub('a1b2', 'e6', 'general', 'checkout-api', { cmd: 'WebFetch docs.stripe.com/error-handling', tok: 15000 }),
+  sub('a1b2', 'e7', 'generic', 'checkout-api', { cmd: 'Draft the changelog', tok: 5000 }),          // the hub drops a SubagentStop of an agent it never saw
   sub('a1b2', 'e7', 'generic', 'checkout-api', { state: 'done', evt: 'SubagentStop', cmd: 'Changelog drafted', tok: 6000 }),
 ];
 const BILLING = [
@@ -61,10 +62,14 @@ export const SCENES = {
 export async function applyScene(hub, name) {
   const scene = SCENES[name];
   if (!scene) throw new Error(`unknown scene ${name}: ${Object.keys(SCENES).join(', ')}`);
-  await post(hub, '/reset', {});
-  for (const ev of scene.events) await post(hub, '/event', ev);
-  await post(hub, '/usage', { v: 1, h5_pct: 48, h5_reset_s: 4800, d7_pct: 61, d7_reset_s: 183000 });
-  await post(hub, '/settings', scene.settings);
+  const send = async (p, body) => {                       // a refused post would silently empty a README shot
+    const r = await post(hub, p, body);
+    if (!r.ok) throw new Error(`scene ${name}: POST ${p} answered ${r.status} ${await r.text()}`);
+  };
+  await send('/reset', {});
+  for (const ev of scene.events) await send('/event', ev);
+  await send('/usage', { v: 1, h5_pct: 48, h5_reset_s: 4800, d7_pct: 61, d7_reset_s: 183000 });
+  await send('/settings', scene.settings);
 }
 
 /**

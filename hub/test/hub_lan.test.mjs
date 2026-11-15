@@ -126,3 +126,35 @@ test('lan_client_cannot_answer_or_open_permission', () => withLan(async (hub, to
     assert.equal(r.status, 403, p);
   }
 }));
+
+test('paired_phone_loads_its_routes_and_not_the_hub_page', () => withLan(async (hub, token) => {
+  for (const p of ['/phone', '/phone.html', '/manifest.webmanifest', '/health', '/state', '/icons/line/code.svg']) assert.equal((await call(hub, { p, headers: cookie(token) })).status, 200, p);
+  for (const p of ['/', '/hub', '/hub.html']) assert.equal((await call(hub, { p, headers: cookie(token) })).status, 403, p);
+  const events = await new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: hub.port, path: '/events', headers: { Host: `lan.test:${hub.port}`, ...cookie(token) } }, (res) => {
+      resolve({ status: res.statusCode, type: res.headers['content-type'] });
+      req.destroy();                                          // the stream never ends: close it so the hub can stop
+    });
+    req.on('error', (e) => { if (e.code !== 'ECONNRESET') reject(e); });
+    req.end();
+  });
+  assert.deepEqual([events.status, events.type?.split(';')[0]], [200, 'text/event-stream']);
+}));
+
+test('paired_phone_loads_every_file_of_its_page', () => withLan(async (hub, token) => {
+  // Follows the page's href/src values and every relative import of each module, as the phone browser does.
+  const page = await call(hub, { p: '/phone', headers: cookie(token) });
+  assert.equal(page.status, 200);
+  const queue = [...page.body.matchAll(/(?:href|src)="(\/[^"]*)"/g)].map((m) => m[1]);
+  const seen = new Set();
+  while (queue.length) {
+    const url = queue.shift();
+    if (seen.has(url)) continue;
+    seen.add(url);
+    const r = await call(hub, { p: url, headers: cookie(token) });
+    assert.equal(r.status, 200, `${url} answers ${r.status} to a paired phone`);
+    if (!url.endsWith('.js')) continue;
+    for (const m of r.body.matchAll(/(?:from|import)\s*\(?\s*['"]\.\/([^'"]+)['"]/g)) queue.push(`/${m[1]}`);
+  }
+  assert.ok(seen.size > 20, `only ${seen.size} files followed: the page or the import pattern changed`);
+}));
