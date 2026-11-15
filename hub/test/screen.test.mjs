@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, wrapText, fitText, roleIndex, paceLevel, projectColors, COLOR, rgb565,
+  renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, wrapText, fitText, roleIndex, activityIndex, paceLevel, projectColors, COLOR, rgb565,
 } from '../web/screen.js';
 
 /** A screen that records its drawing operations. Text is 5 px per character, so wrapping is deterministic. */
@@ -255,6 +255,13 @@ test('text_helpers_cut_with_a_tilde_and_wrap_on_words', () => {
   assert.equal(roleIndex('code-reviewer'), 4);
   assert.equal(roleIndex('junior-dev'), 6);
   assert.equal(roleIndex('mystery'), 7);
+  assert.equal(activityIndex('lead', 'Read a.js'), 2);
+  assert.equal(activityIndex('lead', 'Edit a.js'), 6);
+  assert.equal(activityIndex('lead', 'Bash npm test'), 5);
+  assert.equal(activityIndex('lead', 'ExitPlanMode'), 3);
+  assert.equal(activityIndex('lead', 'Bash ls'), 0);
+  assert.equal(activityIndex('Explore', 'Prompt: hi'), 2);
+  assert.equal(activityIndex('mystery', ''), 7);
   assert.equal(rgb565(0x5EED).join(','), '90,222,106');
 });
 

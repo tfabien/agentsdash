@@ -62,6 +62,18 @@ export function roleIndex(role) {
   return 7;
 }
 
+const TEST_CMD = /\b(tests?|jest|vitest|pytest|mocha|rspec|phpunit)\b/i;
+/** Sprite index of what the agent does now, from the tool word that starts `cmd` ("Edit a.js", "Bash npm test"); the role's index when `cmd` says nothing. */
+export function activityIndex(role, cmd) {
+  const c = String(cmd || '');
+  const tool = c.split(' ')[0].toLowerCase();
+  if (['read', 'grep', 'glob', 'ls', 'webfetch', 'websearch'].includes(tool)) return 2;
+  if (['edit', 'multiedit', 'write', 'notebookedit'].includes(tool)) return 6;
+  if (['todowrite', 'enterplanmode', 'exitplanmode'].includes(tool)) return 3;
+  if (tool === 'bash' && TEST_CMD.test(c)) return 5;
+  return roleIndex(role);
+}
+
 // ---------- text helpers (displayFit and wrapPx of the firmware) ----------
 /** Cut with "~" when `s` is wider than `width`. `m(text)` measures a string in pixels. */
 export function fitText(s, width, m) {
@@ -382,7 +394,7 @@ export function renderScreen(screen, state, ui) {
     if (detailSlot) { drawDetail(subs[detailSlot - 1], p); return; }
     const lead = s.agents[0];
     const x = p.x + 6, w = p.w - 12;
-    sprite(x, p.y + 6, PIC.SPRITE_BIG, lead.state, 0, s.id);
+    sprite(x, p.y + 6, PIC.SPRITE_BIG + activityIndex(lead.role, lead.cmd), lead.state, 0, s.id);
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
     const wide = p.w > 200, ringW = wide ? 160 : 0;          // wide panel: the ring sits at the right end of the header
     // A hub tile has no title bar: the session title takes the name line and the project goes in a colored chip (wide: above the context
@@ -539,7 +551,7 @@ export function renderScreen(screen, state, ui) {
   function drawDetail(a, p, mode = 'hint') {
     const back = mode === 'back';
     const x = p.x + 6, w = p.w - 12;
-    sprite(x, p.y + 6, PIC.SPRITE_BIG + roleIndex(a.role), a.state, 0, a.id);
+    sprite(x, p.y + 6, PIC.SPRITE_BIG + activityIndex(a.role, a.cmd), a.state, 0, a.id);
     const tx = x + 42, tw = p.x + p.w - 4 - tx;
     const ring = a.ctx_pct !== null && a.ctx_pct !== undefined;          // an older hub sends no context for a sub-agent
     const big = ring && mode !== 'hint';                                  // a whole tile: the lead's big ring at the top right (left of BACK)
@@ -634,12 +646,12 @@ export function renderScreen(screen, state, ui) {
     const tokW = a.tok ? 46 : 0, tokText = a.tok ? formatTokens(a.tok) : '';
     const act = a.prompt && a.state !== 'needs_you' ? a.prompt : a.cmd;      // the task says more than the last tool; a request shows what it asks
     if (compact) {
-      sprite(r.x + 9, r.y + 2, PIC.SPRITE_TINY + roleIndex(a.role), a.state, seed, a.id);
+      sprite(r.x + 9, r.y + 2, PIC.SPRITE_TINY + activityIndex(a.role, a.cmd), a.state, seed, a.id);
       line(r.x + 30, r.y + 2, 104, S16, nameCol, COLOR.ROW, a.role);
       line(r.x + 138, r.y + 2, r.w - 142 - ageW - tokW, S16, actCol, COLOR.ROW, act);
       if (tokW) line(r.x + r.w - ageW - tokW, r.y + 2, tokW - 4, S16, COLOR.FAINT, COLOR.ROW, tokText, 2);
     } else {
-      sprite(r.x + 9, r.y + 7, PIC.SPRITE_SMALL + roleIndex(a.role), a.state, seed, a.id);
+      sprite(r.x + 9, r.y + 7, PIC.SPRITE_SMALL + activityIndex(a.role, a.cmd), a.state, seed, a.id);
       const tx = r.x + 40, tw = r.w - 44;
       line(tx, r.y + 1, tw - ageW, S20, nameCol, COLOR.ROW, a.role);
       const used = screen.measure(a.role, S20) + 8;           // the model follows the role name when there is room
