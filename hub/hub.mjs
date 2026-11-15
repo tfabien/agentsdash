@@ -184,7 +184,7 @@ export function startHub(opts = {}) {
     if (settings.theme === 'default') saveSettings({ theme: name });
     publish();
   };
-  const firstThemeTimer = opts.firstRunTheme ? setInterval(() => { if (!hasUserTheme()) firstTheme(); }, 10 * 60 * 1000) : null;
+  const firstThemeTimer = opts.firstRunTheme ? setInterval(() => { if (hasUserTheme()) clearInterval(firstThemeTimer); else firstTheme(); }, 10 * 60 * 1000) : null;
   firstThemeTimer?.unref?.();
   if (opts.firstRunTheme) setTimeout(firstTheme, 0);
   const withPerm = (st) => ({ ...st, sessions: st.sessions.map((s) => ({ ...s, perm: perms.view(s.id), quest: quests.view(s.id) })) });
@@ -297,8 +297,8 @@ export function startHub(opts = {}) {
         const body = await jsonBody(req, res);
         if (!body) return undefined;
         if (!settings.marketSources.includes(body.source)) return text(res, 400, 'unknown source');
-        updater.forget(body.source);                 // a fresh listing: files and branch may have changed since the cached one
-        const theme = (await updater.list(body.source)).themes.find((t) => t.name === body.name);
+        // A fresh listing: files and branch may have changed since the cached one (the cached one still answers when GitHub fails).
+        const theme = (await updater.list(body.source, { fresh: true })).themes.find((t) => t.name === body.name);
         if (!theme) return text(res, 400, 'unknown theme');
         try { await installTheme({ theme, userDir: catalogDirs.userDir, builtinNames: builtinNames(), fetchFn }); } catch (err) { return text(res, 400, err.message); }
         reloadCatalog();

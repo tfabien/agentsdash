@@ -627,6 +627,19 @@ test('market_install_lists_the_source_again_before_installing', async () => {
   }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
 });
 
+test('market_install_works_from_the_cached_listing_when_the_github_api_fails', async () => {
+  const d = catalogDirs();
+  let apiDown = false;
+  const gh = market();
+  const proxy = (url, init) => (apiDown && url.startsWith('https://api.github.com/') ? Promise.resolve(new Response('rate limit', { status: 403 })) : gh(url, init));
+  await withHub(async (hub) => {
+    await get(hub, '/market');
+    apiDown = true;
+    const r = await postJson(hub, '/market/install', { source: DEFAULT_SOURCE, name: 'cat' });
+    assert.equal(r.status, 200, await r.text());
+  }, { builtinDir: d.builtinDir, userDir: d.userDir, fetch: proxy });
+});
+
 test('first_run_keeps_a_theme_the_user_chose', async () => {
   const d = catalogDirs();
   const settingsFile = path.join(d.root, 'settings.json');

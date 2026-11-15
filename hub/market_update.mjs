@@ -39,22 +39,16 @@ export function createUpdater({ store = { read: () => ({}), write: () => {} }, g
     const old = entry(source);
     return old?.v === CACHE_FORMAT ? { themes: old.result.themes, errors: result.errors } : result;
   }
-  function listCached(source) {
+  /** `fresh` skips the 24-hour reuse; an older listing still answers when the repository fails. */
+  function listCached(source, { fresh = false } = {}) {
     const hit = entry(source);
-    if (hit && hit.v === CACHE_FORMAT && now() - hit.at < CACHE_MS) { cache.set(source, hit); return Promise.resolve(hit.result); }
+    if (!fresh && hit && hit.v === CACHE_FORMAT && now() - hit.at < CACHE_MS) { cache.set(source, hit); return Promise.resolve(hit.result); }
     if (pending.has(source)) return pending.get(source);
     const p = fetchListing(source).finally(() => { if (pending.get(source) === p) pending.delete(source); });
     pending.set(source, p);
     return p;
   }
-  /** Drops every listing, or only the listing of `source`. */
-  function forget(source) {
-    if (source === undefined) { cache.clear(); pending.clear(); store.write({}); return; }
-    cache.delete(source);
-    pending.delete(source);
-    const { [source]: _gone, ...rest } = store.read();
-    store.write(rest);
-  }
+  function forget() { cache.clear(); pending.clear(); store.write({}); }
 
   /** Installs the newer version of every installed theme (or of `name` only). Lists are read fresh. */
   async function check(name) {
