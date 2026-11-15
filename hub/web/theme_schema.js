@@ -1,4 +1,5 @@
 // Theme validation shared by the hub (themes_loader.mjs) and the page (themes.js). Plain ES module, no imports: works in Node and in the browser.
+// It also holds the name rule and the #rrggbb rule for the whole hub.
 
 /** The keys of COLOR in screen.js. */
 export const COLOR_KEYS = [
@@ -8,8 +9,17 @@ export const COLOR_KEYS = [
 /** The icon file names of a pack, in role order (index 0..7). */
 export const ROLE_FILES = ['lead', 'general', 'explore', 'plan', 'review', 'test', 'code', 'generic'];
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
-const NAME = /^[a-z0-9-]{1,32}$/;
+/** `#rrggbb`, any case. The one copy of this rule: the hub, the page and the rules import it. */
+export const HEX = /^#[0-9a-fA-F]{6}$/;
+export const isHex = (v) => typeof v === 'string' && HEX.test(v);
+/** A theme, pack, variant or look name. The one copy of this rule: names become file paths (themes/<name>.json, icons/<pack>/). */
+const NAME_PART = '[a-z0-9-]{1,32}';
+export const NAME = new RegExp(`^${NAME_PART}$`);
+export const isName = (v) => typeof v === 'string' && NAME.test(v);
+/** The name rule in words, for error messages. */
+export const NAME_RULE = '1 to 32 characters among a-z, 0-9 and -';
+/** A key of the setting `themeOverrides`: `<theme>` or `<theme>/<variant>`. */
+export const OVERRIDE_KEY = new RegExp(`^${NAME_PART}(/${NAME_PART})?$`);
 const DEFAULT_PACK = 'robot';
 const MAX_VARIANTS = 12;
 const MAX_LOOKS = 12;
@@ -21,7 +31,7 @@ const MAX_LOOKS = 12;
  */
 export function validateTheme(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'a theme is an object' };
-  if (typeof raw.name !== 'string' || !NAME.test(raw.name)) return { ok: false, error: 'name: 1 to 32 characters among a-z, 0-9 and -' };
+  if (typeof raw.name !== 'string' || !NAME.test(raw.name)) return { ok: false, error: `name: ${NAME_RULE}` };
   if (!raw.colors || typeof raw.colors !== 'object' || Array.isArray(raw.colors)) return { ok: false, error: 'colors: an object of KEY: "#rrggbb"' };
   const part = validatePalettePart(raw);
   const ignored = part.ignored;
@@ -117,7 +127,7 @@ export function validatePalettes(raw) {
   if (raw === undefined) return { palettes, errors };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { palettes, errors: ['palettes: an object of name: { "#rrggbb": "#rrggbb" }'] };
   for (const [name, map] of Object.entries(raw)) {
-    if (!NAME.test(name)) { errors.push(`palettes.${name}: name must be 1 to 32 characters among a-z, 0-9 and -`); continue; }
+    if (!NAME.test(name)) { errors.push(`palettes.${name}: name must be ${NAME_RULE}`); continue; }
     if (Object.keys(palettes).length >= MAX_PALETTES) { errors.push(`palettes.${name}: over ${MAX_PALETTES} palettes`); continue; }
     if (!map || typeof map !== 'object' || Array.isArray(map)) { errors.push(`palettes.${name}: an object of "#rrggbb": "#rrggbb"`); continue; }
     const entries = Object.entries(map);

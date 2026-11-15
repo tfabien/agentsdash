@@ -1,11 +1,9 @@
 // The color editor of the theme view: one color input per color of the theme and one for the icon accent, with a live preview, a contrast warning,
 // Reset (drops the user's edits of this theme and variant) and Save as theme (a user theme file). It edits a draft `{ colors, accent }`; the host
 // stores it (setting `themeOverrides`) and writes the theme file.
-import { COLOR_KEYS, resolvePalette, contrastRatio } from './theme_schema.js';
+import { COLOR_KEYS, resolvePalette, contrastRatio, HEX, isName, NAME_RULE } from './theme_schema.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-const NAME = /^[a-z0-9-]{1,32}$/;
-const HEX = /^#[0-9a-f]{6}$/i;
 const MIN_CONTRAST = 4.5;
 
 /** `#rrggbb` of a CSS color given as `#rrggbb` or `rgb(r,g,b)` (what themeColor returns for a built-in color). */
@@ -63,7 +61,7 @@ export function createThemeEditor({ draw, themeColor, onChange, onReset, onSave 
   accentOff.onclick = () => { draft.accent = 'none'; accentInput.value = '#ffffff'; refresh(); push(); };   // 'none' beats the theme's own accent ('' would inherit it)
   reset.onclick = () => { clearTimeout(timer); onReset(); };
   save.onclick = async () => {
-    if (!NAME.test(nameInput.value)) { note.textContent = 'The name is 1 to 32 characters among a-z, 0-9 and -.'; return; }
+    if (!isName(nameInput.value)) { note.textContent = `The name is ${NAME_RULE}.`; return; }
     save.disabled = true;
     try { await onSave({ name: nameInput.value, label: nameInput.value, override: { colors: { ...draft.colors }, ...(draft.accent ? { accent: draft.accent } : {}) } }); note.textContent = ''; } catch (err) { note.textContent = String(err.message ?? err); }
     save.disabled = false;

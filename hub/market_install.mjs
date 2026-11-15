@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ICON_TYPES, ICON_NAME, MAX_BYTES, MAX_RASTER_BYTES, MAX_PACK_JSON } from './themes_loader.mjs';
-import { validateTheme, resolvePalette, activeLooks } from './web/theme_schema.js';
+import { validateTheme, resolvePalette, activeLooks, isName, NAME_RULE } from './web/theme_schema.js';
 import { fetchOk, rawBase } from './market_source.mjs';
 import { readJsonObject, writeJsonAtomic } from './json_file.mjs';
 
@@ -111,7 +111,7 @@ export function installTheme({ theme, userDir, builtinNames, fetchFn = fetch }) 
  * @returns {boolean} false when the user folder has no such theme; throws for a built-in theme name
  */
 export function removeTheme({ name, userDir, builtinNames = new Set(), keepPacks = new Set() }) {
-  if (!/^[a-z0-9-]{1,32}$/.test(name)) return false;
+  if (!isName(name)) return false;
   if (builtinNames.has(name)) throw new Error(`${name} is a built-in theme and cannot be deleted`);
   const file = path.join(userDir, 'themes', `${name}.json`);
   if (!fs.existsSync(file)) return false;
@@ -132,7 +132,7 @@ export function removeTheme({ name, userDir, builtinNames = new Set(), keepPacks
  * @returns {{path: string}} throws an Error: a built-in name, a name installed from the marketplace (its updates would revert it), an existing user theme without `overwrite`
  */
 export function saveUserTheme({ name, label, theme, variant = '', override, looks, userDir, builtinNames, overwrite = false }) {
-  if (!/^[a-z0-9-]{1,32}$/.test(name)) throw new Error('name: 1 to 32 characters among a-z, 0-9 and -');
+  if (!isName(name)) throw new Error(`name: ${NAME_RULE}`);
   if (builtinNames.has(name)) throw new Error(`${name} is a built-in theme and cannot be replaced`);
   if (name in readInstalled(userDir)) throw new Error(`${name} comes from the marketplace, pick another name`);
   const file = path.join(userDir, 'themes', `${name}.json`);

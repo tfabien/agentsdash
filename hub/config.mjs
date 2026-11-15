@@ -1,6 +1,7 @@
 // Configuration of the hub: ~/.agentsdash/config.json (the old ~/.claude/agent-gadget.json as a fallback), overridden by environment variables.
 import { configPath, envVar } from './paths.mjs';
 import { readJsonObject } from './json_file.mjs';
+import { isName } from './web/theme_schema.js';
 
 export const DEFAULT_HOST = '127.0.0.1:8765';
 
@@ -27,6 +28,6 @@ export function loadConfig(file = defaultConfigPath(), env = process.env) {
     relay,
     context_window: window,
     max_sessions: maxSessions,
-    first_theme: [envVar('THEME', env), data.theme].find((t) => typeof t === 'string' && /^[a-z0-9-]{1,32}$/.test(t)) ?? 'robot',
+    first_theme: [envVar('THEME', env), data.theme].find(isName) ?? 'robot',
   };
 }

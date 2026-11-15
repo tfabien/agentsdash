@@ -1,10 +1,9 @@
 // Lists the themes of a GitHub repository: one folder per theme, `<name>/theme.json` plus `<name>/icons/` and an optional preview.
 // Two API calls (default branch, recursive tree) and one raw download per theme.json. `fetchFn` is injected for the tests.
-import { validateTheme } from './web/theme_schema.js';
+import { validateTheme, NAME } from './web/theme_schema.js';
 import { ICON_TYPES, ICON_NAME, MAX_BYTES, MAX_PACK_JSON, packFromJson } from './themes_loader.mjs';
 
 export const SOURCE_RE = /^[\w.-]+\/[\w.-]+$/;
-const NAME = /^[a-z0-9-]{1,32}$/;
 const PREVIEW = /^preview\.(png|webp|jpe?g|gif)$/i;
 export const GITHUB_HEADERS = { 'User-Agent': 'agentsdash', Accept: 'application/vnd.github+json' };
 
