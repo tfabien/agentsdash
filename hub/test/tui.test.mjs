@@ -33,6 +33,13 @@ test('needs_you_is_first_and_marked', () => {
   assert.match(lines[i], /NEEDS YOU/);
 });
 
+test('a_long_sub_agent_role_is_padded_not_cut', () => {
+  const role = 'code-reviewer-for-the-hub';                 // 25 characters, the column is 14
+  const out = strip(renderAnsi(state([session({ agents: [agent(), agent({ id: 's1', parent: 'lead', role }), agent({ id: 's2', parent: 'lead', role: 'tester' })] })]), 120));
+  assert.match(out, /    code-reviewer-for-the-hubworking/, 'the whole role is printed');
+  assert.match(out, /    tester {8}working/, 'a short role is padded to 14');
+});
+
 test('truncates_to_width', () => {
   const out = renderAnsi(state([session({ title: 'T'.repeat(80), agents: [agent({ cmd: 'x'.repeat(200) })], plan: { done: 1, total: 2, cur: 'c'.repeat(100), next: '' , state: '' }, ask: { question: 'q'.repeat(150), options: 'a|b' } })]), 40);
   for (const l of strip(out).split('\n')) assert.ok(l.length <= 40, `${l.length}: ${l}`);

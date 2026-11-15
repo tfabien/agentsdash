@@ -11,7 +11,7 @@ import { isMain } from './run_as_main.mjs';
 import { createModel, PROTOCOL_VERSION } from './model.mjs';
 import { createPermissions } from './permissions.mjs';
 import { createQuestions, cleanQuestions } from './questions.mjs';
-import { validRules } from './rules.mjs';
+import { validRules } from './web/rules.js';
 import { SOURCE_RE, parseSource, listSource } from './market_source.mjs';
 import { installTheme, removeTheme, readInstalled, saveUserTheme } from './market_install.mjs';
 import { validatePalettePart, isName, OVERRIDE_KEY } from './web/theme_schema.js';
@@ -91,7 +91,7 @@ function readBody(req) {
 
 /**
  * @param {{port?: number, host?: string, config?: object, now?: () => number}} opts
- * @returns {Promise<{port: number, host: string, model: object, close: () => Promise<void>, onChange: (fn) => void, onEvent: (fn) => void, onUsage: (fn) => void}>}
+ * @returns {Promise<{port: number, host: string, model: object, close: () => Promise<void>, onUsage: (fn) => void}>}
  */
 export function startHub(opts = {}) {
   const config = opts.config ?? loadConfig();
@@ -113,7 +113,6 @@ export function startHub(opts = {}) {
   const usageTaps = [];
   const dismissTaps = [];
   const settingsTaps = [];
-  const changeTaps = [];
   // Permission requests held for the page (POST /permission): the hook waits, a click on the page answers.
   const perms = createPermissions();
   perms.onChange(() => publish());
@@ -171,7 +170,7 @@ export function startHub(opts = {}) {
   updater.start();
   // First launch (only when asked: the hub process, not the tests): no theme in the user folder (the built-in line theme does not count), so one is
   // downloaded and applied. Retried every 10 minutes while none exists.
-  const hasUserTheme = () => loadCatalog({ builtinDir: null, userDir: catalogDirs.userDir }).themes.some((t) => !builtinNames().has(t.name));
+  const hasUserTheme = () => { const builtins = builtinNames(); return loadCatalog({ builtinDir: null, userDir: catalogDirs.userDir }).themes.some((t) => !builtins.has(t.name)); };
   const firstTheme = async () => {
     const name = await installFirstTheme({
       sources: settings.marketSources,
@@ -193,7 +192,6 @@ export function startHub(opts = {}) {
   const publish = () => {
     const payload = JSON.stringify(stateJson());
     for (const res of clients) res.write(`data: ${payload}\n\n`);
-    for (const fn of changeTaps) { try { fn(); } catch { /* a tap never breaks the hub */ } }
   };
   const text = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'text/plain' }); res.end(body); };
   const json = (res, obj) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
@@ -275,7 +273,8 @@ export function startHub(opts = {}) {
         const listings = await Promise.all(settings.marketSources.map((source) => updater.list(source)));
         const installed = readInstalled(catalogDirs.userDir);
         const themes = annotate(listings.flatMap((l) => l.themes), installed).map(({ files: _files, branch: _branch, ...t }) => t);
-        const userThemes = loadCatalog({ builtinDir: null, userDir: catalogDirs.userDir }).themes.map((t) => t.name).filter((n) => !builtinNames().has(n));
+        const builtins = builtinNames();
+        const userThemes = loadCatalog({ builtinDir: null, userDir: catalogDirs.userDir }).themes.map((t) => t.name).filter((n) => !builtins.has(n));
         return json(res, { sources: settings.marketSources, installed, userThemes, themes, errors: listings.flatMap((l) => l.errors), lastCheck: updater.lastCheck(), refreshedAt: updater.refreshedAt(settings.marketSources), autoUpdate: settings.themeAutoUpdate });
       }
       case 'POST /market/refresh':                  // forget every listing: the next GET /market fetches them again
@@ -574,9 +573,7 @@ export function startHub(opts = {}) {
       boundPort = server.address().port;
       resolve({
         port: server.address().port, host, model,
-        onEvent: (fn) => eventTaps.push(fn),
         onUsage: (fn) => usageTaps.push(fn),
-        onChange: (fn) => changeTaps.push(fn),
         close: () => new Promise((done) => {
           clearInterval(timer);
           clearInterval(firstThemeTimer);

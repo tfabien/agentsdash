@@ -26,7 +26,7 @@ function compose(width, segs) {
   return out;
 }
 
-const pad = (text, n) => String(text).padEnd(n).slice(0, Math.max(n, String(text).length));
+const pad = (text, n) => String(text).padEnd(n);
 
 function sessionLines(s, width) {
   const lead = s.agents[0];
@@ -80,6 +80,8 @@ export function renderAnsi(state, width = 80, clock = '') {
  * @returns {{stop: () => void}}
  */
 export function runTui({ host, write = (s) => process.stdout.write(s), columns, alternateScreen = true, pairUrl }) {
+  const [hostname, portText] = host.split(':');
+  const port = Number(portText) || 80;
   let stopped = false;
   let req = null;
   let retry = null;
@@ -88,8 +90,7 @@ export function runTui({ host, write = (s) => process.stdout.write(s), columns, 
   let pair = pairUrl ?? null;
   const draw = (text) => write(`\x1b[H\x1b[2J${text}${pair ? `\n${paint(`Phone: ${pair}`, DIM)}` : ''}\n`);
   if (pairUrl === undefined) {
-    const [hn, pt] = host.split(':');
-    http.get({ hostname: hn, port: Number(pt) || 80, path: '/pair-info', agent: false }, (res) => {
+    http.get({ hostname, port, path: '/pair-info', agent: false }, (res) => {
       let body = '';
       res.setEncoding('utf8');
       res.on('data', (c) => { body += c; });
@@ -100,9 +101,8 @@ export function runTui({ host, write = (s) => process.stdout.write(s), columns, 
 
   function connect() {
     if (stopped) return;
-    const [hostname, port] = host.split(':');
     let buf = '';
-    req = http.get({ hostname, port: Number(port) || 80, path: '/events', agent: false }, (res) => {
+    req = http.get({ hostname, port, path: '/events', agent: false }, (res) => {
       res.setEncoding('utf8');
       res.on('data', (chunk) => {
         buf += chunk;

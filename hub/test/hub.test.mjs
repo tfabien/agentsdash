@@ -234,13 +234,13 @@ test('core_package_protocol_matches_model', () => withHub(async (hub) => {
 
 test('loadConfig_defaults_and_file_and_env', () => {
   const dflt = loadConfig(path.join(os.tmpdir(), 'no-such-agent-gadget.json'), {});
-  assert.deepEqual(dflt, { lan: { enabled: false, bind: '0.0.0.0' }, host: '127.0.0.1:8765', relay: { mode: 'none' }, context_window: 1000000, max_sessions: 24, first_theme: 'robot' });
+  assert.deepEqual(dflt, { lan: { enabled: false, bind: '0.0.0.0' }, host: '127.0.0.1:8765', relay: { mode: 'none' }, max_sessions: 24, first_theme: 'robot' });
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hubcfg-')), 'c.json');
   fs.writeFileSync(file, JSON.stringify({ host: '127.0.0.1:9000', relay: { mode: 'http', host: '192.168.1.100' }, quotas: false, context_window: 200000 }));
   const c = loadConfig(file, {});
   assert.equal(c.host, '127.0.0.1:9000');
   assert.deepEqual(c.relay, { mode: 'http', host: '192.168.1.100' });
-  assert.equal(c.context_window, 200000);
+  assert.equal('context_window' in c, false, 'the adapters read context_window, the hub does not');
   assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '7' }).max_sessions, 7);
   assert.equal(loadConfig(file, { CLAUDE_GADGET_MAX_SESSIONS: '99' }).max_sessions, 24);     // out of range: default
   assert.equal(loadConfig(file, { CLAUDE_GADGET_HOST: 'h:1' }).host, 'h:1');
@@ -436,8 +436,10 @@ test('market_delete_covers_a_hand_made_theme_and_refuses_a_built_in_one', async 
   fs.mkdirSync(path.join(d.builtinDir, 'themes'), { recursive: true });
   fs.writeFileSync(path.join(d.builtinDir, 'themes', 'base.json'), JSON.stringify({ name: 'base', colors: {} }));
   fs.writeFileSync(path.join(d.userDir, 'themes', 'mine.json'), JSON.stringify({ name: 'mine', colors: {} }));
+  fs.writeFileSync(path.join(d.userDir, 'themes', 'base.json'), JSON.stringify({ name: 'base', colors: {} }));
   await withHub(async (hub) => {
-    assert.deepEqual((await (await get(hub, '/market')).json()).userThemes, ['mine']);
+    assert.deepEqual((await (await get(hub, '/market')).json()).userThemes, ['mine'], 'a user file with a built-in name is not a user theme');
+    fs.rmSync(path.join(d.userDir, 'themes', 'base.json'));
     assert.equal((await postJson(hub, '/market/remove', { name: 'base' })).status, 400);
     assert.equal((await postJson(hub, '/market/remove', { name: 'mine' })).status, 200);
     assert.deepEqual((await (await get(hub, '/state')).json()).catalog.themes.map((t) => t.name), ['base']);
