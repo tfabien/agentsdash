@@ -55,7 +55,9 @@ export function launch(url, env = process.env, platform = process.platform, root
   const exe = hostPath(platform, root);
   if (!exe) { console.error(`The widget supports Windows and macOS only (this is ${platform}).`); return 2; }
   if (!fs.existsSync(exe)) { console.error(`Widget host not built: run node hub/widget/build.mjs first (${exe}).`); return 4; }
-  spawnFn(exe, buildArgs(url, path.join(homeDir(env), 'widget.json')), { detached: true, stdio: 'ignore' }).unref();
+  const page = new URL(url);
+  page.searchParams.set('widget', '1');   // the page draws its compact bar for the widget (hub.html)
+  spawnFn(exe, buildArgs(page.href, path.join(homeDir(env), 'widget.json')), { detached: true, stdio: 'ignore' }).unref();
   return 0;
 }
 

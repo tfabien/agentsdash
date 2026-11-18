@@ -7,6 +7,10 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/phone-192.png">
 <link rel="stylesheet" href="/settings.css">
 <link rel="stylesheet" href="/hub.css">
+<script>
+// The floating widget loads this page with ?widget=1: a thin bottom bar (settings.css, html[data-mode="widget"]).
+if (new URLSearchParams(location.search).has('widget')) document.documentElement.dataset.mode = 'widget';
+</script>
 </head>
 <body>
 <div id="stage">
