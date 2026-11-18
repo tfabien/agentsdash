@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, cellsOf, quotaBars, gotoPage } from '../web/hub_view.js';
+import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, cellsOf, quotaBars, gotoPage, widgetButtonState } from '../web/hub_view.js';
 import { placeItems, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
@@ -215,4 +215,17 @@ test('goto_page_keeps_the_grid_page_while_a_session_is_full_screen', () => {
   assert.equal(gotoPage(3, 2, 4, false), 3);
   assert.equal(gotoPage(9, 2, 4, false), 3);
   assert.equal(gotoPage(-1, 0, 4, false), 0);
+});
+
+test('widget_button_hidden_when_unsupported_or_unknown', () => {
+  assert.equal(widgetButtonState(null).hidden, true);
+  assert.equal(widgetButtonState({ supported: false, built: false }).hidden, true);
+});
+
+test('widget_button_disabled_with_build_hint_when_not_built', () => {
+  assert.deepEqual(widgetButtonState({ supported: true, built: false }), { hidden: false, disabled: true, title: 'Build it once: node hub/widget/build.mjs' });
+});
+
+test('widget_button_enabled_when_built', () => {
+  assert.deepEqual(widgetButtonState({ supported: true, built: true }), { hidden: false, disabled: false, title: 'Open the floating widget' });
 });

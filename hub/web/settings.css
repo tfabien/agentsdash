@@ -32,6 +32,7 @@
 .quota b { color: var(--ok); } .quota.tight b { color: var(--needs); } .quota.over b { color: var(--error); } .quota.stale b, .quota.unknown b { color: var(--muted); }
 #bar .clock { font-size: 20px; font-weight: 700; }
 #bar .sound { padding: 5px 8px; line-height: 1; }
+#bar .widgetbtn:disabled { opacity: .4; cursor: default; }
 #bar .tools { display: flex; align-items: center; gap: 4px; }
 
 .ttitle { font-size: 18px; font-weight: 700; }

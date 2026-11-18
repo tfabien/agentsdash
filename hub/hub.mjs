@@ -25,6 +25,7 @@ import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
 import { stateDir, userDir, migrateUserDir } from './paths.mjs';
 import { webFingerprint } from './web_fingerprint.mjs';
+import { widgetStatus, launch as launchWidget } from './widget/run.mjs';
 import { COOKIE, setLan, isLoopback, loadOrCreateToken, tokenMatches, rankPairAddresses, lanHosts, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
@@ -194,7 +195,8 @@ export function startHub(opts = {}) {
     for (const res of clients) res.write(`data: ${payload}\n\n`);
   };
   const text = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'text/plain' }); res.end(body); };
-  const json = (res, obj) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+  const json = (res, obj, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+  const widget = opts.widget ?? { status: () => widgetStatus(), launch: (url) => launchWidget(url) };   // tests pass a fake: no process is spawned
 
   function serveStatic(res, urlPath) {
     let rel;
@@ -264,6 +266,13 @@ export function startHub(opts = {}) {
         if (opts.onShutdown) setTimeout(opts.onShutdown, 50);
         return undefined;
       case 'GET /state': return json(res, stateJson());
+      case 'GET /widget': return json(res, widget.status());   // loopback only: the bottom bar shows or hides its widget button
+      case 'POST /widget': {                        // loopback only: starts the floating widget on this hub (a second call brings it forward)
+        await readBody(req).catch(() => '');
+        const code = widget.launch(`http://127.0.0.1:${port}/`);
+        if (code === 0) return json(res, { ok: true });
+        return json(res, { error: code === 4 ? 'not built' : 'unsupported' }, code === 4 ? 409 : 501);
+      }
       case 'POST /reload':                          // rescan the theme and icon folders (the body, if any, is ignored)
         await readBody(req).catch(() => '');
         reloadCatalog();

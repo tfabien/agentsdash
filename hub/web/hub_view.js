@@ -86,3 +86,11 @@ export function quotaBars(usage, elapsedS) {
 export function gotoPage(n, page, count, fullScreen) {
   return fullScreen ? page : Math.max(0, Math.min(n, count - 1));
 }
+
+/** How the bottom bar shows the widget button for the answer of GET /widget (null: not known yet or the hub has no such route). */
+export function widgetButtonState(status) {
+  if (!status?.supported) return { hidden: true, disabled: true, title: '' };
+  return status.built
+    ? { hidden: false, disabled: false, title: 'Open the floating widget' }
+    : { hidden: false, disabled: true, title: 'Build it once: node hub/widget/build.mjs' };
+}
