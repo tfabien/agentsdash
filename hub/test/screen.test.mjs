@@ -533,7 +533,8 @@ test('plan_window_keeps_the_current_step_second_and_folds_the_rest', () => {
   const kinds = (w) => w.entries.map((e) => (e.kind === 'step' ? e.index : `${e.kind}${e.n}`));
   assert.deepEqual(kinds(planWindow(['d', 'r', 'p'], 5)), [0, 1, 2], 'fits: every step');
   assert.deepEqual(kinds(planWindow('rppppppppp'.split(''), 4)), [0, 1, 2, 'after7'], 'first step running: no folded start');
-  assert.deepEqual(kinds(planWindow('dddrpppppp'.split(''), 5)), ['before3', 3, 4, 5, 'after4'], 'middle: both ends folded');
+  assert.deepEqual(kinds(planWindow('dddrpppppp'.split(''), 5)), ['before2', 2, 3, 4, 'after5'], 'middle: the step before the current one stays in view');
+  assert.deepEqual(kinds(planWindow('dddrpppppp'.split(''), 3)), ['before3', 3, 'after6'], '3 rows: the current step only');
   assert.deepEqual(kinds(planWindow('dddddddddr'.split(''), 4)), ['before7', 7, 8, 9], 'last step running: no folded end');
   assert.equal(planWindow('ddd'.split(''), 5).cur, 2, 'all done: the last step');
   assert.equal(planWindow('dppp'.split(''), 5).cur, 1, 'no running step: the first open one');
@@ -546,7 +547,7 @@ const bareUi = (over = {}) => ui({ bare: true, frameW: 700, frameH: 330, pulse: 
 test('hub_tile_lists_the_steps_with_titles_around_the_current_one', () => {
   const r = draw(state([session({ plan: listPlan('dddrpppppppp') })]), bareUi());
   const t = texts(r);
-  assert.ok(t.includes('+3 done') && t.includes('Step 4') && t.some((s) => s.endsWith('to come')));
+  assert.ok(t.includes('+2 done') && t.includes('Step 3') && t.includes('Step 4') && t.some((s) => s.endsWith('to come')));
   assert.ok(!t.includes('Step 1'), 'folded steps are not drawn');
   assert.ok(!t.includes('next: C'), 'the list replaces the current and next lines');
   assert.ok(textOp(r, 'Step 4').fg === COLOR.TEXT && textOp(r, 'Step 5').fg === COLOR.LIGHT);
@@ -564,6 +565,6 @@ test('tapping_a_listed_step_picks_it', () => {
   const r = draw(state([s]), bareUi({ part: 'lead' }));
   const y = textOp(r, 'Step 5').y + 4;
   assert.deepEqual(hitTest(60, y, ctx), { kind: 'planStep', index: 4 });
-  assert.equal(hitTest(60, textOp(r, '+3 done').y + 4, ctx).kind, 'lead', 'a folded row is not a step');
+  assert.equal(hitTest(60, textOp(r, '+2 done').y + 4, ctx).kind, 'lead', 'a folded row is not a step');
   assert.equal(hitTest(60, y, { ...ctx, bare: false }).kind, 'lead', 'no list without bare');
 });
