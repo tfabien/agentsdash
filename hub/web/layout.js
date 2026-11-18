@@ -10,7 +10,8 @@ export const MAX_SCALE = 1.5;                 // a lone session on a big screen 
 export const FOCUS_SCALE = 3;                 // a full-screen session may grow up to 3x
 export const MIN_SCALE = 0.8;                 // "Auto" tiles per page: no tile under 0.8x the gadget screen
 export const STRETCH = 2.2;                   // a frame is up to 2.2 times wider than the gadget's; each extra column of a wide tile adds the same room
-export const STRETCH_H = 2;                   // and up to 2 times taller: a lone session gets more lines for its prompt and command
+export const COLUMN_SLACK = 0.8;              // more columns win while their scale stays within 80% of the best one: a tall tile has more room for the plan and the command than a wide short one
+export const STRETCH_H = 2;                  // and up to 2 times taller: a lone session gets more lines for its prompt and command
 
 /** Scale and frame size (in screen units) of a tile in a cell of `bw` x `bh` px. `span`: columns of the cell (a widened tile has more room to stretch). */
 export function tileSize(bw, bh, { focus = false, span = 1 } = {}) {
@@ -45,12 +46,14 @@ export function bestLayout(spans, boxW, boxH, { gap = GAP, maxScale = MAX_SCALE 
   if (!spans.length) return { cols: 1, rows: 1 };
   const total = spans.reduce((a, b) => a + b, 0), widest = Math.max(...spans);
   if (total <= 1 || !(boxW > 0) || !(boxH > 0)) { const cols = Math.max(widest, Math.ceil(Math.sqrt(total))); return { cols, rows: placeItems(spans, cols).rows }; }
-  let best = null;
+  const options = [];
   for (let cols = widest; cols <= Math.max(widest, total); cols++) {
     const rows = placeItems(spans, cols).rows;
     const k = Math.min((boxW - gap * (cols - 1)) / cols / FRAME.w, (boxH - gap * (rows - 1)) / rows / FRAME.h, maxScale);
-    if (!best || k >= best.k - 1e-9) best = { cols, rows, k };
+    options.push({ cols, rows, k });
   }
+  const top = Math.max(...options.map((o) => o.k));
+  const best = options.filter((o) => o.k >= top * COLUMN_SLACK - 1e-9).pop();      // the most columns whose screens are not much smaller than the biggest
   return { cols: best.cols, rows: best.rows };
 }
 

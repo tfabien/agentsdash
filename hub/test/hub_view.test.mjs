@@ -74,9 +74,15 @@ test('beeps_follow_the_gadget_rule', () => {
 test('bestLayout_picks_the_columns_that_make_the_screens_biggest', () => {
   const ones = (n) => Array(n).fill(1);
   assert.deepEqual(bestLayout(ones(1), 800, 600), { cols: 1, rows: 1 });
-  assert.deepEqual(bestLayout(ones(3), 800, 600), { cols: 1, rows: 3 }, 'a tall box stacks the screens');
+  assert.deepEqual(bestLayout(ones(3), 800, 600), { cols: 2, rows: 2 }, 'a tall box: 2 columns (0.83 against 0.89 stacked), the last tile is wide');
+  assert.deepEqual(bestLayout(ones(3), 500, 1000), { cols: 1, rows: 3 }, 'a narrow tall box stacks the screens');
   assert.deepEqual(bestLayout(ones(3), 2000, 300), { cols: 3, rows: 1 }, 'a wide box puts them side by side');
   assert.deepEqual(bestLayout(ones(4), 1000, 800), { cols: 2, rows: 2 });
+});
+
+test('bestLayout_prefers_tall_tiles_while_their_scale_stays_within_80_percent_of_the_best', () => {
+  assert.deepEqual(bestLayout([1, 1], 1011, 560), { cols: 2, rows: 1 }, 'two sessions: side by side (scale 1.06 against 1.27 stacked), not two short wide tiles');
+  assert.deepEqual(bestLayout([1, 1], 500, 1000), { cols: 1, rows: 2 }, 'a narrow box cannot hold two columns: stacked');
 });
 
 test('bestLayout_stops_rewarding_size_past_the_cap_and_prefers_columns_on_a_tie', () => {
