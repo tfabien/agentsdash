@@ -241,7 +241,7 @@ export function planBar(p, total) {
 
 /**
  * The step rows that fit `rows` lines, around the step in progress (the first running step, else the first open one).
- * A list longer than `rows` keeps the current step second and folds the steps before and after into one "+N done" and one "+N to come" row.
+ * A list longer than `rows` keeps the step before the current one in view (4 rows or more) and folds the steps before and after into one "+N done" and one "+N to come" row.
  * @param states one char per step: 'd' done, 'r' running, anything else open
  * @returns {{cur: number, entries: Array<{kind: 'step', index: number}|{kind: 'before'|'after', n: number}>}}
  */
@@ -252,7 +252,7 @@ export function planWindow(states, rows) {
   if (cur < 0) cur = n - 1;
   const step = (index) => ({ kind: 'step', index });
   if (n <= rows) return { cur, entries: states.map((_, i) => step(i)) };
-  let s = Math.max(0, cur - 1), e = s + rows;
+  let s = Math.max(0, cur - (rows >= 4 ? 2 : 1)), e = s + rows;                     // the step before the current one stays in view under "+N done"
   if (e > n) { e = n; s = n - rows; }
   const entries = [];
   if (s > 0) { entries.push({ kind: 'before', n: s + 1 }); s++; }
