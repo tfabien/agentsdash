@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { compileCommand } from '../../widget/build.mjs';
+import { compileCommand } from '../widget/build.mjs';
 
 test('compile_command_windows_uses_framework_csc_and_winexe', () => {
   const c = compileCommand('win32', '/r', { WINDIR: 'C:\\Windows' });

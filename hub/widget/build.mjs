@@ -1,4 +1,4 @@
-// Builds the native widget host of this OS into widget/<os>/bin/ (see docs/widget.md).
+// Builds the native widget host of this OS into hub/widget/<os>/bin/ (see docs/widget.md).
 // Windows: csc.exe of .NET Framework 4 (in every Windows 10/11) plus the WebView2 managed DLLs fetched from NuGet.
 // macOS: swiftc (Xcode Command Line Tools).
 import fs from 'node:fs';
@@ -7,7 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { isMain } from '../hub/run_as_main.mjs';
+import { isMain } from '../run_as_main.mjs';
 import { hostPath } from './run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
