@@ -10,3 +10,6 @@ __pycache__/
 
 # Node dependencies (optional serialport of the hub)
 node_modules/
+
+# Native widget hosts built by widget/build.mjs
+widget/**/bin/

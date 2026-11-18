@@ -12,8 +12,10 @@ node widget/run.mjs     # starts the widget (exit code 2: unsupported OS, 4: hos
 ## Behaviour of a host
 
 - Always on top by default; the window has no title bar and no border.
-- Drag: an invisible strip of 24 px along the top edge moves the window.
-- Resize: an invisible border of 6 px on every edge and corner. Minimum size 160 x 100.
+- Drag: a strip along the top edge moves the window (the grip mark is drawn in its middle).
+- Resize: a border on every edge and corner. Minimum size 160 x 100.
+- Windows: the strip is 16 px and the border 5 px, both outside the page and drawn in the page background color (a WebView2 control takes every mouse message of its area, so an overlay on the page is impossible). macOS: 24 px and 6 px, invisible, over the page.
+- The widget loads the hub without proxy lookup: system proxy detection behind a VPN made the first load take 10 to 20 s.
 - Right-click on the strip opens a menu: Always on top (on/off), Opacity 100 / 85 / 70 %, Reload, Close.
 - One window at a time: a second launch brings the running window to the front and exits 0.
 - When the hub is not reachable the window shows "Hub not running" and retries every 3 s.
@@ -38,13 +40,18 @@ A saved rectangle that touches no connected screen is ignored: the window opens 
 
 ## Manual checklist
 
-Filled in when each host is built (results per OS):
+Windows (2026-11-18, Windows 10 Enterprise, scripted checks marked S, others to do by hand):
 
+- [x] S: topmost flag set, no caption, page loads in about 2 s.
+- [x] S: hit-test gives top-left, top, left, right, bottom-right resize codes on the border, caption on the strip, client on the page.
+- [x] S: hub stopped shows "Hub not running", the page appears when the hub starts (3 s probe of `/health`).
+- [x] S: second launch exits 0 and leaves one process.
+- [x] S: `widget.json` is written with position, size, opacity and always-on-top.
 - [ ] Stays above a maximised window.
-- [ ] Drag by the top strip.
-- [ ] Resize from each edge and corner.
+- [ ] Drag by the strip and resize from each edge with the mouse.
 - [ ] Menu items work (always on top, opacity, reload, close).
 - [ ] Restart restores position and size.
-- [ ] Hub stopped shows "Hub not running", the page appears when the hub starts.
 - [ ] Unplugged monitor: reopens on the primary screen.
-- [ ] Second launch focuses the first window.
+- [ ] The second launch brings the first window to the front.
+
+macOS: same list, to fill in with Task 4 (plus: visible on every Space and above a full-screen app window).
