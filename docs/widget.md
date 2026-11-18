@@ -54,4 +54,10 @@ Windows (2026-11-18, Windows 10 Enterprise, scripted checks marked S, others to 
 - [ ] Unplugged monitor: reopens on the primary screen.
 - [ ] The second launch brings the first window to the front.
 
-macOS: same list, to fill in with Task 4 (plus: visible on every Space and above a full-screen app window).
+macOS (not built or run yet: the host was written on Windows, the first compile is the `widget-build` CI job on `macos-latest`):
+
+- [ ] `node widget/build.mjs` compiles without error.
+- [ ] The Windows list above, item by item, with the 24 px strip and the 6 px invisible border over the page.
+- [ ] Visible on every Space and above a full-screen app window.
+- [ ] The page loads over `http://127.0.0.1` from the unbundled binary (App Transport Security). If it does not, embed an Info.plist with `NSAllowsLocalNetworking` through `-sectcreate` in `compileCommand`.
+- [ ] A second launch brings the first window to the front (`widget.lock` holds the pid).
