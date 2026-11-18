@@ -147,6 +147,7 @@ function lerp565(a, b, t, n) {
 
 const planParallel = (p) => Boolean(p.state) && p.total <= 16 && p.state.length === p.total;
 const planRunning = (p, i) => (planParallel(p) ? p.state[i] === 'r' : i === p.done && Boolean(p.cur));
+const PLAN_ROW = 18;                                                                  // height of a line of the step list
 
 // ---------- geometry (layout.cpp) ----------
 // `fw`: width of the frame (472 on the gadget; a hub tile in a wide cell is wider, its panels grow with it).
@@ -239,6 +240,38 @@ export function planBar(p, total) {
 }
 
 /**
+ * The step rows that fit `rows` lines, around the step in progress (the first running step, else the first open one).
+ * A list longer than `rows` keeps the current step second and folds the steps before and after into one "+N done" and one "+N to come" row.
+ * @param states one char per step: 'd' done, 'r' running, anything else open
+ * @returns {{cur: number, entries: Array<{kind: 'step', index: number}|{kind: 'before'|'after', n: number}>}}
+ */
+export function planWindow(states, rows) {
+  const n = states.length;
+  let cur = states.indexOf('r');
+  if (cur < 0) cur = states.findIndex((c) => c !== 'd');
+  if (cur < 0) cur = n - 1;
+  const step = (index) => ({ kind: 'step', index });
+  if (n <= rows) return { cur, entries: states.map((_, i) => step(i)) };
+  let s = Math.max(0, cur - 1), e = s + rows;
+  if (e > n) { e = n; s = n - rows; }
+  const entries = [];
+  if (s > 0) { entries.push({ kind: 'before', n: s + 1 }); s++; }
+  const last = e < n ? e - 1 : e;
+  for (let i = s; i < last; i++) entries.push(step(i));
+  if (e < n) entries.push({ kind: 'after', n: n - last });
+  return { cur, entries };
+}
+
+/** The step list under the plan bar of lead panel `p` (hub page tiles only): null when the hub sent no title for each step or fewer than 3 rows fit. */
+export function planList(p, plan) {
+  const n = plan.total, items = plan.items;
+  if (!items || n === 0 || items.length !== n) return null;
+  const top = planBar(p, n).y + 14, rows = Math.floor((p.y + p.h - 4 - top) / PLAN_ROW);
+  if (rows < 3) return null;
+  return { top, ...planWindow(items.map((it) => it.state), rows) };
+}
+
+/**
  * Tap at (x, y) in screen pixels. ctx: {sessions, selected, menu, asking?, part?}. `part` is 'lead' (a hub tile with the lead panel alone, full width)
  * or 'team' (a hub tile with the team rows alone, full width); left out, the screen shows both side by side. `frameW`: width of the frame in units (default 472).
  * `detailOpen` (team part): a sub-agent is open as a tile, so the only target is its BACK button.
@@ -284,6 +317,11 @@ export function hitTest(x, y, ctx) {
   if (s && !s.ask && !s.perm && !s.quest && s.plan) {                          // a step of the plan bar (a taller target than the bar itself)
     const b = planBar(leadRect(nSubs, ctx.frameW, ctx.frameH), s.plan.total);
     if (x >= b.x && x < b.x + b.w && y >= b.y - 8 && y < b.y + b.h + 8) return { kind: 'planStep', index: Math.min(s.plan.total - 1, Math.floor((x - b.x) / b.step)) };
+  }
+  if (ctx.bare && s && !s.ask && !s.perm && !s.quest && s.plan) {                // a line of the step list (hub page tiles)
+    const p = leadRect(nSubs, ctx.frameW, ctx.frameH), L = planList(p, s.plan);
+    const entry = L && x >= p.x + 6 && x < p.x + p.w - 6 && y >= L.top ? L.entries[Math.floor((y - L.top) / PLAN_ROW)] : null;
+    if (entry?.kind === 'step') return { kind: 'planStep', index: entry.index };
   }
   if (inside(leadRect(nSubs, ctx.frameW, ctx.frameH), x, y)) return { kind: 'lead' };
   const rows = layoutRows(nSubs);
@@ -462,10 +500,10 @@ export function renderScreen(screen, state, ui) {
     line(x, y, w, S16, plan.stale ? COLOR.NEEDS : COLOR.ACCENT, COLOR.PANEL, `PLAN ${plan.done}/${plan.total}${plan.stale ? ' - STALE' : ''}`);   // stale: open steps, no change for 10 minutes
     const b = planBar(p, plan.total), by = b.y;
     const pick = ui.planStep && ui.planStep.session === sid ? ui.planStep.index : -1;
+    const ph = ui.pulse % (2 * PULSE_STEPS);
+    const level = ph < PULSE_STEPS ? ph : 2 * PULSE_STEPS - ph;
+    const runCol = waiting ? COLOR.NEEDS : lerp565(COLOR.ACCENT_DIM, COLOR.ACCENT, level, PULSE_STEPS);
     if (plan.total <= 16) {
-      const ph = ui.pulse % (2 * PULSE_STEPS);
-      const level = ph < PULSE_STEPS ? ph : 2 * PULSE_STEPS - ph;
-      const runCol = waiting ? COLOR.NEEDS : lerp565(COLOR.ACCENT_DIM, COLOR.ACCENT, level, PULSE_STEPS);
       for (let i = 0; i < plan.total; i++) {
         let c;
         if (planParallel(plan)) c = plan.state[i] === 'd' ? COLOR.WORKING : plan.state[i] === 'r' ? runCol : COLOR.CHIP;
@@ -490,6 +528,19 @@ export function renderScreen(screen, state, ui) {
     if (pick >= 0) {                                    // the hub sent no step titles (old hub, or no event since the plan changed)
       screen.text(x, by + 10, w, S16, COLOR.LIGHT, COLOR.PANEL, `STEP ${pick + 1} of ${plan.total}`);
       screen.text(x, by + 28, w, S16, COLOR.FAINT, COLOR.PANEL, 'titles arrive with the next event');
+      return;
+    }
+    const list = ui.bare ? planList(p, plan) : null;     // hub page tile: every step with its title, in place of the current and next ones
+    if (list) {
+      list.entries.forEach((en, i) => {
+        const ry = list.top + i * PLAN_ROW;
+        if (en.kind !== 'step') { line(x + 14, ry, w - 14, S16, COLOR.FAINT, COLOR.PANEL, en.kind === 'before' ? `+${en.n} done` : `+${en.n} to come`); return; }
+        const it = plan.items[en.index], run = it.state === 'r', now = en.index === list.cur;
+        const bg = run ? COLOR.CHIP : COLOR.PANEL;
+        if (run) screen.fill(x - 2, ry, w + 4, PLAN_ROW, bg);
+        screen.fill(x + 2, ry + 5, 8, 8, it.state === 'd' ? COLOR.WORKING : run ? runCol : COLOR.CHIP);
+        line(x + 14, ry, w - 14, S16, it.state === 'd' ? COLOR.FAINT : now ? COLOR.TEXT : COLOR.LIGHT, bg, it.title);
+      });
       return;
     }
     const cur = plan.cur || (plan.done === plan.total ? 'Plan done' : '');
