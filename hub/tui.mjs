@@ -40,7 +40,7 @@ function sessionLines(s, width) {
   ]));
   const facts = [];
   if (s.ctx_pct !== null) facts.push(`ctx ${s.ctx_pct}%`);
-  if (s.plan) facts.push(`plan ${s.plan.done}/${s.plan.total} ${s.plan.cur}${s.plan.next ? ` > ${s.plan.next}` : ''}`);
+  if (s.plan) facts.push(`plan ${s.plan.done}/${s.plan.total}${s.plan.stale ? ' STALE' : ''} ${s.plan.cur}${s.plan.next ? ` > ${s.plan.next}` : ''}`);
   if (s.tok) facts.push(`${formatTokens(s.tok)} tok`);
   if (facts.length) lines.push(compose(width, [{ text: `    ${facts.join('  ')}`, color: DIM }]));
   if (s.ask) {

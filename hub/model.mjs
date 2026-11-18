@@ -50,7 +50,7 @@ function newAgent(id, role, now, rev) {
 function newSession(id, now) {
   return {
     id, project: '', cwd: '', title: '', ctxPct: CTX_UNKNOWN, ctxK: 0, ctxFromStatusLine: false, ctxAt: 0, stok: 0, samples: [], usageRev: 0,
-    planDone: 0, planTotal: 0, planItems: [], planCur: '', planNext: '', planState: '', ask: '', askOpts: '',
+    planDone: 0, planTotal: 0, planItems: [], planCur: '', planNext: '', planState: '', planStale: false, ask: '', askOpts: '',
     lead: null, subs: new Array(MAX_SUBS).fill(null), more: 0, hidden: [], waitingKids: false,
     lastActive: now, lastYourTurn: 0, lastPrompt: 0,
   };
@@ -184,6 +184,8 @@ export function createModel(opts = {}) {
       if (total === 0) { s.planCur = ''; s.planNext = ''; }
       if (e.planItems) { const same = e.planItems.join('|') === s.planItems.join('|'); if (!same || total === 0) { s.planItems = total === 0 ? [] : e.planItems; changed = true; } }
       if (s.planState !== e.planState) { s.planState = e.planState; changed = true; }   // absent = cleared
+      const stale = total > 0 && e.planStale;
+      if (s.planStale !== stale) { s.planStale = stale; changed = true; }                // absent = fresh
     }
     if (e.hasPlanCur && s.planCur !== e.planCur) { s.planCur = e.planCur; changed = true; }
     if (e.hasPlanNext && s.planNext !== e.planNext) { s.planNext = e.planNext; changed = true; }
@@ -254,7 +256,7 @@ export function createModel(opts = {}) {
         planItems: Array.isArray(ev.plan_items) ? ev.plan_items.slice(0, 30).map((x) => clean(x)) : null,
         hasPlanCur: typeof ev.plan_cur === 'string', planCur: clean(ev.plan_cur),
         hasPlanNext: typeof ev.plan_next === 'string', planNext: clean(ev.plan_next),
-        planState: clean(ev.plan_state), ask: clean(ev.question), askOpts: clean(ev.options),
+        planState: clean(ev.plan_state), planStale: ev.plan_stale === true, ask: clean(ev.question), askOpts: clean(ev.options),
         replyFirst: clean(ev.reply_first, 300), replyLast: clean(ev.reply_last, 300), prompt: clean(ev.prompt, 300),
       };
     }
@@ -267,7 +269,7 @@ export function createModel(opts = {}) {
     return {
       session: (h & 0xffff).toString(16).padStart(4, '0'), agent: 'lead', state, project: name, role: 'lead',
       evt: 'V1', cmd: clean(ev.task), detail: '', title: '', tok: -1, stok: -1, model: '', ctxPct: -1, ctxK: -1, planDone: -1, planItems: null,
-      planTotal: -1, hasPlanCur: false, planCur: '', hasPlanNext: false, planNext: '', planState: '', ask: '', askOpts: '',
+      planTotal: -1, hasPlanCur: false, planCur: '', hasPlanNext: false, planNext: '', planState: '', planStale: false, ask: '', askOpts: '',
       replyFirst: '', replyLast: '', prompt: '',
     };
   }
@@ -466,7 +468,7 @@ export function createModel(opts = {}) {
         ctx_pct: s.ctxPct === CTX_UNKNOWN ? null : s.ctxPct, ctx_k: s.ctxK,
         ctx_src: s.ctxPct === CTX_UNKNOWN ? '' : s.ctxFromStatusLine ? 'statusline' : 'transcript',
         tok: s.stok, rate: rateOf(s, now),
-        plan: s.planTotal === 0 ? null : { done: s.planDone, total: s.planTotal, cur: s.planCur, next: s.planNext, state: s.planState, items: s.planItems.map((x) => ({ state: x[0], title: x.slice(2) })) },
+        plan: s.planTotal === 0 ? null : { done: s.planDone, total: s.planTotal, cur: s.planCur, next: s.planNext, state: s.planState, stale: s.planStale, items: s.planItems.map((x) => ({ state: x[0], title: x.slice(2) })) },
         ask: asking(s) ? { question: s.ask, options: s.askOpts } : null,
         agents: [agentJson(s, s.lead, true, now), ...used(s).map((a) => agentJson(s, a, false, now))],
       })),
