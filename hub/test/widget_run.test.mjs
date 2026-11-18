@@ -93,7 +93,8 @@ test('launch_spawns_detached_with_the_url_and_the_settings_file', () => {
     assert.equal(launch('http://127.0.0.1:9000/', { AGENTSDASH_HOME: home }, 'win32', root, fake), 0);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].file, exe);
-    assert.deepEqual(calls[0].args, buildArgs('http://127.0.0.1:9000/', path.join(home, 'widget.json')));
+    // The page gets ?widget=1 so it can draw its compact bar.
+    assert.deepEqual(calls[0].args, buildArgs('http://127.0.0.1:9000/?widget=1', path.join(home, 'widget.json')));
     assert.equal(calls[0].options.detached, true);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

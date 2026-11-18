@@ -17,6 +17,7 @@ The widget ships inside `hub/` (sources only, the binary is built per machine). 
 - Drag: a strip along the top edge moves the window (the grip mark is drawn in its middle).
 - Resize: a border on every edge and corner. Minimum size 160 x 100.
 - Windows: the strip is 16 px and the border 5 px, both outside the page and drawn in the page background color (a WebView2 control takes every mouse message of its area, so an overlay on the page is impossible). macOS: 24 px and 6 px, invisible, over the page.
+- The page is loaded with `?widget=1`: `hub.html` sets `data-mode="widget"` and the bottom bar becomes one thin line with the quotas and no clock; the beeps, theme, QR and settings buttons fade in over its right end while the mouse is over the bar.
 - The widget loads the hub without proxy lookup: system proxy detection behind a VPN made the first load take 10 to 20 s.
 - Right-click on the strip opens a menu: Always on top (on/off), Opacity 100 / 85 / 70 %, Reload, Close.
 - One window at a time: a second launch brings the running window to the front and exits 0.
