@@ -206,27 +206,18 @@ Every item is an issue in the repository it belongs to; the maintainer follows t
 
 Core ([issues](https://github.com/tfabien/agentsdash/issues)):
 
-- **One screen component for the page and the device** ([#3](https://github.com/tfabien/agentsdash/issues/3)).
-- **Answer an `AskUserQuestion` from the screen** ([#75](https://github.com/tfabien/agentsdash/issues/75)): option buttons work on the hub page; free text, the phone page and the device are still missing, and a real session check is pending.
+- **Answer an `AskUserQuestion` from the screen** ([#75](https://github.com/tfabien/agentsdash/issues/75)): option buttons work on the hub page; free text (optional, hidden on devices without a keyboard), the phone page and the device are missing, and a real session check is pending.
 - **Reliable usage and quotas** ([#6](https://github.com/tfabien/agentsdash/issues/6)): the usage endpoint returns 429 and numbers can be stale.
-- **Adapters never fetch a newer core** ([#57](https://github.com/tfabien/agentsdash/issues/57)).
-- **The page does not follow the session that has the focus in the agent** ([#59](https://github.com/tfabien/agentsdash/issues/59)).
-- **Tap a step of the plan bar to preview it** ([#60](https://github.com/tfabien/agentsdash/issues/60)).
-- Smaller: recorded events copied by hand between repositories ([#58](https://github.com/tfabien/agentsdash/issues/58)), minor items of the hub review ([#62](https://github.com/tfabien/agentsdash/issues/62)), a GitHub organization ([#63](https://github.com/tfabien/agentsdash/issues/63)), a stub for the plugin under the first name ([#64](https://github.com/tfabien/agentsdash/issues/64)).
+- **One screen component for the page and the device** ([#3](https://github.com/tfabien/agentsdash/issues/3)): not scheduled.
+- **Multi-screen** ([#79](https://github.com/tfabien/agentsdash/issues/79)): several pages and devices act as one global screen.
+- Smaller: the hub does not replay its state to a device that rebooted ([#62](https://github.com/tfabien/agentsdash/issues/62)).
 
 Codex adapter ([agentsdash-codex](https://github.com/tfabien/agentsdash-codex/issues)):
 
-- **Tokens, context and session title** from the Codex transcript ([#1](https://github.com/tfabien/agentsdash-codex/issues/1)).
 - **Run the hooks in a real Codex and test the plugin form** ([#2](https://github.com/tfabien/agentsdash-codex/issues/2)).
-- **Core download behind a proxy** ([#3](https://github.com/tfabien/agentsdash-codex/issues/3)).
+- **Interrupt hook, project-scoped hooks and local ChatGPT Work sessions** ([#4](https://github.com/tfabien/agentsdash-codex/issues/4)).
 
-Claude Code adapter ([agentsdash-claude](https://github.com/tfabien/agentsdash-claude/issues)):
-
-- **Send the `error` state** the page already draws ([#2](https://github.com/tfabien/agentsdash-claude/issues/2)).
-- **Core download behind a proxy** ([#1](https://github.com/tfabien/agentsdash-claude/issues/1)).
-- **Prompts: a staleness hint on the screen** and a rule-following report ([#3](https://github.com/tfabien/agentsdash-claude/issues/3)).
-
-Devices:
+Devices (not a priority):
 
 - **Phone as a device** (a PWA for iPhone and Android): the first version works on the home Wi-Fi over plain http; HTTPS, a service worker and use outside the home network are open in [agentsdash-device-phone](https://github.com/tfabien/agentsdash-device-phone) ([#1](https://github.com/tfabien/agentsdash-device-phone/issues/1)).
-- **ESP32 gadget:** USB relay test on hardware ([#1](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/1)), a screen that is easy to buy ([#2](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/2)), clock settings ([#3](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/3)), the default OTA password ([#4](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/4)). More in its [TODO](https://github.com/tfabien/agentsdash-device-artillery-x3#todo).
+- **ESP32 gadget:** USB relay test on hardware ([#1](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/1)), a screen that is easy to buy ([#2](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/2)), the default OTA password ([#4](https://github.com/tfabien/agentsdash-device-artillery-x3/issues/4)). More in its [TODO](https://github.com/tfabien/agentsdash-device-artillery-x3#todo).
