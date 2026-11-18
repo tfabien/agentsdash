@@ -206,7 +206,7 @@ Every item is an issue in the repository it belongs to; the maintainer follows t
 
 Core ([issues](https://github.com/tfabien/agentsdash/issues)):
 
-- **Answer an `AskUserQuestion` from the screen** ([#75](https://github.com/tfabien/agentsdash/issues/75)): option buttons work on the hub page; free text (optional, hidden on devices without a keyboard), the phone page and the device are missing, and a real session check is pending.
+- **Answer an `AskUserQuestion` from the screen** ([#75](https://github.com/tfabien/agentsdash/issues/75)): option buttons work on the hub page; the real session check, the phone page and the device are missing. Free text is low priority (optional, hidden on devices without a keyboard).
 - **Reliable usage and quotas** ([#6](https://github.com/tfabien/agentsdash/issues/6)): the usage endpoint returns 429 and numbers can be stale.
 - **One screen component for the page and the device** ([#3](https://github.com/tfabien/agentsdash/issues/3)): not scheduled.
 - **Multi-screen** ([#79](https://github.com/tfabien/agentsdash/issues/79)): several pages and devices act as one global screen.
