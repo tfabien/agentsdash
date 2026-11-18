@@ -121,13 +121,18 @@ namespace Agentsdash
                             g.FillRectangle(hb, r);
                     int cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2;
                     if (i == 0)
-                    {   // pin: a head and a needle, filled and blue while the window is always on top
-                        using (Pen pin = new Pen(Pinned ? Color.FromArgb(120, 170, 255) : Color.FromArgb(190, 190, 198), 1.4f))
-                        using (Brush head = new SolidBrush(Pinned ? Color.FromArgb(120, 170, 255) : Color.Transparent))
+                    {   // drawing pin (thumbtack), white and filled while the window is always on top, an outline when it is not
+                        Color ink = Pinned ? Color.FromArgb(240, 240, 244) : Color.FromArgb(150, 150, 160);
+                        using (Pen pin = new Pen(ink, 1.2f))
+                        using (Brush fill = new SolidBrush(Pinned ? ink : Color.Transparent))
                         {
-                            g.FillEllipse(head, cx - 3, cy - 5, 6, 6);
-                            g.DrawEllipse(pin, cx - 3, cy - 5, 6, 6);
-                            g.DrawLine(pin, cx, cy + 1, cx, cy + 5);
+                            Point[] body = { new Point(cx - 3, cy - 4), new Point(cx + 3, cy - 4), new Point(cx + 2, cy + 1), new Point(cx - 2, cy + 1) };
+                            g.FillRectangle(fill, cx - 4, cy - 7, 8, 3);                 // flat head
+                            g.DrawRectangle(pin, cx - 4, cy - 7, 8, 3);
+                            g.FillPolygon(fill, body);                                    // tapered body
+                            g.DrawPolygon(pin, body);
+                            g.DrawLine(pin, cx - 4, cy + 1, cx + 4, cy + 1);              // base
+                            g.DrawLine(pin, cx, cy + 1, cx, cy + 6);                      // needle
                         }
                     }
                     else if (i == 1) g.DrawLine(pen, cx - 4, cy + 2, cx + 4, cy + 2);

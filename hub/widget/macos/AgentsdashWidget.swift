@@ -107,15 +107,18 @@ final class StripView: NSView {
             path.lineWidth = 1.3
             switch i {
             case 0:
-                // pin: a head and a needle, filled and blue while the window is always on top
-                let blue = NSColor(calibratedRed: 0.47, green: 0.67, blue: 1, alpha: 1)
-                let head = NSBezierPath(ovalIn: NSRect(x: c.x - 3, y: c.y - 1, width: 6, height: 6))
-                head.lineWidth = 1.3
-                if pinned { blue.setFill(); head.fill(); blue.setStroke() }
-                head.stroke()
-                path.move(to: NSPoint(x: c.x, y: c.y - 1)); path.line(to: NSPoint(x: c.x, y: c.y - 5))
-                path.lineWidth = 1.3
-                path.stroke()
+                // drawing pin (thumbtack), white and filled while the window is always on top, an outline when it is not
+                let ink = pinned ? NSColor(white: 0.94, alpha: 1) : NSColor(white: 0.6, alpha: 1)
+                ink.setStroke(); ink.setFill()
+                let tack = NSBezierPath()
+                tack.lineWidth = 1.2
+                tack.appendRect(NSRect(x: c.x - 4, y: c.y + 4, width: 8, height: 3))                  // flat head
+                tack.move(to: NSPoint(x: c.x - 3, y: c.y + 4)); tack.line(to: NSPoint(x: c.x + 3, y: c.y + 4))
+                tack.line(to: NSPoint(x: c.x + 2, y: c.y - 1)); tack.line(to: NSPoint(x: c.x - 2, y: c.y - 1)); tack.close()   // tapered body
+                tack.move(to: NSPoint(x: c.x - 4, y: c.y - 1)); tack.line(to: NSPoint(x: c.x + 4, y: c.y - 1))               // base
+                tack.move(to: NSPoint(x: c.x, y: c.y - 1)); tack.line(to: NSPoint(x: c.x, y: c.y - 6))                       // needle
+                if pinned { tack.fill() }
+                tack.stroke()
                 continue
             case 1:
                 path.move(to: NSPoint(x: c.x - 4, y: c.y - 3)); path.line(to: NSPoint(x: c.x + 4, y: c.y - 3))
