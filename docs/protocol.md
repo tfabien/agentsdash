@@ -45,6 +45,7 @@ Answers 200 `ok`, or 400 `session, agent and a valid state are required`.
 | `plan_cur` | string | Title of the step in progress. Present even when empty (an empty string clears it). |
 | `plan_next` | string | Title of the next step. Present even when empty. |
 | `plan_state` | string | Short state of the list. |
+| `plan_stale` | boolean | `true` when the list has open steps and has not changed for 10 minutes. The page draws the plan header in the needs-you color with "STALE". Absent or `false` clears it. |
 | `question` | string | A question waiting for the user (lead only). |
 | `options` | string | The answers offered, in one line. |
 | `reply_first` | string | First paragraph of the last reply, 300 characters. Only a `Stop` carries it; any later event clears it. |

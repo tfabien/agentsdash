@@ -459,7 +459,7 @@ export function renderScreen(screen, state, ui) {
 
   // `waiting`: the session waits for the user, so the running step is drawn in the NEEDS color (steady, no pulse) to show a move is due.
   function drawPlan(plan, x, y, w, p, sid, waiting = false) {
-    line(x, y, w, S16, COLOR.ACCENT, COLOR.PANEL, `PLAN ${plan.done}/${plan.total}`);
+    line(x, y, w, S16, plan.stale ? COLOR.NEEDS : COLOR.ACCENT, COLOR.PANEL, `PLAN ${plan.done}/${plan.total}${plan.stale ? ' - STALE' : ''}`);   // stale: open steps, no change for 10 minutes
     const b = planBar(p, plan.total), by = b.y;
     const pick = ui.planStep && ui.planStep.session === sid ? ui.planStep.index : -1;
     if (plan.total <= 16) {
