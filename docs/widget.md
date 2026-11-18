@@ -14,9 +14,10 @@ The widget ships inside `hub/` (sources only, the binary is built per machine). 
 ## Behaviour of a host
 
 - Always on top by default; the window has no title bar and no border.
-- Drag: a strip along the top edge moves the window (the grip mark is drawn in its middle).
+- Drag: a strip along the top edge moves the window (the grip mark is drawn in its middle); the cursor over it is the move cursor (all directions on Windows, open hand on macOS).
+- Window buttons at the right end of the strip: minimize, maximize (the button becomes restore while maximized) and close. Maximize fills the working area of the screen (taskbar, Dock and menu bar stay free); the saved position and size are those of the restored window. Windows draws them always; macOS only while the mouse is over the strip, because the strip is an invisible overlay on the page. On macOS the app has a Dock icon so that a minimized window can be restored.
 - Resize: a border on every edge and corner. Minimum size 160 x 100.
-- Windows: the strip is 16 px and the border 5 px, both outside the page and drawn in the page background color (a WebView2 control takes every mouse message of its area, so an overlay on the page is impossible). macOS: 24 px and 6 px, invisible, over the page.
+- Windows: the strip is 18 px and the border 5 px, both outside the page and drawn in the page background color (a WebView2 control takes every mouse message of its area, so an overlay on the page is impossible). macOS: 24 px and 6 px, invisible, over the page.
 - The page is loaded with `?widget=1`: `hub.html` sets `data-mode="widget"` and the bottom bar becomes one thin line with the quotas; the beeps, theme, QR and settings buttons stay visible as small chips at its right end, followed by a small clock (13 px, so the bar keeps its height).
 - The widget loads the hub without proxy lookup: system proxy detection behind a VPN made the first load take 10 to 20 s.
 - Right-click on the strip opens a menu: Always on top (on/off), Opacity 100 / 85 / 70 %, Reload, Close.

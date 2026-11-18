@@ -50,12 +50,76 @@ struct Edge: OptionSet {
     static let left = Edge(rawValue: 1), right = Edge(rawValue: 2), top = Edge(rawValue: 4), bottom = Edge(rawValue: 8)
 }
 
-/// Top strip: drag with the mouse, menu on right click.
+/// Top strip: drag with the mouse (open hand cursor), menu on right click. While the mouse is over it, three window buttons show at its right
+/// end (minimize, maximize or restore, close): the strip is an invisible overlay on the page, so they stay hidden the rest of the time.
 final class StripView: NSView {
     var menu_: NSMenu?
-    override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+    var onButton: ((Int) -> Void)?       // 0 minimize, 1 maximize or restore, 2 close
+    var maximized = false { didSet { needsDisplay = true } }
+    private var hovering = false
+    private var hoverButton = -1
+    private let buttonWidth: CGFloat = 26
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+    }
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    private func buttonRect(_ i: Int) -> NSRect {
+        return NSRect(x: bounds.width - CGFloat(3 - i) * buttonWidth, y: 0, width: buttonWidth, height: bounds.height)
+    }
+    private func buttonAt(_ p: NSPoint) -> Int {
+        for i in 0..<3 where buttonRect(i).contains(p) { return i }
+        return -1
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(NSRect(x: 0, y: 0, width: bounds.width - 3 * buttonWidth, height: bounds.height), cursor: .openHand)
+    }
+    override func mouseEntered(with event: NSEvent) { hovering = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { hovering = false; hoverButton = -1; needsDisplay = true }
+    override func mouseMoved(with event: NSEvent) {
+        let h = buttonAt(convert(event.locationInWindow, from: nil))
+        if h != hoverButton { hoverButton = h; needsDisplay = true }
+    }
+    override func mouseDown(with event: NSEvent) {
+        let b = buttonAt(convert(event.locationInWindow, from: nil))
+        if b >= 0 { onButton?(b) } else { window?.performDrag(with: event) }
+    }
     override func rightMouseDown(with event: NSEvent) {
         if let m = menu_ { NSMenu.popUpContextMenu(m, with: event, for: self) }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard hovering else { return }
+        for i in 0..<3 {
+            let r = buttonRect(i)
+            if hoverButton == i {
+                (i == 2 ? NSColor(calibratedRed: 0.78, green: 0.25, blue: 0.25, alpha: 1) : NSColor(white: 0.5, alpha: 0.35)).setFill()
+                r.fill()
+            }
+            NSColor(white: 0.78, alpha: 1).setStroke()
+            let c = NSPoint(x: r.midX, y: r.midY)
+            let path = NSBezierPath()
+            path.lineWidth = 1.3
+            switch i {
+            case 0:
+                path.move(to: NSPoint(x: c.x - 4, y: c.y - 3)); path.line(to: NSPoint(x: c.x + 4, y: c.y - 3))
+            case 1:
+                if maximized {
+                    path.appendRect(NSRect(x: c.x - 4, y: c.y - 4, width: 6, height: 6))
+                    path.move(to: NSPoint(x: c.x - 2, y: c.y + 2)); path.line(to: NSPoint(x: c.x - 2, y: c.y + 4))
+                    path.line(to: NSPoint(x: c.x + 4, y: c.y + 4)); path.line(to: NSPoint(x: c.x + 4, y: c.y - 2)); path.line(to: NSPoint(x: c.x + 2, y: c.y - 2))
+                } else {
+                    path.appendRect(NSRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8))
+                }
+            default:
+                path.move(to: NSPoint(x: c.x - 4, y: c.y - 4)); path.line(to: NSPoint(x: c.x + 4, y: c.y + 4))
+                path.move(to: NSPoint(x: c.x - 4, y: c.y + 4)); path.line(to: NSPoint(x: c.x + 4, y: c.y - 4))
+            }
+            path.stroke()
+        }
     }
 }
 
@@ -120,13 +184,15 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
     var saveTimer: Timer?
     var retryTimer: Timer?
     var placeholder = false
+    var stripView: StripView?
+    var restoreFrame: NSRect?          // the frame to go back to while the window is maximized, else nil
 
     init(url: URL, settingsPath: String) {
         self.url = url
         self.settingsPath = settingsPath
         let loaded = Settings.load(settingsPath)
         settings = loaded
-        window = WidgetWindow(contentRect: Controller.startFrame(loaded), styleMask: [.borderless, .resizable], backing: .buffered, defer: false)
+        window = WidgetWindow(contentRect: Controller.startFrame(loaded), styleMask: [.borderless, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init()
 
         window.title = "agentsdash"
@@ -171,6 +237,8 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         let strip = StripView(frame: NSRect(x: b, y: h - stripHeight, width: w - 2 * b, height: stripHeight))
         strip.autoresizingMask = [.width, .minYMargin]
         strip.menu_ = menu
+        strip.onButton = { [weak self] i in self?.windowButton(i) }
+        stripView = strip
         root.addSubview(strip)
         func add(_ edge: Edge, _ frame: NSRect, _ mask: NSView.AutoresizingMask) {
             let v = EdgeView(edge: edge)
@@ -221,6 +289,24 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         for o in opacityItems { o.state = o.tag == item.tag ? .on : .off }
         saveNow()
     }
+    func windowButton(_ i: Int) {
+        switch i {
+        case 0: window.miniaturize(nil)
+        case 1: toggleMaximize()
+        default: window.close()
+        }
+    }
+    /// A borderless window has no zoom button: fill the visible area of its screen (Dock and menu bar stay free) and remember the frame to go back to.
+    func toggleMaximize() {
+        if let back = restoreFrame {
+            restoreFrame = nil
+            window.setFrame(back, display: true, animate: true)
+        } else if let area = window.screen?.visibleFrame {
+            restoreFrame = window.frame
+            window.setFrame(area, display: true, animate: true)
+        }
+        stripView?.maximized = restoreFrame != nil
+    }
     @objc func reload() { placeholder = false; web.load(URLRequest(url: url)) }
     @objc func closeWidget() { window.close() }
 
@@ -230,7 +316,7 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         saveTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in self?.saveNow() }
     }
     func saveNow() {
-        let f = window.frame
+        let f = restoreFrame ?? window.frame      // never save the maximized frame
         let primaryHeight = NSScreen.screens.first?.frame.height ?? f.maxY
         settings.x = Double(f.minX)
         settings.y = Double(primaryHeight - f.maxY)
@@ -297,7 +383,7 @@ guard let pageURL = URL(string: urlText) else {
 }
 
 let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
+app.setActivationPolicy(.regular)       // a Dock icon: a minimized window needs it to be restored
 let controller = Controller(url: pageURL, settingsPath: settingsPath)
 controller.window.makeKeyAndOrderFront(nil)
 app.activate(ignoringOtherApps: true)
