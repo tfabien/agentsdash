@@ -60,22 +60,22 @@ namespace Agentsdash
         }
     }
 
-    // The top strip: transparent to the mouse, so the form below answers WM_NCHITTEST (HTCAPTION: drag), except over its three
-    // window buttons (minimize, maximize or restore, close) at the right end, which it draws and handles itself.
+    // The top strip: transparent to the mouse, so the form below answers WM_NCHITTEST (HTCAPTION: drag), except over its four
+    // buttons (pin, minimize, maximize or restore, close) at the right end, which it draws and handles itself.
     internal sealed class Strip : Panel
     {
-        const int ButtonWidth = 26;
-        public bool Maximized;
-        public Action<int> ButtonClick;       // 0 minimize, 1 maximize or restore, 2 close
+        const int ButtonWidth = 26, ButtonCount = 4;
+        public bool Maximized, Pinned;
+        public Action<int> ButtonClick;       // 0 pin (always on top), 1 minimize, 2 maximize or restore, 3 close
         int hover = -1;
 
         public Strip() { DoubleBuffered = true; }
 
-        Rectangle ButtonRect(int i) { return new Rectangle(Width - (3 - i) * ButtonWidth, 0, ButtonWidth, Height); }
+        Rectangle ButtonRect(int i) { return new Rectangle(Width - (ButtonCount - i) * ButtonWidth, 0, ButtonWidth, Height); }
 
         int ButtonAt(Point p)
         {
-            for (int i = 0; i < 3; i++) if (ButtonRect(i).Contains(p)) return i;
+            for (int i = 0; i < ButtonCount; i++) if (ButtonRect(i).Contains(p)) return i;
             return -1;
         }
 
@@ -85,7 +85,8 @@ namespace Agentsdash
             {
                 long lp = m.LParam.ToInt64();
                 Point p = PointToClient(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
-                m.Result = ButtonAt(p) >= 0 ? (IntPtr)1 : (IntPtr)(-1);   // HTCLIENT over a button, else HTTRANSPARENT                return;
+                m.Result = ButtonAt(p) >= 0 ? (IntPtr)1 : (IntPtr)(-1);   // HTCLIENT over a button, else HTTRANSPARENT
+                return;
             }
             base.WndProc(ref m);
         }
@@ -112,16 +113,31 @@ namespace Agentsdash
                 g.FillRectangle(grip, Width / 2 - 14, Height / 2 - 1, 28, 3);
             using (Pen pen = new Pen(Color.FromArgb(190, 190, 198), 1.4f))
             {
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < ButtonCount; i++)
                 {
                     Rectangle r = ButtonRect(i);
                     if (hover == i)
-                        using (Brush hb = new SolidBrush(i == 2 ? Color.FromArgb(200, 64, 64) : Color.FromArgb(70, 128, 128, 140)))
+                        using (Brush hb = new SolidBrush(i == 3 ? Color.FromArgb(200, 64, 64) : Color.FromArgb(70, 128, 128, 140)))
                             g.FillRectangle(hb, r);
                     int cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2;
-                    if (i == 0) g.DrawLine(pen, cx - 4, cy + 2, cx + 4, cy + 2);
-                    else if (i == 1 && !Maximized) g.DrawRectangle(pen, cx - 4, cy - 4, 8, 8);
-                    else if (i == 1) { g.DrawRectangle(pen, cx - 4, cy - 2, 6, 6); g.DrawLines(pen, new Point[] { new Point(cx - 2, cy - 2), new Point(cx - 2, cy - 5), new Point(cx + 4, cy - 5), new Point(cx + 4, cy + 1), new Point(cx + 2, cy + 1) }); }
+                    if (i == 0)
+                    {   // drawing pin (thumbtack), white and filled while the window is always on top, an outline when it is not
+                        Color ink = Pinned ? Color.FromArgb(240, 240, 244) : Color.FromArgb(150, 150, 160);
+                        using (Pen pin = new Pen(ink, 1.2f))
+                        using (Brush fill = new SolidBrush(Pinned ? ink : Color.Transparent))
+                        {
+                            Point[] body = { new Point(cx - 3, cy - 4), new Point(cx + 3, cy - 4), new Point(cx + 2, cy + 1), new Point(cx - 2, cy + 1) };
+                            g.FillRectangle(fill, cx - 4, cy - 7, 8, 3);                 // flat head
+                            g.DrawRectangle(pin, cx - 4, cy - 7, 8, 3);
+                            g.FillPolygon(fill, body);                                    // tapered body
+                            g.DrawPolygon(pin, body);
+                            g.DrawLine(pin, cx - 4, cy + 1, cx + 4, cy + 1);              // base
+                            g.DrawLine(pin, cx, cy + 1, cx, cy + 6);                      // needle
+                        }
+                    }
+                    else if (i == 1) g.DrawLine(pen, cx - 4, cy + 2, cx + 4, cy + 2);
+                    else if (i == 2 && !Maximized) g.DrawRectangle(pen, cx - 4, cy - 4, 8, 8);
+                    else if (i == 2) { g.DrawRectangle(pen, cx - 4, cy - 2, 6, 6); g.DrawLines(pen, new Point[] { new Point(cx - 2, cy - 2), new Point(cx - 2, cy - 5), new Point(cx + 4, cy - 5), new Point(cx + 4, cy + 1), new Point(cx + 2, cy + 1) }); }
                     else { g.DrawLine(pen, cx - 4, cy - 4, cx + 4, cy + 4); g.DrawLine(pen, cx - 4, cy + 4, cx + 4, cy - 4); }
                 }
             }
@@ -139,6 +155,7 @@ namespace Agentsdash
         readonly WebView2 web = new WebView2();
         readonly Strip strip = new Strip();
         readonly ContextMenuStrip menu = new ContextMenuStrip();
+        ToolStripMenuItem topItem;
         readonly System.Windows.Forms.Timer saveTimer = new System.Windows.Forms.Timer { Interval = 500 };
         readonly System.Windows.Forms.Timer retryTimer = new System.Windows.Forms.Timer { Interval = RetryMs };
         bool placeholder;
@@ -164,10 +181,12 @@ namespace Agentsdash
             strip.BackColor = BackColor;
             strip.ButtonClick = delegate (int b)
             {
-                if (b == 0) PostMessage(Handle, 0x0112, (IntPtr)0xF020, IntPtr.Zero);   // WM_SYSCOMMAND SC_MINIMIZE, as the OS does: setting WindowState from a mouse handler left a blank window after the restore
-                else if (b == 1) ToggleMaximize();
+                if (b == 0) topItem.Checked = !topItem.Checked;   // pin or unpin: the menu item sets TopMost, saves, and tells the strip
+                else if (b == 1) PostMessage(Handle, 0x0112, (IntPtr)0xF020, IntPtr.Zero);   // WM_SYSCOMMAND SC_MINIMIZE, as the OS does: setting WindowState from a mouse handler left a blank window after the restore
+                else if (b == 2) ToggleMaximize();
                 else Close();
             };
+            strip.Pinned = settings.AlwaysOnTop;
             web.Dock = DockStyle.Fill;
             web.CreationProperties = new CoreWebView2CreationProperties
             {
@@ -205,9 +224,9 @@ namespace Agentsdash
 
         void BuildMenu()
         {
-            ToolStripMenuItem top = new ToolStripMenuItem("Always on top") { Checked = settings.AlwaysOnTop, CheckOnClick = true };
-            top.CheckedChanged += delegate { TopMost = settings.AlwaysOnTop = top.Checked; SaveNow(); };
-            menu.Items.Add(top);
+            topItem = new ToolStripMenuItem("Always on top") { Checked = settings.AlwaysOnTop, CheckOnClick = true };
+            topItem.CheckedChanged += delegate { TopMost = settings.AlwaysOnTop = topItem.Checked; strip.Pinned = topItem.Checked; strip.Invalidate(); SaveNow(); };
+            menu.Items.Add(topItem);
             List<ToolStripMenuItem> levels = new List<ToolStripMenuItem>();
             foreach (int pct in new int[] { 100, 85, 70 })
             {

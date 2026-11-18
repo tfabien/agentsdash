@@ -54,8 +54,10 @@ struct Edge: OptionSet {
 /// end (minimize, maximize or restore, close): the strip is an invisible overlay on the page, so they stay hidden the rest of the time.
 final class StripView: NSView {
     var menu_: NSMenu?
-    var onButton: ((Int) -> Void)?       // 0 minimize, 1 maximize or restore, 2 close
+    var onButton: ((Int) -> Void)?       // 0 pin (always on top), 1 minimize, 2 maximize or restore, 3 close
     var maximized = false { didSet { needsDisplay = true } }
+    var pinned = true { didSet { needsDisplay = true } }
+    private let buttonCount = 4
     private var hovering = false
     private var hoverButton = -1
     private let buttonWidth: CGFloat = 26
@@ -67,15 +69,15 @@ final class StripView: NSView {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     private func buttonRect(_ i: Int) -> NSRect {
-        return NSRect(x: bounds.width - CGFloat(3 - i) * buttonWidth, y: 0, width: buttonWidth, height: bounds.height)
+        return NSRect(x: bounds.width - CGFloat(buttonCount - i) * buttonWidth, y: 0, width: buttonWidth, height: bounds.height)
     }
     private func buttonAt(_ p: NSPoint) -> Int {
-        for i in 0..<3 where buttonRect(i).contains(p) { return i }
+        for i in 0..<buttonCount where buttonRect(i).contains(p) { return i }
         return -1
     }
 
     override func resetCursorRects() {
-        addCursorRect(NSRect(x: 0, y: 0, width: bounds.width - 3 * buttonWidth, height: bounds.height), cursor: .openHand)
+        addCursorRect(NSRect(x: 0, y: 0, width: bounds.width - CGFloat(buttonCount) * buttonWidth, height: bounds.height), cursor: .openHand)
     }
     override func mouseEntered(with event: NSEvent) { hovering = true; needsDisplay = true }
     override func mouseExited(with event: NSEvent) { hovering = false; hoverButton = -1; needsDisplay = true }
@@ -93,10 +95,10 @@ final class StripView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard hovering else { return }
-        for i in 0..<3 {
+        for i in 0..<buttonCount {
             let r = buttonRect(i)
             if hoverButton == i {
-                (i == 2 ? NSColor(calibratedRed: 0.78, green: 0.25, blue: 0.25, alpha: 1) : NSColor(white: 0.5, alpha: 0.35)).setFill()
+                (i == 3 ? NSColor(calibratedRed: 0.78, green: 0.25, blue: 0.25, alpha: 1) : NSColor(white: 0.5, alpha: 0.35)).setFill()
                 r.fill()
             }
             NSColor(white: 0.78, alpha: 1).setStroke()
@@ -105,8 +107,22 @@ final class StripView: NSView {
             path.lineWidth = 1.3
             switch i {
             case 0:
-                path.move(to: NSPoint(x: c.x - 4, y: c.y - 3)); path.line(to: NSPoint(x: c.x + 4, y: c.y - 3))
+                // drawing pin (thumbtack), white and filled while the window is always on top, an outline when it is not
+                let ink = pinned ? NSColor(white: 0.94, alpha: 1) : NSColor(white: 0.6, alpha: 1)
+                ink.setStroke(); ink.setFill()
+                let tack = NSBezierPath()
+                tack.lineWidth = 1.2
+                tack.appendRect(NSRect(x: c.x - 4, y: c.y + 4, width: 8, height: 3))                  // flat head
+                tack.move(to: NSPoint(x: c.x - 3, y: c.y + 4)); tack.line(to: NSPoint(x: c.x + 3, y: c.y + 4))
+                tack.line(to: NSPoint(x: c.x + 2, y: c.y - 1)); tack.line(to: NSPoint(x: c.x - 2, y: c.y - 1)); tack.close()   // tapered body
+                tack.move(to: NSPoint(x: c.x - 4, y: c.y - 1)); tack.line(to: NSPoint(x: c.x + 4, y: c.y - 1))               // base
+                tack.move(to: NSPoint(x: c.x, y: c.y - 1)); tack.line(to: NSPoint(x: c.x, y: c.y - 6))                       // needle
+                if pinned { tack.fill() }
+                tack.stroke()
+                continue
             case 1:
+                path.move(to: NSPoint(x: c.x - 4, y: c.y - 3)); path.line(to: NSPoint(x: c.x + 4, y: c.y - 3))
+            case 2:
                 if maximized {
                     path.appendRect(NSRect(x: c.x - 4, y: c.y - 4, width: 6, height: 6))
                     path.move(to: NSPoint(x: c.x - 2, y: c.y + 2)); path.line(to: NSPoint(x: c.x - 2, y: c.y + 4))
@@ -238,6 +254,7 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         strip.autoresizingMask = [.width, .minYMargin]
         strip.menu_ = menu
         strip.onButton = { [weak self] i in self?.windowButton(i) }
+        strip.pinned = settings.alwaysOnTop
         stripView = strip
         root.addSubview(strip)
         func add(_ edge: Edge, _ frame: NSRect, _ mask: NSView.AutoresizingMask) {
@@ -281,6 +298,7 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         settings.alwaysOnTop.toggle()
         topItem.state = settings.alwaysOnTop ? .on : .off
         window.level = settings.alwaysOnTop ? .floating : .normal
+        stripView?.pinned = settings.alwaysOnTop
         saveNow()
     }
     @objc func setOpacity(_ item: NSMenuItem) {
@@ -291,8 +309,9 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
     }
     func windowButton(_ i: Int) {
         switch i {
-        case 0: window.miniaturize(nil)
-        case 1: toggleMaximize()
+        case 0: toggleTop()
+        case 1: window.miniaturize(nil)
+        case 2: toggleMaximize()
         default: window.close()
         }
     }
