@@ -34,12 +34,13 @@
 #bar .sound { padding: 5px 8px; line-height: 1; }
 #bar .widgetbtn:disabled { opacity: .4; cursor: default; }
 #bar .tools { display: flex; align-items: center; gap: 4px; }
-/* Floating widget (page loaded with ?widget=1, see hub.html): a thin bar with the quotas and compact buttons, no clock. */
+/* Floating widget (page loaded with ?widget=1, see hub.html): a thin bar with the quotas, compact buttons and a small clock. */
 html[data-mode="widget"] #bar { position: relative; padding: 3px 10px; gap: 12px; border-radius: 6px; }
 html[data-mode="widget"] #bar .quotas { gap: 14px; }
 html[data-mode="widget"] #bar .quota { font-size: 11px; gap: 6px; }
 html[data-mode="widget"] #bar .quota .track { width: 44px; height: 5px; }
-html[data-mode="widget"] #bar .clock, html[data-mode="widget"] #bar .widgetbtn { display: none; }
+html[data-mode="widget"] #bar .widgetbtn { display: none; }
+html[data-mode="widget"] #bar .clock { font-size: 13px; line-height: 1; }
 html[data-mode="widget"] #bar .tools .chip { padding: 2px 6px; }
 html[data-mode="widget"] #bar .tools .ico { width: 14px; height: 14px; }
 
