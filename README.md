@@ -151,6 +151,17 @@ agentsdash ships one built-in theme (`line`); the hub downloads another at its f
 
 Hub side (folders, project rules, marketplace): [docs/hub-themes.md](docs/hub-themes.md).
 
+### Widget: the page in a floating window
+
+On Windows and macOS the page can run as a small borderless window that stays on top of the others, without browser tabs or address bar: drag it by its top strip, resize it from the edges, right-click the strip for always on top, opacity, reload and close. Position and size are remembered.
+
+```
+node widget/build.mjs   # once per machine: compiles the native host (Windows: nothing to install; macOS: Xcode Command Line Tools)
+node widget/run.mjs     # starts the widget on the running hub
+```
+
+Details and the manual checklist: [docs/widget.md](docs/widget.md). The macOS host has not been run on a Mac yet.
+
 ## How it works
 
 ```text
