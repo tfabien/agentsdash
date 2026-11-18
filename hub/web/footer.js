@@ -1,11 +1,11 @@
 // The bottom bar of the page: plan quotas, the beeps button, the theme button, the QR button, the settings gear, the clock.
-import { quotaBars } from './hub_view.js';
+import { quotaBars, widgetButtonState } from './hub_view.js';
 import { createSettingsMenu, postSettings } from './settings.js';
 import { createPhoneSection } from './phone_section.js';
 import { createThemeMenu } from './theme_dialog.js';
 import { createViewHost } from './views.js';
 import { icon } from './icons.js';
-import { el } from './dom.js';
+import { el, postJson } from './dom.js';
 
 
 export const SOUND_ICON = { all: 'speaker', ask: 'bell', off: 'muted' };
@@ -24,6 +24,10 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   qr.append(icon('qr'));
   qr.title = 'Pair a phone (QR code)';
   qr.setAttribute('aria-label', 'Pair a phone');
+  const widget = el('button', 'chip widgetbtn');
+  widget.append(icon('widget'));
+  widget.setAttribute('aria-label', 'Open the floating widget');
+  widget.hidden = true;                                           // shown once GET /widget says this OS can run it
   const sound = el('button', 'chip sound');
   const gear = el('span', 'gearslot');
   const clock = el('span', 'clock');
@@ -35,13 +39,29 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   views.attach(qr, 'Phone', phone.node, phone.refresh);
   gear.append(settings.button);
   const tools = el('span', 'tools');
-  tools.append(sound, themes.button, qr, gear);                   // icons close together; the clock stays apart
+  tools.append(sound, themes.button, widget, qr, gear);           // icons close together; the clock stays apart
   const previewBar = el('span', 'previewbar');
   let noteTimer = null;
   previewBar.hidden = true;
   root.replaceChildren(previewBar, quotas, el('span', 'spacer'), tools, clock);
   let mode = 'ask';
   sound.onclick = () => postSettings({ sound: NEXT_SOUND[mode] ?? 'ask' });
+  // GET /widget decides whether the button shows and works; an older hub without the route answers 404 and the button stays hidden.
+  let errorTimer = null;
+  const showWidget = (status) => {
+    const s = widgetButtonState(status);
+    widget.hidden = s.hidden; widget.disabled = s.disabled; widget.title = s.title;
+  };
+  const loadWidget = () => fetch('/widget').then((r) => (r.ok ? r.json() : null)).catch(() => null).then(showWidget);
+  widget.onclick = async () => {
+    const r = await postJson('/widget').catch(() => null);
+    if (r?.ok) return;
+    const body = await r?.json().catch(() => null);
+    clearTimeout(errorTimer);
+    widget.title = `Could not open the widget: ${body?.error ?? 'the hub did not answer'}`;
+    errorTimer = setTimeout(loadWidget, 5000);                    // the title goes back to the normal hint
+  };
+  loadWidget();
 
   return {
     settings, views, themeButton: themes.button,
