@@ -24,6 +24,14 @@ test('state_session_has_cwd', () => {
   assert.equal(m.toState(1500).sessions.find((s) => s.id === 'a001').cwd, 'C:\\Work\\Prod-api', 'a later event without cwd keeps it');
 });
 
+test('inherited_object_keys_are_no_state', () => {
+  const m = createModel();
+  for (const state of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    assert.equal(m.applyEvent(ev({ state }), 1000), false, state);
+  }
+  assert.equal(m.toState(1500).sessions.length, 0);
+});
+
 test('needs_you_sorts_first', () => {
   const m = createModel();
   m.applyEvent(ev({ session: 'a001', state: 'working' }), 1000);

@@ -244,7 +244,7 @@ export function createModel(opts = {}) {
     if (!ev || typeof ev !== 'object') return null;
     if (ev.v === 2) {
       const session = clean(ev.session, ID_LEN), agent = clean(ev.agent, ID_LEN);
-      const state = PARSE[ev.state];
+      const state = Object.hasOwn(PARSE, ev.state) ? PARSE[ev.state] : undefined;     // own keys only: "constructor" is no state
       if (!session || !agent || state === undefined) return null;
       return {
         session, agent, state, project: clean(ev.project), cwd: clean(ev.cwd), role: clean(ev.role), evt: clean(ev.evt),
