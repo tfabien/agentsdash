@@ -14,7 +14,7 @@ export const sub = (session, agent, role, project, over = {}) => ({ v: 2, sessio
 export const CHECKOUT = [
   lead('a1b2', 'checkout-api', { title: 'Add retry to the payment client', cwd: 'C:/work/checkout-api', cmd: 'Edit payment_client.py', model: 'Opus 5.5',
     tok: 182000, ctx_pct: 34, plan_done: 3, plan_total: 8, plan_cur: 'Write the failing tests', plan_next: 'Implement retry with backoff',
-    plan_items: ['Read the client', 'Reproduce the timeout', 'Design the retry', 'Write the failing tests', 'Implement retry with backoff', 'Run the suite', 'Update the docs', 'Open the PR'], plan_state: 'working' }),
+    plan_items: ['d:Read the client', 'd:Reproduce the timeout', 'd:Design the retry', 'r:Write the failing tests', 'p:Implement retry with backoff', 'p:Run the suite', 'p:Update the docs', 'p:Open the PR'], plan_state: 'working' }),
   sub('a1b2', 'e1', 'explore', 'checkout-api', { cmd: 'Grep "timeout" in src/', tok: 18000 }),
   sub('a1b2', 'e2', 'plan', 'checkout-api', { cmd: 'Read docs/specs/retry.md', tok: 9000 }),
   sub('a1b2', 'e3', 'test', 'checkout-api', { cmd: 'pytest tests/test_payment.py -x --maxfail=1 -k "retry or timeout"', tok: 41000 }),

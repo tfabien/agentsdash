@@ -152,7 +152,7 @@ function tap(t, e) {
   const x = FRAME.x + ((e.clientX - box.left) * (t.frameW ?? FRAME.w)) / box.width, y = FRAME.y + ((e.clientY - box.top) * (t.frameH ?? FRAME.h)) / box.height;
   const lead = tiles.get(s.id) ?? t;                      // the lead tile owns the detail, the plan step and the question picks
   const detailOpen = Boolean(lead.detail && s.agents.some((a) => a.id === lead.detail.agent));
-  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead.quest, measure: (txt, font) => t.screen.measure(txt, font) });
+  const hit = hitTest(x, y, { sessions: [s], selected: 0, menu: false, bare: true, part: t.part, frameW: t.frameW, frameH: t.frameH, detailOpen, quest: lead.quest, measure: (txt, font) => t.screen.measure(txt, font) });
   const answer = PHONE ? null : permAnswer(hit, s);      // the phone page only reads: the hub refuses its answers (403)
   if (answer) {                                           // Allow or Deny of a permission request: the state that follows redraws the tile
     postJson('/permission/answer', answer).catch(() => {});

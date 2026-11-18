@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, wrapText, fitText, roleIndex, activityIndex, paceLevel, projectColors, COLOR, rgb565,
+  renderScreen, hitTest, planWindow, permAnswer, questTap, teamOrder, teamCapacity, wrapText, fitText, roleIndex, activityIndex, paceLevel, projectColors, COLOR, rgb565,
 } from '../web/screen.js';
 
 /** A screen that records its drawing operations. Text is 5 px per character, so wrapping is deterministic. */
@@ -527,4 +527,43 @@ test('avatar motion follows working state and respects reduced motion', () => {
   const reduced = lead(session(), { motionTime: 500, tick: 0, reduceMotion: true });
   assert.equal(reduced.id, big);
   assert.equal(reduced.compression, undefined);
+});
+
+test('plan_window_keeps_the_current_step_second_and_folds_the_rest', () => {
+  const kinds = (w) => w.entries.map((e) => (e.kind === 'step' ? e.index : `${e.kind}${e.n}`));
+  assert.deepEqual(kinds(planWindow(['d', 'r', 'p'], 5)), [0, 1, 2], 'fits: every step');
+  assert.deepEqual(kinds(planWindow('rppppppppp'.split(''), 4)), [0, 1, 2, 'after7'], 'first step running: no folded start');
+  assert.deepEqual(kinds(planWindow('dddrpppppp'.split(''), 5)), ['before3', 3, 4, 5, 'after4'], 'middle: both ends folded');
+  assert.deepEqual(kinds(planWindow('dddddddddr'.split(''), 4)), ['before7', 7, 8, 9], 'last step running: no folded end');
+  assert.equal(planWindow('ddd'.split(''), 5).cur, 2, 'all done: the last step');
+  assert.equal(planWindow('dppp'.split(''), 5).cur, 1, 'no running step: the first open one');
+});
+
+const listPlan = (states) => ({ done: states.split('').filter((c) => c === 'd').length, total: states.length, cur: 'B', next: 'C', state: states,
+  items: states.split('').map((c, i) => ({ state: c, title: `Step ${i + 1}` })) });
+const bareUi = (over = {}) => ui({ bare: true, frameW: 700, frameH: 330, pulse: 12, ...over });
+
+test('hub_tile_lists_the_steps_with_titles_around_the_current_one', () => {
+  const r = draw(state([session({ plan: listPlan('dddrpppppppp') })]), bareUi());
+  const t = texts(r);
+  assert.ok(t.includes('+3 done') && t.includes('Step 4') && t.some((s) => s.endsWith('to come')));
+  assert.ok(!t.includes('Step 1'), 'folded steps are not drawn');
+  assert.ok(!t.includes('next: C'), 'the list replaces the current and next lines');
+  assert.ok(textOp(r, 'Step 4').fg === COLOR.TEXT && textOp(r, 'Step 5').fg === COLOR.LIGHT);
+});
+
+test('hub_tile_without_titles_keeps_the_current_step_line', () => {
+  const noTitles = session({ plan: { ...listPlan('drp'), items: [] } });
+  assert.ok(texts(draw(state([noTitles]), bareUi())).includes('next: C'));
+  assert.ok(texts(draw(state([session({ plan: listPlan('drp') })]))).includes('next: C'), 'the gadget screen never lists');
+});
+
+test('tapping_a_listed_step_picks_it', () => {
+  const s = session({ plan: listPlan('dddrpppppppp') });
+  const ctx = { sessions: [s], selected: 0, menu: false, bare: true, part: 'lead', frameW: 700, frameH: 330 };
+  const r = draw(state([s]), bareUi({ part: 'lead' }));
+  const y = textOp(r, 'Step 5').y + 4;
+  assert.deepEqual(hitTest(60, y, ctx), { kind: 'planStep', index: 4 });
+  assert.equal(hitTest(60, textOp(r, '+3 done').y + 4, ctx).kind, 'lead', 'a folded row is not a step');
+  assert.equal(hitTest(60, y, { ...ctx, bare: false }).kind, 'lead', 'no list without bare');
 });
