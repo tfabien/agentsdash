@@ -210,7 +210,6 @@ Core ([issues](https://github.com/tfabien/agentsdash/issues)):
 - **Reliable usage and quotas** ([#6](https://github.com/tfabien/agentsdash/issues/6)): the usage endpoint returns 429 and numbers can be stale.
 - **One screen component for the page and the device** ([#3](https://github.com/tfabien/agentsdash/issues/3)): not scheduled.
 - **Multi-screen** ([#79](https://github.com/tfabien/agentsdash/issues/79)): several pages and devices act as one global screen.
-- Smaller: the hub does not replay its state to a device that rebooted ([#62](https://github.com/tfabien/agentsdash/issues/62)).
 
 Codex adapter ([agentsdash-codex](https://github.com/tfabien/agentsdash-codex/issues)):
 
