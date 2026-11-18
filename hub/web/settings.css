@@ -34,14 +34,12 @@
 #bar .sound { padding: 5px 8px; line-height: 1; }
 #bar .widgetbtn:disabled { opacity: .4; cursor: default; }
 #bar .tools { display: flex; align-items: center; gap: 4px; }
-/* Floating widget (page loaded with ?widget=1, see hub.html): a thin bar with the quotas, the buttons appear over its right end on hover, no clock. */
+/* Floating widget (page loaded with ?widget=1, see hub.html): a thin bar with the quotas and compact buttons, no clock. */
 html[data-mode="widget"] #bar { position: relative; padding: 3px 10px; gap: 12px; border-radius: 6px; }
 html[data-mode="widget"] #bar .quotas { gap: 14px; }
 html[data-mode="widget"] #bar .quota { font-size: 11px; gap: 6px; }
 html[data-mode="widget"] #bar .quota .track { width: 44px; height: 5px; }
 html[data-mode="widget"] #bar .clock, html[data-mode="widget"] #bar .widgetbtn { display: none; }
-html[data-mode="widget"] #bar .tools { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding-left: 10px; background: #0f1520; opacity: 0; pointer-events: none; transition: opacity .12s; }
-html[data-mode="widget"] #bar:hover .tools { opacity: 1; pointer-events: auto; }
 html[data-mode="widget"] #bar .tools .chip { padding: 2px 6px; }
 html[data-mode="widget"] #bar .tools .ico { width: 14px; height: 14px; }
 
