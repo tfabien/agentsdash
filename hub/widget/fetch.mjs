@@ -22,7 +22,8 @@ export function downloadedHostPath(platform, version, home) {
 }
 
 const defaultExtract = (archive, dir) => {
-  const r = spawnSync('tar', ['-xzf', archive, '-C', dir], { stdio: 'ignore' });
+  // relative names and cwd: GNU tar reads a drive letter (C:\...) as a remote host
+  const r = spawnSync('tar', ['-xzf', path.basename(archive)], { cwd: dir, stdio: 'ignore' });
   if (r.status !== 0) throw new Error('tar could not unpack the widget');
 };
 
