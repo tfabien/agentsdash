@@ -25,7 +25,8 @@ import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
 import { stateDir, userDir, migrateUserDir } from './paths.mjs';
 import { webFingerprint } from './web_fingerprint.mjs';
-import { widgetStatus, launch as launchWidget, ensure as ensureWidget } from './widget/run.mjs';
+import { findAppBrowser, launchApp as launchDashboardWindow } from './dashboard/run.mjs';
+import { createShortcut, refreshLauncher } from './dashboard/shortcut.mjs';
 import { COOKIE, setLan, isLoopback, loadOrCreateToken, tokenMatches, rankPairAddresses, lanHosts, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
@@ -53,12 +54,14 @@ const SETTING_RULES = {
   themeOverrides: validOverrides,                                     // the user's color edits per theme or theme/variant
   themeAutoUpdate: (v) => typeof v === 'boolean',                     // install newer versions of marketplace themes (every 6 hours)
   question_voice: (v) => typeof v === 'boolean',                    // the OTHER text box offers a microphone (browser speech recognition)
+  show_clock: (v) => typeof v === 'boolean',                         // the clock at the right end of the bottom bar
+  shortcut_prompt: (v) => ['ask', 'done', 'never'].includes(v),      // the page offers a desktop shortcut that opens the dashboard: ask, done (created) or never
   question_free_text: (v) => typeof v === 'boolean',                // a question tile offers OTHER: a typed answer outside the options
   focus_on_ask: (v) => typeof v === 'boolean',                       // a question or an Allow/Deny held for the page opens its session full screen
   rate_alert_k: (v) => [0, 20, 40, 80].includes(v),                  // token rate readout: 0 = off, else orange from this many thousand tokens per minute, red from 3 times that
 };
 const MAX_SOURCES = 10;
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, idle_minutes: 5, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, themeLooks: {}, rules: [], marketSources: ['tfabien/agentsdash-themes'], themeAutoUpdate: true, rate_alert_k: 20, focus_on_ask: false, question_free_text: false, question_voice: false };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, idle_minutes: 5, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, themeLooks: {}, rules: [], marketSources: ['tfabien/agentsdash-themes'], themeAutoUpdate: true, rate_alert_k: 20, focus_on_ask: false, question_free_text: false, question_voice: false, shortcut_prompt: 'ask', show_clock: true };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && typeof o === 'object' && !Array.isArray(o) && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -198,7 +201,7 @@ export function startHub(opts = {}) {
   };
   const text = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'text/plain' }); res.end(body); };
   const json = (res, obj, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
-  const widget = opts.widget ?? { status: () => widgetStatus(), launch: (url) => launchWidget(url), ensure: () => ensureWidget() };   // tests pass a fake: no process is spawned
+  const dashboard = opts.dashboard ?? { hasBrowser: () => findAppBrowser() !== undefined, launchWindow: (url) => launchDashboardWindow(url), createShortcut: () => createShortcut() };   // tests pass a fake: no process is spawned
 
   function serveStatic(res, urlPath) {
     let rel;
@@ -268,15 +271,19 @@ export function startHub(opts = {}) {
         if (opts.onShutdown) setTimeout(opts.onShutdown, 50);
         return undefined;
       case 'GET /state': return json(res, stateJson());
-      case 'GET /widget': return json(res, widget.status());   // loopback only: the bottom bar shows or hides its widget button
-      case 'POST /widget': {                        // loopback only: starts the floating widget on this hub (a second call brings it forward)
+      case 'GET /shortcut':                         // loopback only: `offer` is true while the page should offer the desktop shortcut that opens the dashboard
+        return json(res, { offer: settings.shortcut_prompt === 'ask' && dashboard.hasBrowser() });
+      case 'POST /shortcut': {                      // loopback only: creates that shortcut
         await readBody(req).catch(() => '');
-        if (widget.ensure) {                        // no host on disk: download the one of this core version first (first click, or after an update)
-          try { await widget.ensure(); } catch (e) { return json(res, { error: `download failed: ${e.message}` }, 502); }
-        }
-        const code = widget.launch(`http://127.0.0.1:${port}/`);
-        if (code === 0) return json(res, { ok: true });
-        return json(res, { error: code === 4 ? 'not built' : 'unsupported' }, code === 4 ? 409 : 501);
+        try {
+          const file = dashboard.createShortcut();
+          saveSettings({ shortcut_prompt: 'done' });
+          return json(res, { ok: true, path: file });
+        } catch (e) { return json(res, { error: e.message }, 500); }
+      }
+      case 'POST /dashboard': {                     // loopback only: opens the dashboard in an Edge or Chrome app window (each call opens one window)
+        await readBody(req).catch(() => '');
+        return dashboard.launchWindow(`http://127.0.0.1:${port}/`) === 0 ? json(res, { ok: true }) : json(res, { error: 'no browser' }, 409);
       }
       case 'POST /reload':                          // rescan the theme and icon folders (the body, if any, is ignored)
         await readBody(req).catch(() => '');
@@ -609,6 +616,7 @@ export function startHub(opts = {}) {
 // `node hub.mjs`: run as the hub process.
 if (isMain(import.meta.url)) {
   migrateUserDir();
+  refreshLauncher();
   const settingsFile = path.join(stateDir(), 'hub-settings.json');
   const oldSettings = path.join(os.tmpdir(), 'agent-gadget-plugin', 'hub-settings.json');      // before the rename the settings lived here
   try { if (!fs.existsSync(settingsFile) && fs.existsSync(oldSettings)) { fs.mkdirSync(path.dirname(settingsFile), { recursive: true }); fs.copyFileSync(oldSettings, settingsFile); } } catch { /* start without them */ }

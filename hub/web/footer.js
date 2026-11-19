@@ -1,5 +1,5 @@
 // The bottom bar of the page: plan quotas, the beeps button, the theme button, the QR button, the settings gear, the clock.
-import { quotaBars, widgetButtonState } from './hub_view.js';
+import { quotaBars } from './hub_view.js';
 import { createSettingsMenu, postSettings } from './settings.js';
 import { createPhoneSection } from './phone_section.js';
 import { createThemeMenu } from './theme_dialog.js';
@@ -24,10 +24,6 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   qr.append(icon('qr'));
   qr.title = 'Pair a phone (QR code)';
   qr.setAttribute('aria-label', 'Pair a phone');
-  const widget = el('button', 'chip widgetbtn');
-  widget.append(icon('widget'));
-  widget.setAttribute('aria-label', 'Open the floating widget');
-  widget.hidden = true;                                           // shown once GET /widget says this OS can run it
   const sound = el('button', 'chip sound');
   const gear = el('span', 'gearslot');
   const clock = el('span', 'clock');
@@ -39,30 +35,39 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   views.attach(qr, 'Phone', phone.node, phone.refresh);
   gear.append(settings.button);
   const tools = el('span', 'tools');
-  tools.append(sound, themes.button, widget, qr, gear);           // icons close together; the clock stays apart
+  tools.append(sound, themes.button, qr, gear);           // icons close together; the clock stays apart
   const previewBar = el('span', 'previewbar');
   let noteTimer = null;
   previewBar.hidden = true;
-  root.replaceChildren(previewBar, quotas, el('span', 'spacer'), tools, clock);
+  // One line offering the desktop shortcut that opens the dashboard (GET /shortcut says when): Create, Later (until the page reloads), Never.
+  const shortcutBar = el('span', 'shortcutbar');
+  const shortcutText = el('span', 'ptext', 'Add a desktop shortcut that opens this dashboard?');
+  const shortcutCreate = el('button', 'chip', 'Create it');
+  const shortcutLater = el('button', 'chip', 'Later');
+  const shortcutNever = el('button', 'chip', 'Never');
+  shortcutBar.append(shortcutText, shortcutCreate, shortcutLater, shortcutNever);
+  shortcutBar.hidden = true;
+  let shortcutDismissed = false;                                  // Later: not offered again until the page reloads
+  const hideShortcut = () => { shortcutBar.hidden = true; root.classList.remove('offering'); };
+  shortcutLater.onclick = () => { shortcutDismissed = true; hideShortcut(); };
+  shortcutNever.onclick = () => { hideShortcut(); postSettings({ shortcut_prompt: 'never' }); };
+  shortcutCreate.onclick = async () => {
+    shortcutCreate.disabled = true;
+    const r = await postJson('/shortcut').catch(() => null);
+    if (r?.ok) { shortcutText.textContent = 'Shortcut created on the desktop.'; shortcutBar.querySelectorAll('button').forEach((b) => b.remove()); setTimeout(hideShortcut, 4000); return; }
+    const body = await r?.json().catch(() => null);
+    shortcutText.textContent = `Could not create the shortcut: ${body?.error ?? 'the hub did not answer'}`;
+    shortcutText.classList.add('err');
+    shortcutCreate.disabled = false;
+  };
+  root.replaceChildren(previewBar, shortcutBar, quotas, el('span', 'spacer'), tools, clock);
   let mode = 'ask';
   sound.onclick = () => postSettings({ sound: NEXT_SOUND[mode] ?? 'ask' });
-  // GET /widget decides whether the button shows and works; an older hub without the route answers 404 and the button stays hidden.
-  let errorTimer = null;
-  const showWidget = (status) => {
-    const s = widgetButtonState(status);
-    widget.hidden = s.hidden; widget.disabled = s.disabled; widget.title = s.title;
-  };
-  const loadWidget = () => fetch('/widget').then((r) => (r.ok ? r.json() : null)).catch(() => null).then(showWidget);
-  widget.onclick = async () => {
-    widget.disabled = true; widget.title = 'Opening the widget (downloaded the first time)...';
-    const r = await postJson('/widget').catch(() => null);
-    if (r?.ok) { loadWidget(); return; }
-    const body = await r?.json().catch(() => null);
-    clearTimeout(errorTimer);
-    widget.title = `Could not open the widget: ${body?.error ?? 'the hub did not answer'}`;
-    errorTimer = setTimeout(loadWidget, 5000);                    // the title goes back to the normal hint
-  };
-  loadWidget();
+  // GET /shortcut says whether to offer the desktop shortcut; an older hub without the route answers 404 and nothing is offered.
+  const loadOffer = () => fetch('/shortcut').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((s) => {
+    if (s?.offer && shortcutBar.hidden && !shortcutDismissed) { shortcutBar.hidden = false; root.classList.add('offering'); }
+  });
+  loadOffer();
 
   return {
     settings, views, themeButton: themes.button,
@@ -117,6 +122,7 @@ export function mountFooter(root, stage, { onPreview } = {}) {
         d.append(el('span', '', q.label), track, el('b', '', pct), el('span', '', rest.join(' ')));
         return d;
       }));
+      clock.hidden = state.settings?.show_clock === false;
       clock.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     },
   };

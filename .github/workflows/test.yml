@@ -23,21 +23,6 @@ jobs:
         shell: bash
         run: node --test hub/test/*.test.mjs
 
-  # Compile check of the native widget hosts (hub/widget/windows, hub/widget/macos); the window itself is checked by hand (docs/widget.md).
-  widget-build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Build the widget host
-        run: node hub/widget/build.mjs
-
   # The fixtures are copies of the events the adapters record. A failure here means an adapter changed
   # what its hooks send: copy the file from the adapter repository (main) into hub/test/fixtures/.
   adapter-fixtures:

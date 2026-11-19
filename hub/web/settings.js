@@ -28,6 +28,7 @@ export const OPTIONS = [
     hint: 'A question tile gets an OTHER button: type an answer outside the options (page and phone)' },
   { key: 'question_voice', label: 'Voice in free text', kind: 'toggle',
     hint: 'A microphone in the OTHER box. Privacy: the browser sends the audio to its speech service (Google for Chrome); needs Chrome or Edge, and https on a phone' },
+  { key: 'show_clock', label: 'Clock', kind: 'toggle', hint: 'The time at the right end of the bottom bar' },
   { key: 'dim_idle', label: 'Grey out idle sessions', kind: 'toggle', hint: 'Idle sessions also go last in the grid' },
   { key: 'idle_minutes', label: 'Idle after', kind: 'choice', choices: [[1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min']],
     hint: 'Minutes a session waits for you before it counts as idle' },
@@ -214,6 +215,24 @@ export function createSettingsMenu() {
     row.append(text, ctl);
     general.push(row);
   }
+
+  // Not a setting: creates (or recreates) the desktop shortcut that opens the dashboard in its own window.
+  const shortcutRow = el('div', 'srow');
+  const shortcutText = el('div', 'stext');
+  const shortcutHint = el('div', 'shint', 'Opens this dashboard in its own window and starts the hub if needed');
+  shortcutText.append(el('div', 'slabel', 'Desktop shortcut'), shortcutHint);
+  const shortcutBtn = el('button', 'seg', 'Create');
+  shortcutBtn.onclick = async () => {
+    shortcutBtn.disabled = true;
+    const r = await postJson('/shortcut').catch(() => null);
+    const body = r?.ok ? await r.json().catch(() => null) : await r?.json().catch(() => null);
+    shortcutHint.textContent = r?.ok ? `Created: ${body?.path ?? 'on the desktop'}` : `Could not create it: ${body?.error ?? 'the hub did not answer'}`;
+    shortcutBtn.disabled = false;
+  };
+  const shortcutCtl = el('div', 'sctl');
+  shortcutCtl.append(shortcutBtn);
+  shortcutRow.append(shortcutText, shortcutCtl);
+  general.unshift(shortcutRow);                        // first row: easy to find
 
   const rulesSection = createRulesSection();
   const device = createDeviceSection();
