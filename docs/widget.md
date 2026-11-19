@@ -9,7 +9,7 @@ node hub/widget/build.mjs   # once: compiles the host of this OS into hub/widget
 node hub/widget/run.mjs     # starts the widget (exit code 2: unsupported OS, 4: host not built)
 ```
 
-The widget ships inside `hub/` (sources only, the binary is built per machine). The bottom bar of the page has a button, left of the QR button, that starts it: the page asks the hub (`GET /widget` for `{supported, built}`, `POST /widget` to start, loopback only, see `docs/protocol.md`). The button is hidden on an OS without a host and disabled, with the build command as its tooltip, until the host is compiled.
+The widget ships inside `hub/` as sources. A release also attaches the compiled host per OS (`agentsdash-widget-win-X.Y.Z.tar.gz`, `agentsdash-widget-mac-X.Y.Z.tar.gz`, each with a `.sha256`, the files of `bin/` at the root). With no local build, the first click of the button downloads the asset of this core version into `~/.agentsdash/widget/<version>/`, checks the hash and starts it; a newer core downloads its own version on the next click and removes the older folder. A local build wins over a download. The bottom bar of the page has a button, left of the QR button, that starts it: the page asks the hub (`GET /widget` for `{supported, built}`, `POST /widget` to start, loopback only, see `docs/protocol.md`). The button is hidden on an OS without a host and disabled, with the build command as its tooltip, until the host is compiled.
 
 ## Behaviour of a host
 

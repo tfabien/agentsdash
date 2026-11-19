@@ -167,8 +167,8 @@ Used by the page. An adapter does not need them.
 
 | Route | Meaning |
 |---|---|
-| GET /widget | Loopback only. `{ "supported": <bool>, "built": <bool> }`: this OS can run the floating widget, and its native host is compiled (`node hub/widget/build.mjs`). |
-| POST /widget | Loopback only. Starts the floating widget on this hub; a second call brings the running window forward. 200 `{ "ok": true }`, 409 `{ "error": "not built" }`, 501 `{ "error": "unsupported" }`. |
+| GET /widget | Loopback only. `{ "supported": <bool>, "built": <bool>, "downloadable": <bool> }`: this OS can run the floating widget, a native host is on disk (compiled with `node hub/widget/build.mjs` or downloaded), and, when not, the first POST downloads it from the release of this core version (`downloadable` is true wherever `supported` is). |
+| POST /widget | Loopback only. Starts the floating widget on this hub; a second call brings the running window forward. 200 `{ "ok": true }`, 502 `{ "error": "download failed: <reason>" }` (no release asset, hash mismatch, no network), 409 `{ "error": "not built" }`, 501 `{ "error": "unsupported" }`. |
 | GET /market | Theme marketplace: sources, installed themes, listings, errors. |
 | POST /market/refresh | Forget the cached listings. |
 | POST /market/sources | Body `{ "add": "owner/repo" }` or `{ "remove": "owner/repo" }`. |

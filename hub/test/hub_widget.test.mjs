@@ -7,12 +7,12 @@ import path from 'node:path';
 import { startHub } from '../hub.mjs';
 
 /** A hub whose widget never spawns a process: `launch` records the URL and answers `code`. */
-async function withHub(fn, { code = 0, status = { supported: true, built: true }, lan } = {}) {
+async function withHub(fn, { failDownload = false, code = 0, status = { supported: true, built: true }, lan } = {}) {
   const calls = [];
   const userDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hubw-'));
   const hub = await startHub({ userDir,
     port: 0, config: { relay: { mode: 'none' }, quotas: false },
-    widget: { status: () => status, launch: (url) => { calls.push(url); return code; } },
+    widget: { status: () => status, launch: (url) => { calls.push(url); return code; }, ensure: async () => { if (failDownload) throw new Error('HTTP 404'); } },
     ...(lan ? { lan } : {}),
   });
   try { await fn(hub, calls, userDir); } finally { await hub.close(); }
@@ -62,3 +62,10 @@ test('remote_client_cannot_use_widget_routes', () => withHub(async (hub, calls, 
   assert.equal(await call('GET'), 403);
   assert.deepEqual(calls, []);
 }, { lan: { enabled: true, treatAllAsRemote: true, hosts: ['lan.test'] } }));
+
+test('post_widget_download_failure_is_502_and_nothing_launches', () => withHub(async (hub, calls) => {
+  const r = await local(hub, '/widget', 'POST');
+  assert.equal(r.status, 502);
+  assert.match((await r.json()).error, /download failed: HTTP 404/);
+  assert.deepEqual(calls, []);
+}, { failDownload: true }));

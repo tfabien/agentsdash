@@ -9,6 +9,7 @@ import { loadConfig } from '../config.mjs';
 import { configPath, homeDir } from '../paths.mjs';
 import { readJsonObject } from '../json_file.mjs';
 import { isMain } from '../run_as_main.mjs';
+import { downloadedHostPath, ensureHost } from './fetch.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULTS = { x: null, y: null, width: 420, height: 300, opacity: 100, alwaysOnTop: true };
@@ -41,10 +42,26 @@ export function readSettings(file) {
   };
 }
 
-/** What the page needs to know: can this OS run a widget, and is its host compiled. */
-export function widgetStatus(platform = process.platform, root = ROOT) {
-  const exe = hostPath(platform, root);
-  return { supported: exe !== null, built: exe !== null && fs.existsSync(exe) };
+const coreVersion = (root = ROOT) => { try { return JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version ?? ''; } catch { return ''; } };
+
+/** The host to run: the local build first, else the one downloaded for this core version; null when neither exists (or the OS has none). */
+export function resolveHost(platform = process.platform, root = ROOT, env = process.env) {
+  const local = hostPath(platform, root);
+  if (local && fs.existsSync(local)) return local;
+  const down = downloadedHostPath(platform, coreVersion(root), homeDir(env));
+  return down && fs.existsSync(down) ? down : null;
+}
+
+/** What the page needs to know: can this OS run a widget, is a host on disk (built here or downloaded), else it is downloaded on the first click. */
+export function widgetStatus(platform = process.platform, root = ROOT, env = process.env) {
+  const supported = hostPath(platform, root) !== null;
+  return { supported, built: supported && resolveHost(platform, root, env) !== null, downloadable: supported };
+}
+
+/** Downloads the host of this core version when no host is on disk. Rejects with the reason. */
+export async function ensure(platform = process.platform, root = ROOT, env = process.env, fetchFn = fetch) {
+  if (resolveHost(platform, root, env)) return;
+  await ensureHost({ platform, version: coreVersion(root), home: homeDir(env), fetchFn });
 }
 
 /**
@@ -52,9 +69,9 @@ export function widgetStatus(platform = process.platform, root = ROOT) {
  * @returns {number} 0 started, 2 unsupported OS, 4 host not built. Sets no process.exit (Windows libuv crash after a detached spawn).
  */
 export function launch(url, env = process.env, platform = process.platform, root = ROOT, spawnFn = spawn) {
-  const exe = hostPath(platform, root);
-  if (!exe) { console.error(`The widget supports Windows and macOS only (this is ${platform}).`); return 2; }
-  if (!fs.existsSync(exe)) { console.error(`Widget host not built: run node hub/widget/build.mjs first (${exe}).`); return 4; }
+  if (!hostPath(platform, root)) { console.error(`The widget supports Windows and macOS only (this is ${platform}).`); return 2; }
+  const exe = resolveHost(platform, root, env);
+  if (!exe) { console.error('Widget host not built: run node hub/widget/build.mjs first, or click the widget button to download it.'); return 4; }
   const page = new URL(url);
   page.searchParams.set('widget', '1');   // the page draws its compact bar for the widget (hub.html)
   spawnFn(exe, buildArgs(page.href, path.join(homeDir(env), 'widget.json')), { detached: true, stdio: 'ignore' }).unref();

@@ -81,15 +81,16 @@ const rootWithHost = (platform) => {
 };
 
 test('widget_status_unsupported_on_linux', () => {
-  assert.deepEqual(widgetStatus('linux', '/r'), { supported: false, built: false });
+  assert.deepEqual(widgetStatus('linux', '/r'), { supported: false, built: false, downloadable: false });
 });
 
 test('widget_status_built_only_when_the_host_file_exists', () => {
   const { root } = rootWithHost('win32');
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'widget-root-'));
   try {
-    assert.deepEqual(widgetStatus('win32', root), { supported: true, built: true });
-    assert.deepEqual(widgetStatus('win32', empty), { supported: true, built: false });
+    const env = { AGENTSDASH_HOME: empty };          // no downloaded host either
+    assert.deepEqual(widgetStatus('win32', root, env), { supported: true, built: true, downloadable: true });
+    assert.deepEqual(widgetStatus('win32', empty, env), { supported: true, built: false, downloadable: true });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(empty, { recursive: true, force: true });
