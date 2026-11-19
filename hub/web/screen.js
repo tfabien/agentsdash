@@ -170,10 +170,11 @@ export function permAnswer(hit, s) {
 // A question of AskUserQuestion held for the page: TERMINAL (and SEND for a multi choice) at the right of the header line, the question
 // under it, then the options right under the question: one full-width button per row, or two per row when a short panel has no room.
 // `nOpts` is the option count of the question on screen, `qLines` the lines its text wraps to (cut to leave room for the options).
-const questLayout = (p, nOpts, multi, qLines = 1) => {
+const questLayout = (p, nOpts, multi, qLines = 1, free = false) => {
   const x = p.x + 6, w = p.w - 12, y = p.y + 68;
   const terminal = { x: x + w - 96, y, w: 96, h: 22 };
   const send = multi ? { x: terminal.x - 86, y, w: 80, h: 22 } : null;
+  const other = free ? { x: (send ?? terminal).x - 70, y, w: 64, h: 22 } : null;      // OTHER: a typed answer outside the options
   const textTop = y + 26, room = p.y + p.h - 4 - textTop - 6;          // height for the text and the options
   const cols = 18 + nOpts * 34 <= room ? 1 : 2;                         // one line of text and every option stacked, else two per row
   const rows = Math.ceil(nOpts / cols);
@@ -183,7 +184,7 @@ const questLayout = (p, nOpts, multi, qLines = 1) => {
     const r = Math.floor(i / cols), c = i % cols, last = cols === 2 && i === nOpts - 1 && nOpts % 2 === 1;
     return { x: x + c * (bw + 6), y: top + r * 34, w: last ? w : bw, h: 28 };
   });
-  return { terminal, send, opts, textTop, lines };
+  return { terminal, send, other, opts, textTop, lines };
 };
 /** Lines the text of question `qq` wraps to in panel `p`; `measure(text, font)` is the screen's (a tap without it guesses 8 units a character). */
 const questLines = (qq, p, measure) => wrapText(qq.question, p.w - 12, 8, (t) => (measure ? measure(t, S16) : t.length * 8)).length;
@@ -199,19 +200,26 @@ export function questTap(hit, s, local) {
   if (!q || !hit || !String(hit.kind).startsWith('quest')) return null;
   const cur = questProgress(q, local);
   if (cur.sent) return { local: cur, post: null };
+  if (hit.kind === 'questOther' && q.free_text) return { local: cur, post: null, askText: cur.step };      // the page opens a text box, then taps questText
   if (hit.kind === 'questTerminal') return { local: { ...cur, sent: true }, post: { id: q.id, terminal: true } };
   const qq = q.questions[cur.step];
   const next = (c) => (c.step + 1 < q.questions.length
     ? { local: { ...c, step: c.step + 1 }, post: null }
-    : { local: { ...c, sent: true }, post: { id: q.id, picks: c.picks.map((p) => [...p].sort((a, b) => a - b)) } });
+    : { local: { ...c, sent: true }, post: { id: q.id, picks: c.picks.map((p) => (typeof p === 'string' ? p : [...p].sort((a, b) => a - b))) } });
+  if (hit.kind === 'questText' && q.free_text && typeof hit.text === 'string' && hit.text.trim()) {        // a typed answer replaces the picks of this question
+    const picks = cur.picks.map((p) => (Array.isArray(p) ? [...p] : p));
+    picks[cur.step] = hit.text.trim().slice(0, 500);
+    return next({ ...cur, picks });
+  }
   if (hit.kind === 'questOpt' && hit.index < qq.options.length) {
-    const picks = cur.picks.map((p) => [...p]);
+    const picks = cur.picks.map((p) => (Array.isArray(p) ? [...p] : p));
+    if (!Array.isArray(picks[cur.step])) picks[cur.step] = [];            // a typed text gives way to a tapped option
     if (!qq.multi) { picks[cur.step] = [hit.index]; return next({ ...cur, picks }); }
     const at = picks[cur.step].indexOf(hit.index);
     if (at >= 0) picks[cur.step].splice(at, 1); else picks[cur.step].push(hit.index);
     return { local: { ...cur, picks }, post: null };
   }
-  if (hit.kind === 'questSend' && qq.multi && cur.picks[cur.step].length) return next(cur);
+  if (hit.kind === 'questSend' && qq.multi && Array.isArray(cur.picks[cur.step]) && cur.picks[cur.step].length) return next(cur);
   return { local: cur, post: null };
 }
 const inside = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
@@ -306,8 +314,9 @@ export function hitTest(x, y, ctx) {
   if (s?.quest && !s.perm && ctx.part !== 'team') {     // a question waits for the page: its buttons answer, the rest of the tile is inert
     const cur = questProgress(s.quest, ctx.quest), qq = s.quest.questions[cur.step];
     const p = leadRect(0, ctx.frameW, ctx.frameH);
-    const L = questLayout(p, qq.options.length, qq.multi, questLines(qq, p, ctx.measure));
+    const L = questLayout(p, qq.options.length, qq.multi, questLines(qq, p, ctx.measure), s.quest.free_text === true);
     if (inside(L.terminal, x, y)) return { kind: 'questTerminal' };
+    if (L.other && inside(L.other, x, y)) return { kind: 'questOther' };
     if (L.send && inside(L.send, x, y)) return { kind: 'questSend' };
     const i = L.opts.findIndex((r) => inside(r, x, y));
     if (i >= 0) return { kind: 'questOpt', index: i };
@@ -567,13 +576,14 @@ export function renderScreen(screen, state, ui) {
   // A picked option of a multi choice is filled in the accent color; once sent, the buttons wait for the state that follows.
   function drawQuest(quest, x, w, p) {
     const cur = questProgress(quest, ui.quest), qq = quest.questions[cur.step];
-    const L = questLayout(p, qq.options.length, qq.multi, questLines(qq, p, screen.measure));
+    const L = questLayout(p, qq.options.length, qq.multi, questLines(qq, p, screen.measure), quest.free_text === true);
     const n = quest.questions.length;
     const head = [n > 1 ? `${cur.step + 1}/${n}` : '', qq.header].filter(Boolean).join('  ');      // no countdown: the terminal or the app holds the question too
-    line(x, L.terminal.y + 2, (L.send ?? L.terminal).x - 6 - x, S16, COLOR.FAINT, COLOR.PANEL, head);
+    line(x, L.terminal.y + 2, (L.other ?? L.send ?? L.terminal).x - 6 - x, S16, COLOR.FAINT, COLOR.PANEL, head);
     const btn = (r, label, bg, fg = COLOR.TEXT) => { screen.fill(r.x, r.y, r.w, r.h, bg); line(r.x + 4, r.y + (r.h - 18) / 2, r.w - 8, S16, fg, bg, label, 1); };
     btn(L.terminal, cur.sent ? 'SENT' : 'TERMINAL', COLOR.CHIP);
-    const picked = cur.picks[cur.step];
+    const typed = typeof cur.picks[cur.step] === 'string', picked = typed ? [] : cur.picks[cur.step];
+    if (L.other) btn(L.other, 'OTHER', typed ? COLOR.ACCENT : COLOR.CHIP, typed ? COLOR.SCREEN : COLOR.TEXT);
     if (L.send) btn(L.send, `SEND ${picked.length}`, picked.length && !cur.sent ? COLOR.WORKING : COLOR.CHIP, picked.length && !cur.sent ? COLOR.SCREEN : COLOR.FAINT);
     wrapText(qq.question, w, L.lines, m(S16)).forEach((l, i) => screen.text(x, L.textTop + i * 18, w, S16, COLOR.NEEDS, COLOR.PANEL, l));
     L.opts.forEach((r, i) => btn(r, qq.options[i], picked.includes(i) ? COLOR.ACCENT : COLOR.CHIP, picked.includes(i) ? COLOR.SCREEN : COLOR.TEXT));

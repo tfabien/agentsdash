@@ -58,10 +58,10 @@ test('both_pages_carry_every_element_hub_page_reads', () => withHub(async (get) 
   }
 }));
 
-test('phone_taps_answer_no_permission_nor_question', () => {
+test('phone_taps_answer_a_question_but_no_permission', () => {
   const src = webFile('hub_page.js');
   assert.match(src, /PHONE \? null : permAnswer\(/);
-  assert.match(src, /PHONE \? null : questTap\(/);
+  assert.doesNotMatch(src, /PHONE \? null : questTap\(/, 'a paired phone answers questions');
 });
 
 // The modules a page loads: its module scripts and their static imports, under web/.

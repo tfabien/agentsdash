@@ -142,6 +142,7 @@ dialog.confirm { max-width: min(420px, calc(100vw - 32px)); padding: 18px 20px 1
   border: 1px solid var(--edge, #1f2a3a); border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, .55); }
 dialog.confirm::backdrop { background: rgba(0, 0, 0, .55); }
 .confirm-text { margin: 0 0 16px; font-size: 15px; line-height: 1.4; }
+.confirm-input { box-sizing: border-box; width: min(380px, 100%); margin: 0 0 14px; padding: 8px 10px; font: inherit; font-size: 15px; color: inherit; background: var(--screen, #0b1119); border: 1px solid var(--edge, #1f2a3a); border-radius: 8px; resize: vertical; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .confirm-actions .chip { padding: 7px 16px; font-size: 14px; }
 .chip.danger { background: var(--error, #fa5555); color: #fff; }

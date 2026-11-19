@@ -25,3 +25,33 @@ export function askConfirm(message, { ok = 'OK', cancel = 'Cancel', danger = fal
     yes.focus();
   });
 }
+
+/**
+ * Ask for a short text (a free answer to a question). `max` caps the length.
+ * @returns {Promise<string|null>} the trimmed text, or null on Cancel, Escape, a click outside or an empty text.
+ */
+export function askText(message, { ok = 'SEND', cancel = 'Cancel', max = 500 } = {}) {
+  return new Promise((resolve) => {
+    const dialog = el('dialog', 'confirm');
+    const input = el('textarea', 'confirm-input');
+    input.maxLength = max;
+    input.rows = 3;
+    const yes = el('button', 'chip on', ok);
+    const no = el('button', 'chip', cancel);
+    const row = el('div', 'confirm-actions');
+    row.append(no, yes);
+    dialog.append(el('p', 'confirm-text', message), input, row);
+    const finish = (value) => { dialog.close(); dialog.remove(); resolve(value); };
+    yes.onclick = () => finish(input.value.trim() || null);
+    no.onclick = () => finish(null);
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) finish(null); });
+    dialog.addEventListener('cancel', (e) => { e.preventDefault(); finish(null); });
+    dialog.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(input.value.trim() || null); }
+    });
+    document.body.append(dialog);
+    dialog.showModal();
+    input.focus();
+  });
+}
