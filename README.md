@@ -103,7 +103,7 @@ Open <http://127.0.0.1:8765/> for a grid with one tile per session (Claude Code 
 - A pending `AskUserQuestion` shows the question and one button per option. The session turns orange and the page beeps.
 - A click on an option sends it to the agent. A multi choice question has a SEND button, and several questions come one after the other.
 - TERMINAL hands the question back to the terminal or the app. Answering there works too: the tile drops its buttons.
-- Free text: turn on "Free text answers" in the settings menu, then OTHER on the tile opens a text box (page and phone). Off by default.
+- Free text: turn on "Free text answers" in the settings menu, then OTHER on the tile opens a text box (page and phone). Off by default. A second setting, "Voice in free text", adds a microphone to the box: the browser sends the audio to its speech service (Google for Chrome), so leave it off where that matters. Needs Chrome or Edge; a phone on plain http cannot use it.
 
 ![A permission prompt with Allow and Deny](docs/images/page-permission.png)
 

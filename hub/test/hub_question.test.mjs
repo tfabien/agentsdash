@@ -164,3 +164,10 @@ test('free_text_pick_needs_the_setting', () => withHub(async (hub) => {
   assert.equal((await post(hub, '/question/answer', { id: q.id, picks: ['green', 'mixed sizes'] })).status, 200);
   assert.deepEqual(await (await held).json(), { picks: ['green', 'mixed sizes'] });
 }));
+
+test('question_voice_setting_is_off_by_default_and_boolean_only', () => withHub(async (hub) => {
+  assert.equal((await state(hub)).settings.question_voice, false);
+  assert.equal((await post(hub, '/settings', { question_voice: 'yes' })).status, 400);
+  assert.equal((await post(hub, '/settings', { question_voice: true })).status, 200);
+  assert.equal((await state(hub)).settings.question_voice, true);
+}));
