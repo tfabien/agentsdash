@@ -26,6 +26,8 @@ export const OPTIONS = [
     hint: 'A question or Allow/Deny opens its session full screen; the view before comes back after the answer' },
   { key: 'question_free_text', label: 'Free text answers', kind: 'toggle',
     hint: 'A question tile gets an OTHER button: type an answer outside the options (page and phone)' },
+  { key: 'question_voice', label: 'Voice in free text', kind: 'toggle',
+    hint: 'A microphone in the OTHER box. Privacy: the browser sends the audio to its speech service (Google for Chrome); needs Chrome or Edge, and https on a phone' },
   { key: 'dim_idle', label: 'Grey out idle sessions', kind: 'toggle', hint: 'Idle sessions also go last in the grid' },
   { key: 'idle_minutes', label: 'Idle after', kind: 'choice', choices: [[1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min']],
     hint: 'Minutes a session waits for you before it counts as idle' },

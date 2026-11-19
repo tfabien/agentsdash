@@ -52,12 +52,13 @@ const SETTING_RULES = {
   themeLooks: validLooks,                                             // the looks ticked per theme (see activeLooks in theme_schema.js)
   themeOverrides: validOverrides,                                     // the user's color edits per theme or theme/variant
   themeAutoUpdate: (v) => typeof v === 'boolean',                     // install newer versions of marketplace themes (every 6 hours)
+  question_voice: (v) => typeof v === 'boolean',                    // the OTHER text box offers a microphone (browser speech recognition)
   question_free_text: (v) => typeof v === 'boolean',                // a question tile offers OTHER: a typed answer outside the options
   focus_on_ask: (v) => typeof v === 'boolean',                       // a question or an Allow/Deny held for the page opens its session full screen
   rate_alert_k: (v) => [0, 20, 40, 80].includes(v),                  // token rate readout: 0 = off, else orange from this many thousand tokens per minute, red from 3 times that
 };
 const MAX_SOURCES = 10;
-const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, idle_minutes: 5, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, themeLooks: {}, rules: [], marketSources: ['tfabien/agentsdash-themes'], themeAutoUpdate: true, rate_alert_k: 20, focus_on_ask: false, question_free_text: false };
+const SETTING_DEFAULTS = { sound: 'ask', max_tiles: 0, theme: 'default', pulse: true, dim_idle: true, idle_minutes: 5, done_excerpt: 'first', themeVariant: '', themeOverrides: {}, themeLooks: {}, rules: [], marketSources: ['tfabien/agentsdash-themes'], themeAutoUpdate: true, rate_alert_k: 20, focus_on_ask: false, question_free_text: false, question_voice: false };
 const validSettings = (o) => Object.fromEntries(Object.entries(SETTING_RULES).filter(([k, ok]) => o && typeof o === 'object' && !Array.isArray(o) && k in o && ok(o[k])).map(([k]) => [k, o[k]]));
 const TICK_MS = 1000;
 const HUB_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -443,7 +444,7 @@ export function startHub(opts = {}) {
           for (const fn of dismissTaps) { try { fn({ session: id }); } catch { /* tap errors stay local */ } }
         } else if (route === 'POST /settings') {
           const next = validSettings(body);
-          if (!Object.keys(next).length) return text(res, 400, `no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to ${MAX_TILES}), theme (a theme name), pulse, dim_idle, idle_minutes (1, 2, 5, 10), done_excerpt (first, last, off), rules (a list of {match, iconPack?, badgeColor?}), marketSources (a list of owner/repo), themeAutoUpdate (true or false), rate_alert_k (0, 20, 40, 80), focus_on_ask (true or false), question_free_text (true or false)`);
+          if (!Object.keys(next).length) return text(res, 400, `no valid setting: sound (all, ask, off), max_tiles (0 for Auto, 1 to ${MAX_TILES}), theme (a theme name), pulse, dim_idle, idle_minutes (1, 2, 5, 10), done_excerpt (first, last, off), rules (a list of {match, iconPack?, badgeColor?}), marketSources (a list of owner/repo), themeAutoUpdate (true or false), rate_alert_k (0, 20, 40, 80), focus_on_ask (true or false), question_free_text (true or false), question_voice (true or false)`);
           saveSettings(next);
         } else if (route === 'POST /select') {
           if (!model.select(String(body.session ?? ''), String(body.agent ?? 'lead'), now(), Number.isFinite(body.hold_ms) ? body.hold_ms : 30000)) return text(res, 404, 'unknown session or agent');

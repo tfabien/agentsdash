@@ -163,7 +163,7 @@ function tap(t, e) {
     lead.quest = quest.local;
     if (quest.askText !== undefined) {                    // OTHER: a text box, then the typed answer goes through the same path
       const qid = s.quest.id;
-      askText(s.quest.questions[quest.askText].question).then((text) => {
+      askText(s.quest.questions[quest.askText].question, { voice: state.settings?.question_voice === true }).then((text) => {
         if (text && tiles.get(s.id)?.quest?.id === qid) tap(t, { clientX: e.clientX, clientY: e.clientY, typed: text });
       });
       drawTile(s, t);
