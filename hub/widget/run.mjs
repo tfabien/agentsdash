@@ -37,7 +37,7 @@ export function readSettings(file) {
     width: finite(d.width) && d.width >= 160 ? d.width : DEFAULTS.width,
     height: finite(d.height) && d.height >= 100 ? d.height : DEFAULTS.height,
     opacity: OPACITIES.includes(d.opacity) ? d.opacity : DEFAULTS.opacity,
-    alwaysOnTop: typeof d.alwaysOnTop === 'boolean' ? d.alwaysOnTop : DEFAULTS.alwaysOnTop,
+    alwaysOnTop: typeof d.alwaysOnTop === 'boolean' || d.alwaysOnTop === 'auto' ? d.alwaysOnTop : DEFAULTS.alwaysOnTop,
   };
 }
 

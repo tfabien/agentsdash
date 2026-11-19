@@ -51,6 +51,18 @@ test('read_settings_keeps_valid_fields_and_resets_invalid', () => {
   }
 });
 
+test('read_settings_accepts_auto_always_on_top_and_rejects_other_strings', () => {
+  const a = tmpFile('{"alwaysOnTop": "auto"}');
+  const b = tmpFile('{"alwaysOnTop": "sometimes"}');
+  try {
+    assert.equal(readSettings(a.file).alwaysOnTop, 'auto');
+    assert.equal(readSettings(b.file).alwaysOnTop, true);
+  } finally {
+    fs.rmSync(a.dir, { recursive: true, force: true });
+    fs.rmSync(b.dir, { recursive: true, force: true });
+  }
+});
+
 test('main_reports_unsupported_os_with_code_2', () => {
   assert.equal(main([], {}, 'linux'), 2);
 });

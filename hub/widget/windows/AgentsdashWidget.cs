@@ -25,7 +25,7 @@ namespace Agentsdash
     {
         public double? X, Y;
         public int Width = 420, Height = 300, Opacity = 100;
-        public bool AlwaysOnTop = true;
+        public string AlwaysOnTop = "on";    // "on", "off", or "auto" (on top only while a session is not done); saved as true, false, "auto"
 
         static double? Num(string json, string key)
         {
@@ -46,8 +46,8 @@ namespace Agentsdash
             if (w >= 160) s.Width = (int)w;
             if (h >= 100) s.Height = (int)h;
             if (o == 100 || o == 85 || o == 70) s.Opacity = (int)o;
-            Match t = Regex.Match(json, "\"alwaysOnTop\"\\s*:\\s*(true|false)");
-            if (t.Success) s.AlwaysOnTop = t.Groups[1].Value == "true";
+            Match t = Regex.Match(json, "\"alwaysOnTop\"\\s*:\\s*(true|false|\"auto\")");
+            if (t.Success) s.AlwaysOnTop = t.Groups[1].Value == "true" ? "on" : t.Groups[1].Value == "false" ? "off" : "auto";
             return s;
         }
 
@@ -55,7 +55,7 @@ namespace Agentsdash
         {
             Func<double?, string> n = delegate (double? v) { return v.HasValue ? Math.Round(v.Value).ToString(CultureInfo.InvariantCulture) : "null"; };
             string json = "{\"x\": " + n(X) + ", \"y\": " + n(Y) + ", \"width\": " + Width + ", \"height\": " + Height
-                + ", \"opacity\": " + Opacity + ", \"alwaysOnTop\": " + (AlwaysOnTop ? "true" : "false") + "}\n";
+                + ", \"opacity\": " + Opacity + ", \"alwaysOnTop\": " + (AlwaysOnTop == "on" ? "true" : AlwaysOnTop == "off" ? "false" : "\"auto\"") + "}\n";
             try { Directory.CreateDirectory(Path.GetDirectoryName(file)); File.WriteAllText(file, json); } catch { }
         }
     }
@@ -65,8 +65,9 @@ namespace Agentsdash
     internal sealed class Strip : Panel
     {
         const int ButtonWidth = 26, ButtonCount = 4;
-        public bool Maximized, Pinned;
-        public Action<int> ButtonClick;       // 0 pin (always on top), 1 minimize, 2 maximize or restore, 3 close
+        public bool Maximized;
+        public string PinMode = "on";         // "on", "auto" or "off"
+        public Action<int> ButtonClick;       // 0 pin (cycles always on top: on, auto, off), 1 minimize, 2 maximize or restore, 3 close
         int hover = -1;
 
         public Strip() { DoubleBuffered = true; }
@@ -121,15 +122,16 @@ namespace Agentsdash
                             g.FillRectangle(hb, r);
                     int cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2;
                     if (i == 0)
-                    {   // drawing pin (thumbtack), white and filled while the window is always on top, an outline when it is not
-                        Color ink = Pinned ? Color.FromArgb(240, 240, 244) : Color.FromArgb(150, 150, 160);
+                    {   // drawing pin (thumbtack): white and filled when always on top, white with a filled head only in auto mode, a gray outline when off
+                        Color ink = PinMode == "off" ? Color.FromArgb(150, 150, 160) : Color.FromArgb(240, 240, 244);
                         using (Pen pin = new Pen(ink, 1.2f))
-                        using (Brush fill = new SolidBrush(Pinned ? ink : Color.Transparent))
+                        using (Brush fill = new SolidBrush(PinMode == "off" ? Color.Transparent : ink))
+                        using (Brush bodyFill = new SolidBrush(PinMode == "on" ? ink : Color.Transparent))
                         {
                             Point[] body = { new Point(cx - 3, cy - 4), new Point(cx + 3, cy - 4), new Point(cx + 2, cy + 1), new Point(cx - 2, cy + 1) };
-                            g.FillRectangle(fill, cx - 4, cy - 7, 8, 3);                 // flat head
+                            g.FillRectangle(fill, cx - 4, cy - 7, 8, 3);                  // flat head
                             g.DrawRectangle(pin, cx - 4, cy - 7, 8, 3);
-                            g.FillPolygon(fill, body);                                    // tapered body
+                            g.FillPolygon(bodyFill, body);                                // tapered body
                             g.DrawPolygon(pin, body);
                             g.DrawLine(pin, cx - 4, cy + 1, cx + 4, cy + 1);              // base
                             g.DrawLine(pin, cx, cy + 1, cx, cy + 6);                      // needle
@@ -155,10 +157,11 @@ namespace Agentsdash
         readonly WebView2 web = new WebView2();
         readonly Strip strip = new Strip();
         readonly ContextMenuStrip menu = new ContextMenuStrip();
-        ToolStripMenuItem topItem;
+        readonly Dictionary<string, ToolStripMenuItem> topItems = new Dictionary<string, ToolStripMenuItem>();
         readonly System.Windows.Forms.Timer saveTimer = new System.Windows.Forms.Timer { Interval = 500 };
         readonly System.Windows.Forms.Timer retryTimer = new System.Windows.Forms.Timer { Interval = RetryMs };
-        bool placeholder;
+        readonly System.Windows.Forms.Timer sessionTimer = new System.Windows.Forms.Timer { Interval = RetryMs };
+        bool placeholder, sessionsRunning;
 
         public WidgetForm(string url, string settingsFile)
         {
@@ -171,7 +174,7 @@ namespace Agentsdash
             BackColor = Color.FromArgb(24, 24, 28);
             Padding = new Padding(Border);
             MinimumSize = new Size(160, 100);
-            TopMost = settings.AlwaysOnTop;
+            TopMost = settings.AlwaysOnTop == "on";
             Opacity = settings.Opacity / 100.0;
             StartPosition = FormStartPosition.Manual;
             Bounds = StartBounds();
@@ -181,12 +184,12 @@ namespace Agentsdash
             strip.BackColor = BackColor;
             strip.ButtonClick = delegate (int b)
             {
-                if (b == 0) topItem.Checked = !topItem.Checked;   // pin or unpin: the menu item sets TopMost, saves, and tells the strip
+                if (b == 0) SetTopMode(settings.AlwaysOnTop == "on" ? "auto" : settings.AlwaysOnTop == "auto" ? "off" : "on");   // pin button cycles on, auto, off
                 else if (b == 1) PostMessage(Handle, 0x0112, (IntPtr)0xF020, IntPtr.Zero);   // WM_SYSCOMMAND SC_MINIMIZE, as the OS does: setting WindowState from a mouse handler left a blank window after the restore
                 else if (b == 2) ToggleMaximize();
                 else Close();
             };
-            strip.Pinned = settings.AlwaysOnTop;
+            strip.PinMode = settings.AlwaysOnTop;
             web.Dock = DockStyle.Fill;
             web.CreationProperties = new CoreWebView2CreationProperties
             {
@@ -200,6 +203,8 @@ namespace Agentsdash
             BuildMenu();
             saveTimer.Tick += delegate { saveTimer.Stop(); SaveNow(); };
             retryTimer.Tick += delegate { Probe(); };
+            sessionTimer.Tick += delegate { PollSessions(); };
+            sessionTimer.Start();
             Move += delegate { ScheduleSave(); };
             Resize += delegate
             {
@@ -224,9 +229,15 @@ namespace Agentsdash
 
         void BuildMenu()
         {
-            topItem = new ToolStripMenuItem("Always on top") { Checked = settings.AlwaysOnTop, CheckOnClick = true };
-            topItem.CheckedChanged += delegate { TopMost = settings.AlwaysOnTop = topItem.Checked; strip.Pinned = topItem.Checked; strip.Invalidate(); SaveNow(); };
-            menu.Items.Add(topItem);
+            string[][] modes = { new[] { "on", "Always on top" }, new[] { "auto", "On top while sessions run" }, new[] { "off", "Not on top" } };
+            foreach (string[] mode in modes)
+            {
+                string key = mode[0];
+                ToolStripMenuItem item = new ToolStripMenuItem(mode[1]) { Checked = settings.AlwaysOnTop == key };
+                item.Click += delegate { SetTopMode(key); };
+                topItems[key] = item;
+                menu.Items.Add(item);
+            }
             List<ToolStripMenuItem> levels = new List<ToolStripMenuItem>();
             foreach (int pct in new int[] { 100, 85, 70 })
             {
@@ -316,6 +327,41 @@ namespace Agentsdash
                     if (up) { placeholder = false; web.CoreWebView2.Navigate(url); }
                     else retryTimer.Start();
                 }));
+            });
+        }
+
+        void SetTopMode(string mode)
+        {
+            settings.AlwaysOnTop = mode;
+            foreach (KeyValuePair<string, ToolStripMenuItem> kv in topItems) kv.Value.Checked = kv.Key == mode;
+            strip.PinMode = mode;
+            strip.Invalidate();
+            ApplyTop();
+            SaveNow();
+            if (mode == "auto") PollSessions();
+        }
+
+        // On top when the mode is "on", or "auto" and at least one session of the hub is not done.
+        void ApplyTop() { TopMost = settings.AlwaysOnTop == "on" || (settings.AlwaysOnTop == "auto" && sessionsRunning); }
+
+        // In auto mode the hub state says whether a session is not done (its "dot" is anything but done); read off the UI thread.
+        void PollSessions()
+        {
+            if (settings.AlwaysOnTop != "auto") return;
+            Task.Run(delegate
+            {
+                bool running = false;
+                try
+                {
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(new Uri(new Uri(url), "state"));
+                    req.Timeout = 1500;
+                    using (WebResponse resp = req.GetResponse())
+                    using (StreamReader rd = new StreamReader(resp.GetResponseStream()))
+                        foreach (Match m in Regex.Matches(rd.ReadToEnd(), "\"dot\"\\s*:\\s*\"(\\w+)\""))
+                            if (m.Groups[1].Value != "done") running = true;
+                }
+                catch { }
+                BeginInvoke(new Action(delegate { sessionsRunning = running; ApplyTop(); }));
             });
         }
 

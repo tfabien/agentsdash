@@ -15,7 +15,7 @@ struct Settings {
     var x: Double? = nil, y: Double? = nil
     var width = 420.0, height = 300.0
     var opacity = 100
-    var alwaysOnTop = true
+    var alwaysOnTop = "on"        // "on", "off" or "auto" (on top while a session is not done); saved as true, false, "auto"
 
     static func load(_ path: String) -> Settings {
         var s = Settings()
@@ -27,15 +27,18 @@ struct Settings {
         if let w = num("width"), w >= 160 { s.width = w }
         if let h = num("height"), h >= 100 { s.height = h }
         if let o = num("opacity"), [100.0, 85.0, 70.0].contains(o) { s.opacity = Int(o) }
-        if let t = obj["alwaysOnTop"] as? Bool { s.alwaysOnTop = t }
+        if let t = obj["alwaysOnTop"] as? Bool { s.alwaysOnTop = t ? "on" : "off" }
+        else if let t = obj["alwaysOnTop"] as? String, t == "auto" { s.alwaysOnTop = "auto" }
         return s
     }
 
     func save(_ path: String) {
         func number(_ v: Double?) -> Any { if let v = v { return v.rounded() }; return NSNull() }
+        var top: Any = alwaysOnTop == "on"
+        if alwaysOnTop == "auto" { top = "auto" }
         let obj: [String: Any] = [
             "x": number(x), "y": number(y), "width": width.rounded(), "height": height.rounded(),
-            "opacity": opacity, "alwaysOnTop": alwaysOnTop,
+            "opacity": opacity, "alwaysOnTop": top,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys]) else { return }
         try? FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
@@ -56,7 +59,7 @@ final class StripView: NSView {
     var menu_: NSMenu?
     var onButton: ((Int) -> Void)?       // 0 pin (always on top), 1 minimize, 2 maximize or restore, 3 close
     var maximized = false { didSet { needsDisplay = true } }
-    var pinned = true { didSet { needsDisplay = true } }
+    var pinMode = "on" { didSet { needsDisplay = true } }      // "on", "auto" or "off"
     private let buttonCount = 4
     private var hovering = false
     private var hoverButton = -1
@@ -107,17 +110,19 @@ final class StripView: NSView {
             path.lineWidth = 1.3
             switch i {
             case 0:
-                // drawing pin (thumbtack), white and filled while the window is always on top, an outline when it is not
-                let ink = pinned ? NSColor(white: 0.94, alpha: 1) : NSColor(white: 0.6, alpha: 1)
+                // drawing pin (thumbtack): white and filled when always on top, white with a filled head only in auto mode, a gray outline when off
+                let ink = pinMode == "off" ? NSColor(white: 0.6, alpha: 1) : NSColor(white: 0.94, alpha: 1)
                 ink.setStroke(); ink.setFill()
+                let head = NSBezierPath(rect: NSRect(x: c.x - 4, y: c.y + 4, width: 8, height: 3))   // flat head
+                if pinMode != "off" { head.fill() }
                 let tack = NSBezierPath()
                 tack.lineWidth = 1.2
-                tack.appendRect(NSRect(x: c.x - 4, y: c.y + 4, width: 8, height: 3))                  // flat head
                 tack.move(to: NSPoint(x: c.x - 3, y: c.y + 4)); tack.line(to: NSPoint(x: c.x + 3, y: c.y + 4))
                 tack.line(to: NSPoint(x: c.x + 2, y: c.y - 1)); tack.line(to: NSPoint(x: c.x - 2, y: c.y - 1)); tack.close()   // tapered body
+                if pinMode == "on" { tack.fill() }
                 tack.move(to: NSPoint(x: c.x - 4, y: c.y - 1)); tack.line(to: NSPoint(x: c.x + 4, y: c.y - 1))               // base
                 tack.move(to: NSPoint(x: c.x, y: c.y - 1)); tack.line(to: NSPoint(x: c.x, y: c.y - 6))                       // needle
-                if pinned { tack.fill() }
+                tack.appendRect(NSRect(x: c.x - 4, y: c.y + 4, width: 8, height: 3))
                 tack.stroke()
                 continue
             case 1:
@@ -196,9 +201,11 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
     let web = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
     var menu = NSMenu()
     var opacityItems: [NSMenuItem] = []
-    var topItem = NSMenuItem()
+    var topItems: [String: NSMenuItem] = [:]
     var saveTimer: Timer?
     var retryTimer: Timer?
+    var sessionTimer: Timer?
+    var sessionsRunning = false
     var placeholder = false
     var stripView: StripView?
     var restoreFrame: NSRect?          // the frame to go back to while the window is maximized, else nil
@@ -218,7 +225,7 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         window.backgroundColor = NSColor(white: 0.07, alpha: 1)
         window.minSize = minSize
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        window.level = settings.alwaysOnTop ? .floating : .normal
+        window.level = settings.alwaysOnTop == "on" ? .floating : .normal
         window.alphaValue = CGFloat(settings.opacity) / 100
 
         let root = NSView(frame: NSRect(origin: .zero, size: window.frame.size))
@@ -234,6 +241,7 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(geometryChanged), name: NSWindow.didMoveNotification, object: window)
         NotificationCenter.default.addObserver(self, selector: #selector(geometryChanged), name: NSWindow.didResizeNotification, object: window)
         web.load(URLRequest(url: url))
+        sessionTimer = Timer.scheduledTimer(withTimeInterval: retrySeconds, repeats: true) { [weak self] _ in self?.pollSessions() }
     }
 
     /// Contract coordinates are screen pixels from the top-left of the primary screen; AppKit counts from the bottom-left.
@@ -254,7 +262,7 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         strip.autoresizingMask = [.width, .minYMargin]
         strip.menu_ = menu
         strip.onButton = { [weak self] i in self?.windowButton(i) }
-        strip.pinned = settings.alwaysOnTop
+        strip.pinMode = settings.alwaysOnTop
         stripView = strip
         root.addSubview(strip)
         func add(_ edge: Edge, _ frame: NSRect, _ mask: NSView.AutoresizingMask) {
@@ -274,10 +282,14 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
     }
 
     func buildMenu() {
-        topItem = NSMenuItem(title: "Always on top", action: #selector(toggleTop), keyEquivalent: "")
-        topItem.target = self
-        topItem.state = settings.alwaysOnTop ? .on : .off
-        menu.addItem(topItem)
+        for (mode, title) in [("on", "Always on top"), ("auto", "On top while sessions run"), ("off", "Not on top")] {
+            let item = NSMenuItem(title: title, action: #selector(pickTop(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = mode
+            item.state = settings.alwaysOnTop == mode ? .on : .off
+            topItems[mode] = item
+            menu.addItem(item)
+        }
         for pct in [100, 85, 70] {
             let item = NSMenuItem(title: "Opacity \(pct) %", action: #selector(setOpacity(_:)), keyEquivalent: "")
             item.target = self
@@ -294,12 +306,34 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
         }
     }
 
-    @objc func toggleTop() {
-        settings.alwaysOnTop.toggle()
-        topItem.state = settings.alwaysOnTop ? .on : .off
-        window.level = settings.alwaysOnTop ? .floating : .normal
-        stripView?.pinned = settings.alwaysOnTop
+    @objc func pickTop(_ item: NSMenuItem) { if let mode = item.representedObject as? String { setTopMode(mode) } }
+    /// The pin button cycles on, auto, off.
+    func cycleTop() { setTopMode(settings.alwaysOnTop == "on" ? "auto" : settings.alwaysOnTop == "auto" ? "off" : "on") }
+    func setTopMode(_ mode: String) {
+        settings.alwaysOnTop = mode
+        for (key, item) in topItems { item.state = key == mode ? .on : .off }
+        stripView?.pinMode = mode
+        applyTop()
         saveNow()
+        if mode == "auto" { pollSessions() }
+    }
+    /// On top when the mode is "on", or "auto" and at least one session of the hub is not done.
+    func applyTop() {
+        let top = settings.alwaysOnTop == "on" || (settings.alwaysOnTop == "auto" && sessionsRunning)
+        window.level = top ? .floating : .normal
+    }
+    /// In auto mode the hub state says whether a session is not done (its "dot" is anything but done).
+    func pollSessions() {
+        guard settings.alwaysOnTop == "auto", let state = URL(string: "state", relativeTo: url) else { return }
+        URLSession.shared.dataTask(with: URLRequest(url: state, timeoutInterval: 1.5)) { [weak self] data, _, _ in
+            var running = false
+            if let data = data, let text = String(data: data, encoding: .utf8),
+               let re = try? NSRegularExpression(pattern: "\"dot\"\\s*:\\s*\"(\\w+)\"") {
+                let ns = text as NSString
+                for m in re.matches(in: text, range: NSRange(location: 0, length: ns.length)) where ns.substring(with: m.range(at: 1)) != "done" { running = true }
+            }
+            DispatchQueue.main.async { self?.sessionsRunning = running; self?.applyTop() }
+        }.resume()
     }
     @objc func setOpacity(_ item: NSMenuItem) {
         settings.opacity = item.tag
@@ -309,7 +343,7 @@ final class Controller: NSObject, WKNavigationDelegate, NSWindowDelegate {
     }
     func windowButton(_ i: Int) {
         switch i {
-        case 0: toggleTop()
+        case 0: cycleTop()
         case 1: window.miniaturize(nil)
         case 2: toggleMaximize()
         default: window.close()
