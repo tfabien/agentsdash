@@ -2,7 +2,7 @@
 // go to more pages (arrows, swipe). One SSE stream feeds every tile. Logic: order, focus and alerts in hub_view.js, grid shape, sizes and pages in layout.js, the beep rule in alerts.js.
 import { rateLevel } from './rate_glow.js';
 import { orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, isIdle as idleFor, waitsForYou, hasTeam, cellsOf, gotoPage } from './hub_view.js';
-import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, placeItems, autoCapacity, paginate } from './layout.js';
+import { FRAME, MAX_SCALE, FOCUS_SCALE, MAX_TILES, tileSize, bestLayout, chooseLayout, placeItems, autoCapacity, paginate } from './layout.js';
 import { countStates, beepsFor, beep } from './alerts.js';
 import { renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, COLOR, rgb565 } from './screen.js';
 import { mountFooter } from './footer.js';
@@ -347,13 +347,17 @@ function render() {
   if (!focused) page = Math.max(0, Math.min(page, pages.length - 1));                  // the grid page is kept while a session is full screen
   current = pages[focused ? 0 : page] ?? [];
   const grid = $('tiles');
-  stacked = PHONE && grid.clientHeight > grid.clientWidth;
+  let cols, rows;
+  if (PHONE) {
+    stacked = grid.clientHeight > grid.clientWidth;
+    ({ cols, rows } = stacked ? { cols: 1, rows: Math.max(1, current.length) } : bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, { maxScale: focus ? FOCUS_SCALE : MAX_SCALE }));   // stacked: the group itself holds the two rows
+  } else {
+    ({ stacked, cols, rows } = chooseLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, { maxScale: focus ? FOCUS_SCALE : MAX_SCALE }));   // a team is 2 columns wide, or goes under its lead when the window is narrow
+  }
   grid.toggleAttribute('data-stack', stacked);
-  const { cols, rows } = stacked ? { cols: 1, rows: Math.max(1, current.length) }      // the group itself holds the two stacked rows
-    : bestLayout(current.map(cellsOf), grid.clientWidth, grid.clientHeight, { maxScale: focus ? FOCUS_SCALE : MAX_SCALE });   // a team is 2 columns wide
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', rows);
-  const placed = PHONE ? null : placeItems(current.map(cellsOf), cols).cells;           // a single tile may fill a hole or the rest of its row
+  const placed = PHONE ? null : placeItems(stacked ? current.map(() => 1) : current.map(cellsOf), cols).cells;   // a single tile may fill a hole or the rest of its row
   const nodes = current.map((s, i) => {
     const lead = tileFor(s, 'lead'), at = placed?.[i];
     lead.span = hasTeam(s) ? 1 : at?.span ?? 1;                                         // columns the cell gives the tile: fit() lets a wide one stretch
