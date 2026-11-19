@@ -25,7 +25,7 @@ import { createSerialRelay, listSerialPorts } from './relay_serial.mjs';
 import { parseRelay, sameRelay } from './relay_config.mjs';
 import { stateDir, userDir, migrateUserDir } from './paths.mjs';
 import { webFingerprint } from './web_fingerprint.mjs';
-import { widgetStatus, launch as launchWidget } from './widget/run.mjs';
+import { widgetStatus, launch as launchWidget, ensure as ensureWidget } from './widget/run.mjs';
 import { COOKIE, setLan, isLoopback, loadOrCreateToken, tokenMatches, rankPairAddresses, lanHosts, parseCookie, REMOTE_ROUTES, isRemoteStatic } from './lan.mjs';
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
@@ -198,7 +198,7 @@ export function startHub(opts = {}) {
   };
   const text = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'text/plain' }); res.end(body); };
   const json = (res, obj, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
-  const widget = opts.widget ?? { status: () => widgetStatus(), launch: (url) => launchWidget(url) };   // tests pass a fake: no process is spawned
+  const widget = opts.widget ?? { status: () => widgetStatus(), launch: (url) => launchWidget(url), ensure: () => ensureWidget() };   // tests pass a fake: no process is spawned
 
   function serveStatic(res, urlPath) {
     let rel;
@@ -271,6 +271,9 @@ export function startHub(opts = {}) {
       case 'GET /widget': return json(res, widget.status());   // loopback only: the bottom bar shows or hides its widget button
       case 'POST /widget': {                        // loopback only: starts the floating widget on this hub (a second call brings it forward)
         await readBody(req).catch(() => '');
+        if (widget.ensure) {                        // no host on disk: download the one of this core version first (first click, or after an update)
+          try { await widget.ensure(); } catch (e) { return json(res, { error: `download failed: ${e.message}` }, 502); }
+        }
         const code = widget.launch(`http://127.0.0.1:${port}/`);
         if (code === 0) return json(res, { ok: true });
         return json(res, { error: code === 4 ? 'not built' : 'unsupported' }, code === 4 ? 409 : 501);

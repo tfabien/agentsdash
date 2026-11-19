@@ -222,6 +222,10 @@ test('widget_button_hidden_when_unsupported_or_unknown', () => {
   assert.equal(widgetButtonState({ supported: false, built: false }).hidden, true);
 });
 
+test('widget_button_offers_the_download_when_not_built', () => {
+  assert.equal(widgetButtonState({ supported: true, built: false, downloadable: true }).disabled, false);
+});
+
 test('widget_button_disabled_with_build_hint_when_not_built', () => {
   assert.deepEqual(widgetButtonState({ supported: true, built: false }), { hidden: false, disabled: true, title: 'Build it once: node hub/widget/build.mjs' });
 });

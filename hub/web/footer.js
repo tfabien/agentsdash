@@ -54,8 +54,9 @@ export function mountFooter(root, stage, { onPreview } = {}) {
   };
   const loadWidget = () => fetch('/widget').then((r) => (r.ok ? r.json() : null)).catch(() => null).then(showWidget);
   widget.onclick = async () => {
+    widget.disabled = true; widget.title = 'Opening the widget (downloaded the first time)...';
     const r = await postJson('/widget').catch(() => null);
-    if (r?.ok) return;
+    if (r?.ok) { loadWidget(); return; }
     const body = await r?.json().catch(() => null);
     clearTimeout(errorTimer);
     widget.title = `Could not open the widget: ${body?.error ?? 'the hub did not answer'}`;
