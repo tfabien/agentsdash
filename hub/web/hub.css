@@ -38,6 +38,10 @@ main { flex: 1; min-height: 0; min-width: 0; display: grid; gap: 12px; grid-temp
 .group .tile[data-part="team"] { justify-content: flex-start; }
 .group .link { position: absolute; left: 50%; bottom: var(--link-y, 16px); transform: translateX(-50%); z-index: 1; padding: 1px 8px; font-size: 12px; line-height: 1.4;
   color: var(--ok); background: var(--chip); border: 1.5px solid var(--ok); border-radius: 11px; white-space: nowrap; pointer-events: none; }
+/* Stacked (portrait phone, or a window where two full-width rows beat two columns, see chooseLayout in layout.js): a session and its team in one cell, the team under the lead, the seam chip between them. */
+#tiles[data-stack] .group { grid-column: span 1; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+#tiles[data-stack] .group .tile[data-part] { justify-content: center; }
+#tiles[data-stack] .group .link { top: 50%; bottom: auto; transform: translate(-50%, -50%); }
 .tile { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; }
 .tile canvas { display: block; transition: filter .6s, opacity .6s; }
 .tile .stale-tag { display: none; position: absolute; top: 8px; right: 10px; color: #e0b050; font-size: 12px; }

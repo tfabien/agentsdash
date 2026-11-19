@@ -11,7 +11,8 @@ export const FOCUS_SCALE = 3;                 // a full-screen session may grow 
 export const MIN_SCALE = 0.8;                 // "Auto" tiles per page: no tile under 0.8x the gadget screen
 export const STRETCH = 2.2;                   // a frame is up to 2.2 times wider than the gadget's; each extra column of a wide tile adds the same room
 export const COLUMN_SLACK = 0.8;              // more columns win while their scale stays within 80% of the best one: a tall tile has more room for the plan and the command than a wide short one
-export const STRETCH_H = 2;                  // and up to 2 times taller: a lone session gets more lines for its prompt and command
+export const STACK_GAIN = 1.15;               // a team goes under its lead when that makes the frames 15% bigger or more
+export const STRETCH_H = 2;                 // and up to 2 times taller: a lone session gets more lines for its prompt and command
 
 /** Scale and frame size (in screen units) of a tile in a cell of `bw` x `bh` px. `span`: columns of the cell (a widened tile has more room to stretch). */
 export function tileSize(bw, bh, { focus = false, span = 1 } = {}) {
@@ -55,6 +56,30 @@ export function bestLayout(spans, boxW, boxH, { gap = GAP, maxScale = MAX_SCALE 
   const top = Math.max(...options.map((o) => o.k));
   const best = options.filter((o) => o.k >= top * COLUMN_SLACK - 1e-9).pop();      // the most columns whose screens are not much smaller than the biggest
   return { cols: best.cols, rows: best.rows };
+}
+
+/** Scale of the frames in a grid of `cols` x `rows` cells; `rowUnits` frames stacked in a cell share its height (2 for a team stacked under its lead). */
+function gridScale(cols, rows, boxW, boxH, gap, maxScale, rowUnits = 1) {
+  const cellH = (boxH - gap * (rows - 1)) / rows / rowUnits - (rowUnits > 1 ? gap / 2 : 0);
+  return Math.min((boxW - gap * (cols - 1)) / cols / FRAME.w, cellH / FRAME.h, maxScale);
+}
+
+/** Side by side or stacked? `spans` as in bestLayout (2 = a session with a team). Side by side: the team is a second column (bestLayout). Stacked: every session is
+ * one cell and its team goes under it, so the frames keep the cell's full width. Stacked wins when its frames are at least STACK_GAIN times bigger, which follows the
+ * box's width/height ratio and keeps the layout from flipping on a small resize. Returns {stacked, cols, rows}. */
+export function chooseLayout(spans, boxW, boxH, { gap = GAP, maxScale = MAX_SCALE } = {}) {
+  const side = bestLayout(spans, boxW, boxH, { gap, maxScale });
+  if (!spans.includes(2) || !(boxW > 0) || !(boxH > 0)) return { stacked: false, ...side };
+  const n = spans.length, units = 2;
+  const options = [];
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    options.push({ cols, rows, k: gridScale(cols, rows, boxW, boxH, gap, maxScale, units) });
+  }
+  const top = Math.max(...options.map((o) => o.k));
+  const best = options.filter((o) => o.k >= top * COLUMN_SLACK - 1e-9).pop();
+  const kSide = gridScale(side.cols, side.rows, boxW, boxH, gap, maxScale);
+  return best.k >= kSide * STACK_GAIN ? { stacked: true, cols: best.cols, rows: best.rows } : { stacked: false, ...side };
 }
 
 /** Cells that fit a box without a tile dropping under MIN_SCALE (the "Auto" tiles per page), at most `cap`. */

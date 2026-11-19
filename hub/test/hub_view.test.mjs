@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, cellsOf, quotaBars, gotoPage, widgetButtonState } from '../web/hub_view.js';
-import { placeItems, bestLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
+import { placeItems, bestLayout, chooseLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
 const agent = (over = {}) => ({ id: 'lead', role: 'lead', state: 'working', cmd: 'Edit app.js', age: 100, tok: 0, prev: '', prev_age: 0, ...over });
@@ -228,4 +228,25 @@ test('widget_button_disabled_with_build_hint_when_not_built', () => {
 
 test('widget_button_enabled_when_built', () => {
   assert.deepEqual(widgetButtonState({ supported: true, built: true }), { hidden: false, disabled: false, title: 'Open the floating widget' });
+});
+
+test('chooseLayout_stacks_a_team_under_its_lead_in_a_narrow_window', () => {
+  assert.deepEqual(chooseLayout([1], 420, 300), { stacked: false, cols: 1, rows: 1 }, 'no team: nothing to stack');
+  const w = chooseLayout([2], 420, 700);
+  assert.equal(w.stacked, true, 'the widget at 420 x 700: two full-width rows beat two 204 px columns');
+  assert.equal(w.cols, 1);
+  assert.equal(chooseLayout([2], 1200, 500).stacked, false, 'a wide window keeps lead and team side by side');
+  assert.equal(chooseLayout([2], 420, 300).stacked, true, 'the default widget (420 x 300): 0.67x stacked against 0.43x side by side');
+  assert.equal(chooseLayout([2], 1200, 300).stacked, false, 'a short wide window: stacking halves the height, so side by side stays');
+  assert.equal(chooseLayout([2], 0, 0).stacked, false, 'box size unknown (page hidden)');
+});
+
+test('chooseLayout_does_not_depend_on_the_number_of_sub_agents', () => {
+  // a team is one tile whatever its size (rows of the team list change, not the cells): 1 to 4 sub-agents give the same cells
+  assert.deepEqual(chooseLayout([2, 1], 420, 900), chooseLayout([2, 1], 420, 900));
+  const two = chooseLayout([2, 2], 420, 1000), one = chooseLayout([2], 420, 1000);
+  assert.equal(two.stacked, true);
+  assert.equal(one.stacked, true);
+  assert.equal(two.cols, 1);
+  assert.equal(two.rows, 2, 'two sessions with a team: one stacked cell each');
 });
