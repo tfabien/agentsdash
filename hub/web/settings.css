@@ -23,26 +23,19 @@
 .dinput[hidden], .shint[hidden] { display: none; }
 .dresult { font-size: 12px; min-height: 1em; } .dresult.ok { color: var(--ok); } .dresult.down { color: var(--error); }
 
-#bar { display: flex; align-items: center; gap: 24px; background: #0f1520; border-radius: 10px; padding: 10px 16px; }
-#bar .quotas { display: flex; gap: 28px; }
-.quota { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.quota .track { width: 60px; flex: none; height: 7px; border-radius: 4px; background: #2a3344; overflow: hidden; }
+#bar { display: flex; align-items: center; gap: 12px; background: #0f1520; border-radius: 6px; padding: 3px 10px; position: relative; }   /* one thin line */
+#bar .quotas { display: flex; gap: 14px; }
+.quota { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.quota .track { width: 44px; flex: none; height: 5px; border-radius: 4px; background: #2a3344; overflow: hidden; }
 .quota .fill { height: 100%; border-radius: 4px; background: var(--ok); }
 .quota.ok .fill { background: var(--ok); } .quota.tight .fill { background: var(--needs); } .quota.over .fill { background: var(--error); } .quota.unknown .fill, .quota.stale .fill { background: #555e6a; }
 .quota b { color: var(--ok); } .quota.tight b { color: var(--needs); } .quota.over b { color: var(--error); } .quota.stale b, .quota.unknown b { color: var(--muted); }
-#bar .clock { font-size: 20px; font-weight: 700; }
+#bar .clock { font-size: 13px; line-height: 1; font-weight: 700; }
+#bar .clock[hidden] { display: none; }
 #bar .sound { padding: 5px 8px; line-height: 1; }
-#bar .widgetbtn:disabled { opacity: .4; cursor: default; }
 #bar .tools { display: flex; align-items: center; gap: 4px; }
-/* Floating widget (page loaded with ?widget=1, see hub.html): a thin bar with the quotas, compact buttons and a small clock. */
-html[data-mode="widget"] #bar { position: relative; padding: 3px 10px; gap: 12px; border-radius: 6px; }
-html[data-mode="widget"] #bar .quotas { gap: 14px; }
-html[data-mode="widget"] #bar .quota { font-size: 11px; gap: 6px; }
-html[data-mode="widget"] #bar .quota .track { width: 44px; height: 5px; }
-html[data-mode="widget"] #bar .widgetbtn { display: none; }
-html[data-mode="widget"] #bar .clock { font-size: 13px; line-height: 1; }
-html[data-mode="widget"] #bar .tools .chip { padding: 2px 6px; }
-html[data-mode="widget"] #bar .tools .ico { width: 14px; height: 14px; }
+#bar .tools .chip { padding: 2px 6px; }
+#bar .tools .ico { width: 14px; height: 14px; }
 
 .ttitle { font-size: 18px; font-weight: 700; }
 .tlist { display: grid; gap: 12px; margin-top: 14px; }
@@ -113,6 +106,9 @@ button.kw:hover { background: #26334a; }
 #bar.previewing .quotas { display: none; }
 .ptext.ok { color: #8fe0a6; }
 .previewbar .spin { flex: none; }
+.shortcutbar { display: flex; align-items: center; gap: 10px; }
+.shortcutbar[hidden] { display: none; }
+#bar.offering .quotas { display: none; }
 
 /* theme variants and the color editor */
 .tvariants { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }

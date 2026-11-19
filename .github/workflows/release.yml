@@ -33,33 +33,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" "$FILE" "$FILE.sha256" --generate-notes
-
-  # The native widget host, compiled per OS and attached to the same release. A hub without a local build downloads it on the first
-  # click of the widget button (hub/widget/fetch.mjs), so the asset name and the tar layout (the files of bin/ at the root) are a contract.
-  widget:
-    needs: release
-    strategy:
-      matrix:
-        include:
-          - { os: windows-latest, dir: windows, tag: win }
-          - { os: macos-latest, dir: macos, tag: mac }
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Build the host
-        run: node hub/widget/build.mjs
-      - name: Pack and upload
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          V="${GITHUB_REF_NAME#v}"
-          FILE="agentsdash-widget-${{ matrix.tag }}-$V.tar.gz"
-          tar -czf "$FILE" -C hub/widget/${{ matrix.dir }}/bin .
-          sha256sum "$FILE" > "$FILE.sha256"
-          gh release upload "$GITHUB_REF_NAME" "$FILE" "$FILE.sha256"

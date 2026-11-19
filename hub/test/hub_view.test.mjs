@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, cellsOf, quotaBars, gotoPage, widgetButtonState } from '../web/hub_view.js';
+import { isIdle, waitsForYou, orderSessions, pageAlert, sideAlerts, focusAlerts, autoFocus, cellsOf, quotaBars, gotoPage } from '../web/hub_view.js';
 import { placeItems, bestLayout, chooseLayout, tileSize, autoCapacity, paginate, FRAME } from '../web/layout.js';
 import { countStates, beepsFor } from '../web/alerts.js';
 
@@ -217,30 +217,13 @@ test('goto_page_keeps_the_grid_page_while_a_session_is_full_screen', () => {
   assert.equal(gotoPage(-1, 0, 4, false), 0);
 });
 
-test('widget_button_hidden_when_unsupported_or_unknown', () => {
-  assert.equal(widgetButtonState(null).hidden, true);
-  assert.equal(widgetButtonState({ supported: false, built: false }).hidden, true);
-});
-
-test('widget_button_offers_the_download_when_not_built', () => {
-  assert.equal(widgetButtonState({ supported: true, built: false, downloadable: true }).disabled, false);
-});
-
-test('widget_button_disabled_with_build_hint_when_not_built', () => {
-  assert.deepEqual(widgetButtonState({ supported: true, built: false }), { hidden: false, disabled: true, title: 'Build it once: node hub/widget/build.mjs' });
-});
-
-test('widget_button_enabled_when_built', () => {
-  assert.deepEqual(widgetButtonState({ supported: true, built: true }), { hidden: false, disabled: false, title: 'Open the floating widget' });
-});
-
 test('chooseLayout_stacks_a_team_under_its_lead_in_a_narrow_window', () => {
   assert.deepEqual(chooseLayout([1], 420, 300), { stacked: false, cols: 1, rows: 1 }, 'no team: nothing to stack');
   const w = chooseLayout([2], 420, 700);
-  assert.equal(w.stacked, true, 'the widget at 420 x 700: two full-width rows beat two 204 px columns');
+  assert.equal(w.stacked, true, 'the dashboard window at 420 x 700: two full-width rows beat two 204 px columns');
   assert.equal(w.cols, 1);
   assert.equal(chooseLayout([2], 1200, 500).stacked, false, 'a wide window keeps lead and team side by side');
-  assert.equal(chooseLayout([2], 420, 300).stacked, true, 'the default widget (420 x 300): 0.67x stacked against 0.43x side by side');
+  assert.equal(chooseLayout([2], 420, 300).stacked, true, 'the small window (420 x 300): 0.67x stacked against 0.43x side by side');
   assert.equal(chooseLayout([2], 1200, 300).stacked, false, 'a short wide window: stacking halves the height, so side by side stays');
   assert.equal(chooseLayout([2], 0, 0).stacked, false, 'box size unknown (page hidden)');
 });

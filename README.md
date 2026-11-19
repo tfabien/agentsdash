@@ -151,18 +151,15 @@ agentsdash ships one built-in theme (`line`); the hub downloads another at its f
 
 Hub side (folders, project rules, marketplace): [docs/hub-themes.md](docs/hub-themes.md).
 
-### Widget: the page in a floating window
+### Dashboard window: the page in its own window
 
-On Windows and macOS the page can run as a small borderless window that stays on top of the others, without browser tabs or address bar: drag it by its top strip, resize it from the edges, right-click the strip for always on top, opacity, reload and close. Position and size are remembered.
+The dashboard opens in a window of its own, without tabs or address bar: Edge or Chrome in app mode, so Windows snapping (Win+arrows) and PowerToys FancyZones work on it. For a window that stays above the others use PowerToys Always on Top (Win+Ctrl+T). The first time you open the page it offers a desktop shortcut that starts the hub if needed and opens that window.
 
 ```
-node hub/widget/build.mjs   # once per machine: compiles the native host (Windows: nothing to install; macOS: Xcode Command Line Tools)
-node hub/widget/run.mjs     # starts the widget on the running hub
+node hub/dashboard/run.mjs     # opens it from a terminal
 ```
 
-Once the host is built, the widget button of the bottom bar (left of the QR button) opens it from the page.
-
-Details and the manual checklist: [docs/widget.md](docs/widget.md). The macOS host has not been run on a Mac yet.
+Details: [docs/dashboard-window.md](docs/dashboard-window.md).
 
 ## How it works
 
