@@ -8,7 +8,7 @@ import { renderScreen, hitTest, permAnswer, questTap, teamOrder, teamCapacity, C
 import { mountFooter } from './footer.js';
 import { createVectorScreen } from './vector_screen.js';
 import { createSessionCache } from './session_cache.js';
-import { askConfirm } from './confirm_dialog.js';
+import { askConfirm, askText } from './confirm_dialog.js';
 import { applyTheme, setCatalog } from './themes.js';
 import { previewSessions } from './preview_state.js';
 import { onIconsLoaded } from './icon_packs.js';
@@ -158,9 +158,17 @@ function tap(t, e) {
     postJson('/permission/answer', answer).catch(() => {});
     return;
   }
-  const quest = PHONE ? null : questTap(hit, s, lead.quest);
+  const quest = questTap(e.typed === undefined ? hit : { kind: 'questText', text: e.typed }, s, lead.quest);             // the phone answers questions too, never permissions
   if (quest) {                                            // a question for the page: the picks so far live on the lead tile, the last one posts them
     lead.quest = quest.local;
+    if (quest.askText !== undefined) {                    // OTHER: a text box, then the typed answer goes through the same path
+      const qid = s.quest.id;
+      askText(s.quest.questions[quest.askText].question).then((text) => {
+        if (text && tiles.get(s.id)?.quest?.id === qid) tap(t, { clientX: e.clientX, clientY: e.clientY, typed: text });
+      });
+      drawTile(s, t);
+      return;
+    }
     if (quest.post) {
       postJson('/question/answer', quest.post)
         .then((r) => { if (!r.ok && lead.quest?.id === quest.post.id) { lead.quest = null; drawTile(s, lead); } })    // refused (expired, answered elsewhere): start over

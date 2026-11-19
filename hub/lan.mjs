@@ -1,4 +1,4 @@
-// LAN access for a phone (docs/superpowers/specs/2026-11-13-phone-pwa-design.md): opt-in, token pairing, read-only remote routes.
+// LAN access for a phone (docs/superpowers/specs/2026-11-13-phone-pwa-design.md): opt-in, token pairing, remote routes (read-only, plus the answer to a question).
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -89,7 +89,7 @@ export function parseCookie(header, name) {
 }
 
 /** What a paired remote client may call besides static files. */
-export const REMOTE_ROUTES = new Set(['GET /phone', 'GET /phone.html', 'GET /manifest.webmanifest', 'GET /state', 'GET /events', 'GET /health']);
+export const REMOTE_ROUTES = new Set(['GET /phone', 'GET /phone.html', 'GET /manifest.webmanifest', 'GET /state', 'GET /events', 'GET /health', 'POST /question/answer']);   // the one write route: a paired phone answers a question (never a permission)
 
 /** Files the page loads: a flat name with a web extension, or an exact icon URL. */
 export function isRemoteStatic(urlPath) {

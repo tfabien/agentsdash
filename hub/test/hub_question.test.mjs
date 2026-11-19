@@ -149,3 +149,18 @@ test('each_end_of_turn_event_of_the_agent_returns_none', async () => {
     });
   }
 });
+
+test('free_text_pick_needs_the_setting', () => withHub(async (hub) => {
+  await post(hub, '/event', EV);
+  const held = post(hub, '/question', REQ);
+  const q = await questOf(hub);
+  assert.equal(q.free_text, false);
+  assert.equal((await post(hub, '/question/answer', { id: q.id, picks: ['green', [0]] })).status, 404, 'refused while the setting is off');
+  await post(hub, '/settings', { question_free_text: true });
+  const q2 = await questOf(hub);
+  assert.equal(q2.free_text, true);
+  assert.equal((await post(hub, '/question/answer', { id: q.id, picks: ['  ', [0]] })).status, 404, 'blank text refused');
+  assert.equal((await post(hub, '/question/answer', { id: q.id, picks: ['green', 'x'.repeat(501)] })).status, 404, 'too long refused');
+  assert.equal((await post(hub, '/question/answer', { id: q.id, picks: ['green', 'mixed sizes'] })).status, 200);
+  assert.deepEqual(await (await held).json(), { picks: ['green', 'mixed sizes'] });
+}));

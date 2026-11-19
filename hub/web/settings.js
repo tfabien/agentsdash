@@ -24,6 +24,8 @@ export const OPTIONS = [
     hint: 'Tokens per minute where a tile readout turns orange (red at 3 times that)' },
   { key: 'focus_on_ask', label: 'Full screen on a question', kind: 'toggle',
     hint: 'A question or Allow/Deny opens its session full screen; the view before comes back after the answer' },
+  { key: 'question_free_text', label: 'Free text answers', kind: 'toggle',
+    hint: 'A question tile gets an OTHER button: type an answer outside the options (page and phone)' },
   { key: 'dim_idle', label: 'Grey out idle sessions', kind: 'toggle', hint: 'Idle sessions also go last in the grid' },
   { key: 'idle_minutes', label: 'Idle after', kind: 'choice', choices: [[1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min']],
     hint: 'Minutes a session waits for you before it counts as idle' },

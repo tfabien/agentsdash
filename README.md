@@ -33,7 +33,7 @@ The page needs nothing but a browser: nothing to buy, nothing to flash.
 | Screen | How | What it does |
 |---|---|---|
 | Second monitor | Open <http://127.0.0.1:8765/> in a window on that monitor, full screen with F11. | Everything: the grid, answers, settings, themes. |
-| Phone or tablet | Click the phone button of the bottom bar, turn on phone access, scan the QR code on the same Wi-Fi. | One session per page, full screen, live. Read-only: answers stay on the PC. |
+| Phone or tablet | Click the phone button of the bottom bar, turn on phone access, scan the QR code on the same Wi-Fi. | One session per page, full screen, live. Read-only, except the answer to a question (option buttons and free text); permissions stay on the PC. |
 | ESP32 gadget | A relay in `~/.agentsdash/config.json` sends every event to it. | The same screen on real hardware, with a buzzer. See [Devices](#devices-optional). |
 
 The phone page keeps the screen awake and says "Hub unreachable, retrying" when the PC sleeps.
@@ -103,7 +103,7 @@ Open <http://127.0.0.1:8765/> for a grid with one tile per session (Claude Code 
 - A pending `AskUserQuestion` shows the question and one button per option. The session turns orange and the page beeps.
 - A click on an option sends it to the agent. A multi choice question has a SEND button, and several questions come one after the other.
 - TERMINAL hands the question back to the terminal or the app. Answering there works too: the tile drops its buttons.
-- Free text answers are not on the page yet: type them in the terminal.
+- Free text: turn on "Free text answers" in the settings menu, then OTHER on the tile opens a text box (page and phone). Off by default.
 
 ![A permission prompt with Allow and Deny](docs/images/page-permission.png)
 

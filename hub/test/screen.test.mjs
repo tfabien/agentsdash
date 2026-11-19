@@ -568,3 +568,16 @@ test('tapping_a_listed_step_picks_it', () => {
   assert.equal(hitTest(60, textOp(r, '+2 done').y + 4, ctx).kind, 'lead', 'a folded row is not a step');
   assert.equal(hitTest(60, y, { ...ctx, bare: false }).kind, 'lead', 'no list without bare');
 });
+
+test('quest_free_text_other_asks_then_a_typed_answer_replaces_the_picks', () => {
+  const s = { quest: { id: 'q1', free_text: true, questions: [{ question: 'Q1?', header: '', options: ['a', 'b'], multi: true }, { question: 'Q2?', header: '', options: ['c', 'd'], multi: false }] } };
+  let r = questTap({ kind: 'questOpt', index: 0 }, s, null);
+  r = questTap({ kind: 'questOther' }, s, r.local);
+  assert.equal(r.askText, 0, 'the page opens a text box for step 0');
+  r = questTap({ kind: 'questText', text: '  mine  ' }, s, r.local);
+  assert.equal(r.local.step, 1);
+  assert.equal(r.local.picks[0], 'mine');
+  r = questTap({ kind: 'questOpt', index: 1 }, s, r.local);
+  assert.deepEqual(r.post, { id: 'q1', picks: ['mine', [1]] });
+  assert.equal(questTap({ kind: 'questOther' }, { quest: { ...s.quest, free_text: false } }, null).askText, undefined, 'no OTHER while the setting is off');
+});

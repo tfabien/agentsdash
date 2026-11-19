@@ -124,7 +124,7 @@ test('remote_cannot_post_lan', () => withLan(async (hub, token) => {
 }));
 
 test('lan_client_cannot_answer_or_open_permission', () => withLan(async (hub, token) => {
-  for (const p of ['/permission', '/permission/answer', '/question', '/question/answer', '/question/release']) {
+  for (const p of ['/permission', '/permission/answer', '/question', '/question/release']) {
     const r = await call(hub, { method: 'POST', p, headers: { ...cookie(token), 'Content-Type': 'application/json' }, body: '{"id":"x","decision":"allow","session":"abcd","agent":"lead","tool":"Bash"}' });
     assert.equal(r.status, 403, p);
   }
@@ -217,3 +217,8 @@ test('pair_info_lists_every_pairing_url', async () => {
     for (const u of info.urls) assert.match(u, new RegExp(`^http://[0-9.]+:${hub.port}/pair\\?t=[0-9a-f]{32}$`));
   } finally { await hub.close(); }
 });
+
+test('paired_phone_may_answer_a_question_and_nothing_else_that_writes', () => withLan(async (hub, token) => {
+  const r = await call(hub, { method: 'POST', p: '/question/answer', headers: { ...cookie(token), 'Content-Type': 'application/json' }, body: '{"id":"x","picks":[[0]]}' });
+  assert.equal(r.status, 404, 'allowed through, then unknown question');
+}));
