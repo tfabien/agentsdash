@@ -30,6 +30,7 @@ export function launchApp(url, env = process.env, spawnFn = spawn, browser = fin
   if (!browser) return 4;
   const profile = path.join(homeDir(env), 'dashboard-app');
   const args = [`--app=${new URL(url).href}`, '--no-first-run', `--user-data-dir=${profile}`,
+    '--force-dark-mode',   // the browser draws the title bar of an app window: dark mode makes it black, close to the page background, instead of light gray
     '--no-proxy-server',   // the page is on this machine: a proxy lookup behind a VPN made the first load take many seconds
     '--disable-sync', '--disable-background-networking', '--disable-extensions'];
   spawnFn(browser, args, { detached: true, stdio: 'ignore' }).unref();
